@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 17:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 19:20 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -73,8 +73,19 @@ Güncelleme: 2026-10-24 17:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `cmd/simulator live`: çevrimdışı tabletler, toplu gönderim, bilerek tekrar ve çakışma
 - `make prove-t5` — ADR-010 (testcontainers-go yerine TEST_DATABASE_URL: bilinçli sapma)
 
+**Faz 8 — F-1..F-6 + OpenAPI (P0-12 karşılandı):**
+- F-1 `POST /imports/{students|courses|sections|enrollments}` (COPY + upsert, satır bazlı hata, idempotent)
+- F-2 salon CRUD + koltuk düzeni (`/rooms`; kullanılan salonun düzeni değişirse 409)
+- F-3 `POST /schedules` (202, asenkron iş) · `/schedule-jobs/{id}` · sürümler · yayınla (idempotent) · takvim
+- F-4 `/schedules/{id}/rooms` ve `/seating` (öğretim üyesi yalnız kendi dersi, gözetmen yalnız kendi salonu)
+- F-5 görev listesi, gözetmen çıkarma = `Reassign` (idempotent), `/me/duties`
+- F-6 mazeret başvuru/karar (idempotent), `/excuses`, `/me/excuses`, `/schedules/{id}/conflicts`, yoklama çakışmaları
+- `backend/api/openapi.yaml` (44 uç) + gömülü Swagger UI `/docs` (çevrimdışı) + **belge–kod uyumu testi**
+- `requests.http`: 5 rol, tüm uçlar, değişken zincirleri (ADR-011)
+
 ## Sürmekte
-Faz 8 — F-1..F-6 uçları, OpenAPI, requests.http. Model: **Sonnet 5.5** (rutin CRUD).
+Faz 9: `cmd/verify`, `TESTING.md`. Faz 8.5 (frontend) **Stitch tasarımlarını bekliyor**: `Stitch-Tasarımlar` klasörü
+kullanıcının diskinde, henüz depoya push edilmedi.
 
 ## Bloke
 Yok.
@@ -84,12 +95,13 @@ Yok.
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
-P0-10..P0-11 T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (145/40 test ✓; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100) · P0-15 frontend
+P0-13 `make verify` (15 kimlik YAPILMADI) · P0-15 frontend (Stitch tasarımı bekleniyor) ·
+P0-14 CI'nın GitHub'da gerçekten yeşil çalıştığının doğrulanması (155/40 test ✓; domain kapsamı: scheduling %96,1 ·
+rooms %97,9 · seating %100 · invigilation %97 · attendance %100)
 
 ## Kalan P1
-OpenAPI+`/docs` · k6 · chaos betiği ·
-EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-demo
+`TESTING.md` · `make load` (k6) · `make chaos` · EXPLAIN betiği (`docs/explain/`) · README (+ Doğrulama Soruları) ·
+`/metrics` zaten çalışıyor (ölçüm tablosu README'de) · DECISIONS ≥5 ADR sağlandı (011)
 
 ## Bilinen kusurlar / sınırlar
 - **Soğuk süre bu ortamda ölçüldü** (66 sn); base imaj indirme süresi senin ağına bağlı, orada doğrulanmadı.
@@ -100,19 +112,19 @@ EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-d
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (Faz 7)
+## Son doğrulama sonuçları (Faz 8)
 ```
-QR yarışı (store)        50 goroutine -> tam 1 başarı + 49 ErrQRUsed
-QR yarışı (HTTP)         50 istek -> tam 1×200 + 49×409; Idempotency-Key ile tekrar -> aynı 200
-eşzamanlı tahliye        2 kaynak, 1 hedef (yalnız biri sığar) -> 1 başarı + 1 kapasite hatası, çift rezerve 0
-eşzamanlı senkron        6 cihaz -> son durum = Resolve(tüm olaylar)
-permütasyon              50 karıştırma, aynı sonuç; Beats antisimetrik ve geçişli
-mutasyon                 used_at IS NULL kaldırılınca 50/50 başarı (test düştü); salon kilidi kaldırılınca 500 (test düştü)
-simulator live (20 sn)   1.039 kabul, 32 tekrar yok sayıldı, 59 çakışma, 0 ret; 2 çevrimdışı tablet toplu gönderdi
+go test ./... (gerçek Postgres)   155 test geçti, 0 başarısız; -race: 0 sorun
+çalışan yığın, tam ölçek          POST /schedules -> 202; iş 12 sn; 0 salon/koltuk ihlali; gözetmen yükü 10-11; yayınlandı;
+                                  demo öğrenci programı salon + koltukla dönüyor
+OpenAPI                           44 uç belgelenmiş = 44 kayıtlı; uç silinince test düşüyor (mutasyon)
+/docs                             çevrimdışı (1,4 MB Swagger UI gömülü), CDN yok
+çözümsüz girdi                    iş failed + engelleyen sınavlar/neden; schedules tablosu boş kalıyor
 ```
-**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows'ta denenmedi; testcontainers-go kullanılmadı (ADR-010).
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows'ta denenmedi; frontend tasarımları alınmadı.
+**Olay notu:** bir kabuk komutunda tırnaksız heredoc yüzünden `make reset-demo` istemeden çalıştı; demo veritabanı seed
+haline döndü (üretilmiş demo çizelgesi silindi, yeniden üretilebilir). Kaynak dosyalar etkilenmedi.
 
 ## Sıradaki eylem
-Faz 8: F-1 CSV içe aktarma (COPY, satır bazlı hata, upsert), F-2 salon CRUD + koltuk düzeni, F-3 takvim oluştur
-(asenkron iş) / yayınla / sürümler, F-4 salon ve oturma planı sorguları, F-5 gözetmen atama/çıkarma, F-6 mazeret
-başvuru/karar + çakışma listesi; `api/openapi.yaml`, `/docs`, `requests.http`.
+Faz 9: `cmd/verify` (F-1..F-7, T-1..T-5, health, 401/403, sahiplik), `TESTING.md`, `make reset-demo` doğrulaması.
+Tasarımlar push edilince Faz 8.5 (frontend entegrasyonu).

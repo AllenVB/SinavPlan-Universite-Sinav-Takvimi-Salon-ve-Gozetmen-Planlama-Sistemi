@@ -397,3 +397,45 @@ testcontainers ile örnek kaldıran bir yardımcı `internal/testdb`'ye eklenebi
 **Sınırlar.** Idempotency kaydı iş transaction'ının dışında (ADR-006); QR ve senkron zaten doğal olarak
 idempotent olduğu için bu pencere burada zararsız. Tahliyede laboratuvar/klasik tip uyumu denetlenmiyor
 (acil durumda bilinçli). Strict komşuluk tahliyede `SEATING_STRICT_MODE` ile uygulanır.
+
+---
+
+## ADR-011 — F-1..F-6: asenkron takvim işi, COPY+upsert içe aktarma, belge–kod uyumu testi
+
+**Bağlam.** Çizelge üretimi saniyeler sürer (300 sınav ≈ 10 sn); HTTP isteğinde bekletilemez. İçe aktarma
+büyük dosyalarla idempotent çalışmalı; API belgesi koddan sapmamalı.
+
+**Karar.**
+- **Takvim işi (F-3):** `POST /schedules` işi `schedule_jobs`'a yazar ve **202** döner; `internal/jobs` çalıştırıcısı
+  API süreci içinde goroutine'de (en çok 2 paralel) koşar; `GET /schedule-jobs/{id}` durum/sonuç verir. Ayrı worker
+  servisi yok (tek süreç, tek Dockerfile; işin durumu veritabanında olduğu için API yeniden başlasa da izlenebilir).
+  Dönem satırı `FOR UPDATE` ile kilitlenir: aynı dönemde tek bekleyen/çalışan iş (eşzamanlı 8 istekten 1'i kabul,
+  7'si 409). Süreç açılışında yarıda kalan işler `failed` işaretlenir (goroutine süreçle ölür).
+- **Veri girişi:** `store.LoadDataset` veritabanını `simdata.Dataset` yapısına yükler; planlama zinciri seed
+  verisinde de gerçek veritabanında da **aynı kodla** çalışır. Onaylı gözetmen mazeretleri T-4'e "mazeretli slot" olarak girer.
+- **Başarısızlık açıklanır:** çözüm yoksa iş `failed` olur, sonuç hangi sınavların neden yerleşemediğini (engelleyen
+  komşular, klik, aşırı yüklü öğrenci) taşır; **kısmi çizelge asla yazılmaz** (testle doğrulandı).
+- **Sürümleme (V-3):** her üretim yeni taslak sürüm; dönem başına tek yayınlanmış sürüm; yayınlama eskisini taslağa
+  döndürür. Yayınlanmamış sürümleri yalnız sekreter görür, diğer roller 404.
+- **İçe aktarma (F-1):** önce Go'da satır bazlı doğrulama (bölüm/ders/öğretim üyesi/öğrenci/şube aramaları bellekte,
+  satır numarası + alan + mesaj), geçerli satırlar `COPY` ile geçici tabloya, oradan `INSERT … ON CONFLICT DO UPDATE`;
+  `xmax = 0` ile oluşan/güncellenen ayrımı. Geçerli satırlar yazılır, geçersizler raporlanır (kısmi başarı); başlık/dosya
+  hatası 422. Aynı dosya tekrar yüklenince `created = 0`.
+- **Gözetmen çıkarma (F-5):** `Reassign` sonucundaki etkilenen görevlerin atamaları silinip yeniden yazılır
+  (zincirli takaslarda ara adım anahtar çakışması olmaz); hepsi tek transaction + denetim kaydı.
+- **Belge–kod uyumu:** `api/openapi.yaml` ikiliye gömülür, `/docs` Swagger UI'ı (CDN'siz) sunar. Test, kayıtlı
+  her route'un belgede, belgedeki her ucun kodda olduğunu ve `security: []` ile `Public()`'in eşleştiğini denetler;
+  mutasyon kontrolüyle doğrulandı (bir uç belgeden silinince test düştü).
+- **Mazeret (V-6):** onaylı öğrenci mazereti o sınav için kart verilmesini engeller; onaylı gözetmen mazereti sonraki
+  üretimlerde kısıt olur. Telafi sınavı çizelgelenmez.
+
+**Alternatifler.** Ayrı worker servisi/kuyruk (Redis, `SKIP LOCKED`) — bu ölçekte fazla; iş kuyruğu tablosu zaten var,
+ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek küçük bir değişikliktir. İçe aktarmada
+"hata varsa hiçbirini yazma" — büyük dosyada tek hatalı satır tüm yüklemeyi engellerdi.
+
+**Ölçüm** (çalışan yığın, tam ölçek, `POST /schedules` varsayılan 300k iterasyon): iş 12 sn; 0 salon/koltuk ihlali,
+0 yerleşemeyen, gözetmen yükü 10–11, 0 eksik kontenjan; yayınlama sonrası öğrenci programında salon ve koltuk görünüyor.
+
+**Sınırlar.** İşin yarıda kesilmesi (süreç çökmesi) iptal değil "failed"dir; yeniden başlatmak gerekir. Tek API
+örneği varsayıldı (iki örnek aynı işi iki kez almaz — `FOR UPDATE` korur — ama yarım iş temizliği açılışta tüm
+çalışanları kapatır). `starts_at` UTC döner; arayüz yerel saate (UTC+3) çevirmelidir.

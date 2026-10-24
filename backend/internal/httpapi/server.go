@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/AllenVB/sinavplan/backend/internal/auth"
+	"github.com/AllenVB/sinavplan/backend/internal/docs"
 	"github.com/AllenVB/sinavplan/backend/internal/idempotency"
+	"github.com/AllenVB/sinavplan/backend/internal/jobs"
 	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +30,7 @@ type Server struct {
 	issuer        *auth.Issuer
 	idem          *idempotency.Store
 	qr            *store.QR
+	runner        *jobs.Runner
 	seatingStrict bool
 	routeInfos    []RouteInfo
 }
@@ -47,6 +50,8 @@ type Options struct {
 	Issuer *auth.Issuer
 	// QR, sınav kartı token'larını üretir/doğrular (QR_HMAC_SECRET).
 	QR *store.QR
+	// Runner, asenkron takvim işlerini çalıştırır.
+	Runner *jobs.Runner
 	// SeatingStrict, T-3'te ön/arka komşuluğu da uygular (SEATING_STRICT_MODE).
 	SeatingStrict bool
 }
@@ -76,6 +81,7 @@ func NewServer(opts Options) *Server {
 		auth:           opts.Auth,
 		issuer:         opts.Issuer,
 		qr:             opts.QR,
+		runner:         opts.Runner,
 		seatingStrict:  opts.SeatingStrict,
 	}
 	if s.issuer == nil && s.auth != nil {
@@ -115,6 +121,22 @@ func (s *Server) routes(reg *prometheus.Registry) {
 		return nil
 	})
 
+	// Dokümantasyon (kamuya açık): Swagger UI ve OpenAPI belgesi gömülü.
+	s.handle(r, http.MethodGet, "/docs", Public(), func(w http.ResponseWriter, r *http.Request) error {
+		docs.Index(w, r)
+		return nil
+	})
+	s.handle(r, http.MethodGet, "/docs/assets/{file}", Public(), func(w http.ResponseWriter, r *http.Request) error {
+		if !docs.Asset(w, r, chiURLParam(r, "file")) {
+			return NotFound("dosya bulunamadı")
+		}
+		return nil
+	})
+	s.handle(r, http.MethodGet, "/openapi.yaml", Public(), func(w http.ResponseWriter, r *http.Request) error {
+		docs.Spec(w, r)
+		return nil
+	})
+
 	// Kimlik
 	s.handle(r, http.MethodPost, "/auth/login", Public(), s.login)
 	s.handle(r, http.MethodPost, "/auth/refresh", Public(), s.refresh)
@@ -137,6 +159,33 @@ func (s *Server) routes(reg *prometheus.Registry) {
 		Roles(auth.RoleInvigilator, auth.RoleSecretary, auth.RoleStudentAffairs), s.attendanceConflicts)
 	s.handle(r, http.MethodPost, "/schedules/{id}/room-change",
 		Roles(auth.RoleSecretary, auth.RoleInvigilator), s.roomChange, idempotent())
+
+	// Dönemler, içe aktarma, salonlar, takvim, planlar, gözetmenler, mazeret (F-1..F-6)
+	s.handle(r, http.MethodGet, "/periods", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.listPeriods)
+	s.handle(r, http.MethodPost, "/imports/{kind}", Roles(auth.RoleSecretary), s.importCSV)
+	s.handle(r, http.MethodGet, "/rooms", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.listRooms)
+	s.handle(r, http.MethodGet, "/rooms/{id}", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.getRoom)
+	s.handle(r, http.MethodPost, "/rooms", Roles(auth.RoleSecretary), s.createRoom)
+	s.handle(r, http.MethodPut, "/rooms/{id}", Roles(auth.RoleSecretary), s.updateRoom)
+	s.handle(r, http.MethodDelete, "/rooms/{id}", Roles(auth.RoleSecretary), s.deleteRoom)
+
+	s.handle(r, http.MethodPost, "/schedules", Roles(auth.RoleSecretary), s.createSchedule)
+	s.handle(r, http.MethodGet, "/schedule-jobs/{id}", Roles(auth.RoleSecretary), s.getJob)
+	s.handle(r, http.MethodGet, "/schedules", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.listSchedules)
+	s.handle(r, http.MethodGet, "/schedules/{id}", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.getSchedule)
+	s.handle(r, http.MethodPost, "/schedules/{id}/publish", Roles(auth.RoleSecretary), s.publishSchedule, idempotent())
+	s.handle(r, http.MethodGet, "/schedules/{id}/exams", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleExams)
+	s.handle(r, http.MethodGet, "/schedules/{id}/rooms", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.slotRooms)
+	s.handle(r, http.MethodGet, "/schedules/{id}/seating", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.seating)
+	s.handle(r, http.MethodGet, "/schedules/{id}/conflicts", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.scheduleConflicts)
+	s.handle(r, http.MethodGet, "/schedules/{id}/invigilators", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleInvigilators)
+	s.handle(r, http.MethodPost, "/schedules/{id}/invigilators/{userId}/remove", Roles(auth.RoleSecretary), s.removeInvigilator, idempotent())
+	s.handle(r, http.MethodGet, "/me/duties", Roles(auth.RoleInvigilator), s.myDuties)
+
+	s.handle(r, http.MethodPost, "/excuses", Roles(auth.RoleStudent, auth.RoleInvigilator), s.createExcuse)
+	s.handle(r, http.MethodGet, "/excuses", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.listExcuses)
+	s.handle(r, http.MethodGet, "/me/excuses", Roles(auth.RoleStudent, auth.RoleInvigilator), s.myExcuses)
+	s.handle(r, http.MethodPost, "/excuses/{id}/decision", Roles(auth.RoleStudentAffairs), s.decideExcuse, idempotent())
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, NotFound("istenen uç bulunamadı"))

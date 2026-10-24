@@ -63,7 +63,8 @@ func TestEveryRouteDeclaresAccess(t *testing.T) {
 // Public() ile eklenirse bu test uyarır.
 func TestPublicRoutesAreAnExplicitAllowList(t *testing.T) {
 	allowed := map[string]bool{"GET /health": true, "GET /metrics": true,
-		"POST /auth/login": true, "POST /auth/refresh": true, "POST /auth/logout": true}
+		"POST /auth/login": true, "POST /auth/refresh": true, "POST /auth/logout": true,
+		"GET /docs": true, "GET /docs/assets/{file}": true, "GET /openapi.yaml": true}
 	for _, ri := range rbacServer(t).Routes() {
 		k := ri.Method + " " + ri.Pattern
 		if ri.Access.public && !allowed[k] {

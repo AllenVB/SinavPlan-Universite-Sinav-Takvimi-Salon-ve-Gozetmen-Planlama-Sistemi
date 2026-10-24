@@ -16,6 +16,7 @@ import (
 	"github.com/AllenVB/sinavplan/backend/internal/auth"
 	"github.com/AllenVB/sinavplan/backend/internal/config"
 	"github.com/AllenVB/sinavplan/backend/internal/httpapi"
+	"github.com/AllenVB/sinavplan/backend/internal/jobs"
 	"github.com/AllenVB/sinavplan/backend/internal/logging"
 	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,6 +71,13 @@ func run() error {
 		return err
 	}
 
+	// Önceki süreçten kalan yarım işleri kapat (goroutine'ler süreçle birlikte ölür).
+	if n, err := store.FailInterruptedJobs(ctx, db.Pool); err != nil {
+		log.Warn("yarım işler kapatılamadı", slog.String("err", err.Error()))
+	} else if n > 0 {
+		log.Warn("yarıda kalan takvim işleri başarısız işaretlendi", slog.Int64("adet", n))
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpapi.NewServer(httpapi.Options{
@@ -81,6 +89,7 @@ func run() error {
 			Pool:           db.Pool,
 			Auth:           authSvc,
 			QR:             store.NewQR(cfg.QRHMACSecret),
+			Runner:         jobs.NewRunner(db.Pool, log),
 			SeatingStrict:  cfg.SeatingStrict,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

@@ -1,0 +1,690 @@
+openapi: 3.0.3
+info:
+  title: SınavPlan API
+  version: 1.0.0
+  description: |
+    Üniversite sınav takvimi, salon/oturma ve gözetmen planlama sistemi.
+
+    **Kimlik:** `POST /auth/login` ile alınan access token `Authorization: Bearer <token>` olarak gönderilir
+    (15 dk). `POST /auth/refresh` refresh token'ı döndürür (rotasyon: eski token iptal edilir, iptal edilmiş
+    token tekrar gelirse tüm oturum zinciri iptal edilir).
+
+    **Hata biçimi:** her hata `{"error":{"code","message","fields?"}}`. Doğrulama 422, çakışma 409, bulunamadı 404,
+    kimliksiz 401, yetkisiz 403.
+
+    **Sayfalama:** büyük listelerde keyset: `?limit=` (1–200, varsayılan 50) ve `?after=` (önceki yanıttaki
+    `next_cursor`, opak). OFFSET yoktur.
+
+    **Idempotency-Key:** işaretli `POST` uçları bu başlığı destekler. Aynı anahtar + aynı gövde → ilk yanıt
+    (`Idempotent-Replayed: true`); aynı anahtar + farklı gövde → 422; ilk istek sürerken aynı anahtar → 409;
+    5xx yanıtlar saklanmaz.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Altyapı
+  - name: Kimlik
+  - name: İçe aktarma (F-1)
+  - name: Salonlar (F-2)
+  - name: Takvim (F-3)
+  - name: Planlar (F-4)
+  - name: Gözetmen (F-5)
+  - name: Mazeret (F-6)
+  - name: Yoklama ve sınav kartı (F-7, T-5)
+  - name: Öğrenci
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Altyapı]
+      summary: Sağlık durumu (veritabanı dahil)
+      security: []
+      responses:
+        "200": {description: Sağlıklı, content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+        "503": {description: "Bir bağımlılık düşük; hangisi gövdede", content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+  /metrics:
+    get:
+      tags: [Altyapı]
+      summary: Prometheus metrikleri
+      security: []
+      responses:
+        "200": {description: Prometheus metin biçimi, content: {text/plain: {schema: {type: string}}}}
+  /docs:
+    get:
+      tags: [Altyapı]
+      summary: Swagger UI
+      security: []
+      responses:
+        "200": {description: HTML, content: {text/html: {schema: {type: string}}}}
+  /docs/assets/{file}:
+    get:
+      tags: [Altyapı]
+      summary: Swagger UI varlıkları
+      security: []
+      parameters: [{name: file, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200": {description: Dosya}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /openapi.yaml:
+    get:
+      tags: [Altyapı]
+      summary: Bu belge
+      security: []
+      responses:
+        "200": {description: OpenAPI 3, content: {application/yaml: {schema: {type: string}}}}
+
+  /auth/login:
+    post:
+      tags: [Kimlik]
+      summary: Giriş
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/LoginRequest"}}}
+      responses:
+        "200": {description: Token çifti, content: {application/json: {schema: {$ref: "#/components/schemas/TokenResponse"}}}}
+        "401": {description: E-posta veya parola hatalı (hangisi olduğu söylenmez), content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+  /auth/refresh:
+    post:
+      tags: [Kimlik]
+      summary: Refresh token ile yeni token çifti (rotasyon)
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RefreshRequest"}}}
+      responses:
+        "200": {description: Yeni token çifti, content: {application/json: {schema: {$ref: "#/components/schemas/TokenResponse"}}}}
+        "401": {description: "Geçersiz, süresi dolmuş veya iptal edilmiş (yeniden kullanım tüm zinciri iptal eder)", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /auth/logout:
+    post:
+      tags: [Kimlik]
+      summary: Çıkış (refresh token zincirini iptal eder)
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RefreshRequest"}}}
+      responses:
+        "204": {description: Çıkış yapıldı}
+  /me:
+    get:
+      tags: [Kimlik]
+      summary: Oturum sahibi
+      responses:
+        "200": {description: Kullanıcı, content: {application/json: {schema: {$ref: "#/components/schemas/UserView"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /students:
+    get:
+      tags: [Öğrenci]
+      summary: Öğrenciler (keyset)
+      description: "Roller: secretary, student_affairs"
+      parameters: [{$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /students/{id}/exams:
+    get:
+      tags: [Öğrenci]
+      summary: Öğrencinin yayınlanmış programı
+      description: "Öğrenci yalnızca kendi kaydını görür (başkasınınki 403); secretary ve student_affairs hepsini."
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: Program, content: {application/json: {schema: {$ref: "#/components/schemas/StudentExams"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /me/exams:
+    get:
+      tags: [Öğrenci]
+      summary: Kendi sınav programım (salon ve koltuk dahil)
+      responses:
+        "200": {description: Program, content: {application/json: {schema: {$ref: "#/components/schemas/StudentExams"}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /me/exams/{examId}/card:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Sınav kartı (tek kullanımlık QR) üret
+      description: |
+        Her çağrı yeni token üretir ve öğrencinin bu sınav için kullanılmamış eski token'larını iptal eder.
+        Kayıtlı olunmayan/yayınlanmamış sınav 404; onaylı mazereti olan sınav için 409 (`excused`).
+      parameters: [{name: examId, in: path, required: true, schema: {type: integer, format: int64}}]
+      responses:
+        "201": {description: Kart, content: {application/json: {schema: {$ref: "#/components/schemas/ExamCard"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /me/duties:
+    get:
+      tags: [Gözetmen (F-5)]
+      summary: Yayınlanmış çizelgedeki görevlerim
+      parameters: [{$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /me/excuses:
+    get:
+      tags: [Mazeret (F-6)]
+      summary: Kendi mazeretlerim
+      parameters: [{$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+
+  /periods:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Sınav dönemleri
+      responses:
+        "200": {description: Dönemler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {$ref: "#/components/schemas/Period"}}}}}}}
+
+  /imports/{kind}:
+    post:
+      tags: [İçe aktarma (F-1)]
+      summary: CSV içe aktarma
+      description: |
+        `kind`: `students`, `courses`, `sections`, `enrollments`. Gövde `text/csv` (en fazla 20 MB, UTF-8/BOM kabul).
+        Sütunlar — students: `student_no,full_name,department_code[,disability]`; courses:
+        `code,name,department_code,year[,requires_lab]`; sections: `course_code,section_code,lecturer_email`;
+        enrollments: `student_no,course_code,section_code`.
+
+        Geçerli satırlar tek transaction'da COPY + upsert ile yazılır, geçersizler satır numarasıyla raporlanır
+        (kısmi başarı). Aynı dosya tekrar yüklenince `created=0` (idempotent). Başlık/dosya hatası 422.
+      parameters: [{name: kind, in: path, required: true, schema: {type: string, enum: [students, courses, sections, enrollments]}}]
+      requestBody:
+        required: true
+        content: {text/csv: {schema: {type: string}}}
+      responses:
+        "200": {description: Rapor, content: {application/json: {schema: {$ref: "#/components/schemas/ImportReport"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {description: Dosya çok büyük, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+
+  /rooms:
+    get:
+      tags: [Salonlar (F-2)]
+      summary: Salonlar (keyset)
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/After"}
+        - {name: type, in: query, schema: {type: string, enum: [classic, lab]}}
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+    post:
+      tags: [Salonlar (F-2)]
+      summary: Salon + koltuk düzeni oluştur
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RoomInput"}}}
+      responses:
+        "201": {description: Oluşturuldu, content: {application/json: {schema: {$ref: "#/components/schemas/RoomDetail"}}}}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /rooms/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [Salonlar (F-2)]
+      summary: Salon ve koltuklar
+      responses:
+        "200": {description: Salon, content: {application/json: {schema: {$ref: "#/components/schemas/RoomDetail"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [Salonlar (F-2)]
+      summary: Salonu güncelle
+      description: Koltuk düzeni değişiyor ve salon bir çizelgede kullanılıyorsa 409.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RoomInput"}}}
+      responses:
+        "200": {description: Güncellendi, content: {application/json: {schema: {$ref: "#/components/schemas/RoomDetail"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+    delete:
+      tags: [Salonlar (F-2)]
+      summary: Salonu sil (kullanılmıyorsa)
+      responses:
+        "204": {description: Silindi}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /schedules:
+    post:
+      tags: [Takvim (F-3)]
+      summary: Takvim oluşturmayı başlat (asenkron)
+      description: |
+        T-1..T-4 zincirini arka planda çalıştırır. 202 ile iş kimliği döner; `GET /schedule-jobs/{id}` ile izlenir.
+        Aynı dönemde bekleyen/çalışan iş varsa 409. `iterations` yerel arama bütçesidir (varsayılan 300.000, en çok
+        2.000.000; 1M ≈ 10 sn). Çözüm yoksa iş `failed` olur ve sonuç hangi sınavların neden yerleşemediğini taşır.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateScheduleRequest"}}}
+      responses:
+        "202": {description: Kuyruğa alındı, content: {application/json: {schema: {$ref: "#/components/schemas/JobAccepted"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+    get:
+      tags: [Takvim (F-3)]
+      summary: Çizelge sürümleri (yeniden eskiye)
+      description: Sekreter taslakları da görür; diğer roller yalnız yayınlanmışı.
+      parameters:
+        - {name: period_id, in: query, schema: {type: integer, format: int64}}
+        - {name: before, in: query, description: "Önceki yanıttaki next_before", schema: {type: integer, format: int64}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200}}
+      responses:
+        "200": {description: Sürümler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {$ref: "#/components/schemas/Schedule"}}, next_before: {type: integer, nullable: true}}}}}}
+  /schedule-jobs/{id}:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Takvim işinin durumu ve sonucu
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: İş, content: {application/json: {schema: {$ref: "#/components/schemas/Job"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Çizelge sürümü ve kalite metrikleri
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: Sürüm, content: {application/json: {schema: {$ref: "#/components/schemas/Schedule"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/publish:
+    post:
+      tags: [Takvim (F-3)]
+      summary: Taslağı yayınla (Idempotency-Key destekli)
+      description: Dönemde başka yayınlanmış sürüm varsa taslağa döner (dönem başına tek yayınlanmış sürüm). Zaten yayınlanmışsa 409.
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/IdempotencyKey"}]
+      responses:
+        "200": {description: Yayınlandı, content: {application/json: {schema: {$ref: "#/components/schemas/Schedule"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /schedules/{id}/exams:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Takvimdeki sınavlar (keyset)
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/rooms:
+    get:
+      tags: [Planlar (F-4)]
+      summary: Bir slottaki salon planı
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: slot_id, in: query, required: true, schema: {type: integer, format: int64}}
+      responses:
+        "200": {description: Salon payları, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+  /schedules/{id}/seating:
+    get:
+      tags: [Planlar (F-4)]
+      summary: Bir sınavın oturma planı (keyset)
+      description: |
+        Öğretim üyesi yalnız kendi derslerinin sınavını, gözetmen yalnız kendi görev salonlarını görür;
+        secretary ve student_affairs hepsini (aksi 403).
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: exam_id, in: query, required: true, schema: {type: integer, format: int64}}
+        - {name: room_id, in: query, schema: {type: integer, format: int64}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/After"}
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /schedules/{id}/conflicts:
+    get:
+      tags: [Mazeret (F-6)]
+      summary: Aynı gün birden çok sınavı olan öğrenciler (yumuşak hedef ihlalleri)
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /schedules/{id}/invigilators:
+    get:
+      tags: [Gözetmen (F-5)]
+      summary: Gözetmen görevleri (keyset)
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: user_id, in: query, schema: {type: integer, format: int64}}
+        - {name: slot_id, in: query, schema: {type: integer, format: int64}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/After"}
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /schedules/{id}/invigilators/{userId}/remove:
+    post:
+      tags: [Gözetmen (F-5)]
+      summary: Gözetmeni çıkar ve minimum değişiklikle yeniden hesapla (T-4)
+      description: |
+        Diğer tüm atamalar kilitlidir; yalnızca boşalan görevler doldurulur (gerekirse en kısa takas zinciriyle).
+        Yanıttaki `changes` listesi kimin hangi göreve geçtiğini, `vacated` alt sınırı, `swaps` ek yer değiştirmeyi verir.
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: userId, in: path, required: true, schema: {type: integer, format: int64}}
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+      responses:
+        "200": {description: Sonuç, content: {application/json: {schema: {$ref: "#/components/schemas/RemoveInvigilatorResult"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/room-change:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Toplu salon değişikliği (tahliye)
+      description: |
+        Bir slotta bir salonun tüm öğrencilerini tek transaction'da başka salona taşır: salon satırları kimlik
+        sırasıyla `FOR UPDATE` kilitlenir, hedefin kapasitesi komşuluk kuralıyla denetlenir, `room_change_events` ve
+        `audit_log` aynı transaction'da yazılır. Sığmazsa 409 (`insufficient_capacity`) ve hiçbir şey değişmez.
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RoomChangeRequest"}}}
+      responses:
+        "200": {description: Taşındı, content: {application/json: {schema: {type: object, properties: {room_change_event_id: {type: integer}, moved: {type: integer}}}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+
+  /excuses:
+    post:
+      tags: [Mazeret (F-6)]
+      summary: Mazeret başvurusu
+      description: Öğrenci `exam_id` (kayıtlı olduğu sınav), gözetmen `slot_id` verir. Aynı hedef için bekleyen/onaylı mazeret varsa 409.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ExcuseRequest"}}}
+      responses:
+        "201": {description: Oluşturuldu, content: {application/json: {schema: {$ref: "#/components/schemas/Excuse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+    get:
+      tags: [Mazeret (F-6)]
+      summary: Mazeretler (keyset; secretary, student_affairs)
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [pending, approved, rejected]}}
+        - {name: kind, in: query, schema: {type: string, enum: [student, invigilator]}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/After"}
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /excuses/{id}/decision:
+    post:
+      tags: [Mazeret (F-6)]
+      summary: Mazeret kararı (student_affairs; Idempotency-Key destekli)
+      description: Onaylı gözetmen mazereti sonraki çizelge üretimlerinde T-4 kısıtı olur; onaylı öğrenci mazereti o sınav için kart verilmesini engeller.
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/DecisionRequest"}}}
+      responses:
+        "200": {description: Karar, content: {application/json: {schema: {$ref: "#/components/schemas/Excuse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+
+  /attendance/sync:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Çevrimdışı cihazların toplu yoklama olayları
+      description: |
+        `event_id` UUIDv7 (istemci üretir); tekrar gelen olay yok sayılır (idempotent). Aynı öğrenci için farklı
+        cihazlardan farklı durum gelirse çakışma kaydedilir; kazanan: QR kaynaklı `present` > büyük HLC > büyük
+        `device_id`. Sonuç olayların gelme sırasından bağımsızdır. En fazla 1000 olay.
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/SyncRequest"}}}
+      responses:
+        "200": {description: Sonuç, content: {application/json: {schema: {$ref: "#/components/schemas/SyncResult"}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+  /attendance/qr:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Sınav kartını okut (tek kullanımlık)
+      description: Aynı QR'ın ikinci okutulması 409 (`qr_already_used`); eşzamanlı N istekte tam 1'i başarılı olur.
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/QRUseRequest"}}}
+      responses:
+        "200": {description: Okutuldu, content: {application/json: {schema: {type: object, properties: {exam_id: {type: integer}, student_id: {type: integer}, event_id: {type: string}}}}}}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /exams/{id}/attendance:
+    get:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Sınavın yoklama durumu ve özeti (keyset)
+      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
+      responses:
+        "200": {description: Özet ve sayfa, content: {application/json: {schema: {type: object, properties: {summary: {$ref: "#/components/schemas/AttendanceSummary"}, items: {type: array, items: {type: object}}, next_cursor: {type: string, nullable: true}}}}}}
+  /attendance/conflicts:
+    get:
+      tags: [Mazeret (F-6)]
+      summary: Yoklama çakışmaları (iki cihaz farklı durum)
+      parameters:
+        - {name: exam_id, in: query, schema: {type: integer, format: int64}}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/After"}
+      responses:
+        "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: integer, format: int64}}
+    Limit: {name: limit, in: query, description: "1–200, varsayılan 50", schema: {type: integer, minimum: 1, maximum: 200}}
+    After: {name: after, in: query, description: "Önceki yanıttaki next_cursor (opak)", schema: {type: string}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: false, schema: {type: string, maxLength: 200}}
+  responses:
+    Unauthorized: {description: Kimlik doğrulaması yok veya geçersiz, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    Forbidden: {description: Bu işlem için yetki yok, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    NotFound: {description: Kayıt bulunamadı, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    Conflict: {description: Durum çakışması, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    Validation: {description: Girdi doğrulaması başarısız, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string, example: validation_failed}
+            message: {type: string}
+            fields: {type: object, additionalProperties: {type: string}}
+    Page:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {type: object}}
+        next_cursor: {type: string, nullable: true}
+    Health:
+      type: object
+      properties:
+        status: {type: string, enum: [healthy, unhealthy]}
+        version: {type: string}
+        dependencies: {type: object, additionalProperties: {type: object, properties: {status: {type: string}, message: {type: string}}}}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties: {email: {type: string, example: sekreter@sinavplan.test}, password: {type: string, format: password}}
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties: {refresh_token: {type: string}}
+    UserView:
+      type: object
+      properties:
+        id: {type: integer}
+        roles: {type: array, items: {type: string, enum: [secretary, lecturer, invigilator, student_affairs, student]}}
+        student_id: {type: integer}
+        lecturer_id: {type: integer}
+    TokenResponse:
+      type: object
+      properties:
+        access_token: {type: string}
+        access_expires_at: {type: string, format: date-time}
+        refresh_token: {type: string}
+        refresh_expires_at: {type: string, format: date-time}
+        token_type: {type: string, example: Bearer}
+        user: {$ref: "#/components/schemas/UserView"}
+    Period:
+      type: object
+      properties: {id: {type: integer}, name: {type: string}, kind: {type: string}, start_date: {type: string, format: date-time}, days: {type: integer}, sessions_per_day: {type: integer}, exams: {type: integer}}
+    ImportReport:
+      type: object
+      properties:
+        kind: {type: string}
+        rows: {type: integer}
+        valid: {type: integer}
+        created: {type: integer}
+        updated: {type: integer}
+        unchanged: {type: integer}
+        errors: {type: array, items: {type: object, properties: {line: {type: integer}, field: {type: string}, message: {type: string}}}}
+        errors_truncated: {type: boolean}
+    RoomInput:
+      type: object
+      required: [code, building, floor, type, rows, cols]
+      properties:
+        code: {type: string, maxLength: 20}
+        building: {type: string}
+        floor: {type: integer}
+        type: {type: string, enum: [classic, lab]}
+        rows: {type: integer, minimum: 1, maximum: 40}
+        cols: {type: integer, minimum: 1, maximum: 40}
+        inactive_seats: {type: array, items: {type: array, items: {type: integer}, minItems: 2, maxItems: 2}, description: "[satır, sütun] (0 tabanlı)"}
+        accessible_seats: {type: array, items: {type: array, items: {type: integer}, minItems: 2, maxItems: 2}}
+    RoomDetail:
+      type: object
+      properties:
+        id: {type: integer}
+        code: {type: string}
+        building: {type: string}
+        floor: {type: integer}
+        type: {type: string}
+        rows: {type: integer}
+        cols: {type: integer}
+        capacity: {type: integer}
+        accessible_seats: {type: integer}
+        seats: {type: array, items: {type: object, properties: {id: {type: integer}, row: {type: integer}, col: {type: integer}, active: {type: boolean}, accessible: {type: boolean}}}}
+    CreateScheduleRequest:
+      type: object
+      required: [period_id]
+      properties:
+        period_id: {type: integer}
+        seed: {type: integer, default: 42}
+        iterations: {type: integer, minimum: 0, maximum: 2000000, default: 0}
+    JobAccepted:
+      type: object
+      properties: {job_id: {type: integer}, status: {type: string, example: queued}, status_url: {type: string}}
+    Job:
+      type: object
+      properties:
+        id: {type: integer}
+        period_id: {type: integer}
+        status: {type: string, enum: [queued, running, succeeded, failed]}
+        params: {type: object}
+        result: {type: object, description: "Başarılıysa {schedule_id, version, report}; başarısızsa çözümsüzlük raporu"}
+        error: {type: string}
+        schedule_id: {type: integer}
+        created_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        finished_at: {type: string, format: date-time}
+    Schedule:
+      type: object
+      properties:
+        id: {type: integer}
+        period_id: {type: integer}
+        version: {type: integer}
+        status: {type: string, enum: [draft, published]}
+        seed: {type: integer}
+        metrics: {type: object, description: "Ceza, ardışık gün/aynı gün sayıları, salon sayısı, gözetmen adaleti"}
+        created_at: {type: string, format: date-time}
+        published_at: {type: string, format: date-time}
+    StudentExams:
+      type: object
+      properties:
+        student_id: {type: integer}
+        items: {type: array, items: {type: object, properties: {exam_id: {type: integer}, course_code: {type: string}, course_name: {type: string}, starts_at: {type: string, format: date-time}, ends_at: {type: string, format: date-time}, duration_minutes: {type: integer}, room_code: {type: string, nullable: true}, building: {type: string, nullable: true}, seat_row: {type: integer, nullable: true}, seat_col: {type: integer, nullable: true}}}}
+    ExamCard:
+      type: object
+      properties:
+        card: {type: object}
+        student_id: {type: integer}
+        qr_token: {type: string, description: "Tek kullanımlık; veritabanında yalnız özeti saklanır"}
+        expires_at: {type: string, format: date-time}
+    RemoveInvigilatorResult:
+      type: object
+      properties:
+        vacated: {type: integer, description: "Boşalan görev sayısı (değişiklik sayısının alt sınırı)"}
+        swaps: {type: integer}
+        changes: {type: array, items: {type: object, properties: {duty_id: {type: integer}, from: {type: integer}, to: {type: integer}}}}
+        unfilled: {type: array, items: {type: object, properties: {duty_id: {type: integer}, missing: {type: integer}}}}
+        violations: {type: integer}
+    RoomChangeRequest:
+      type: object
+      required: [slot_id, from_room_id, to_room_id, reason]
+      properties: {slot_id: {type: integer}, from_room_id: {type: integer}, to_room_id: {type: integer}, reason: {type: string, example: yangın tatbikatı}}
+    ExcuseRequest:
+      type: object
+      required: [reason]
+      properties:
+        exam_id: {type: integer, description: "Öğrenci için"}
+        slot_id: {type: integer, description: "Gözetmen için"}
+        reason: {type: string, minLength: 5, maxLength: 1000}
+    DecisionRequest:
+      type: object
+      required: [decision]
+      properties: {decision: {type: string, enum: [approved, rejected]}, note: {type: string, maxLength: 1000}}
+    Excuse:
+      type: object
+      properties:
+        id: {type: integer}
+        kind: {type: string, enum: [student, invigilator]}
+        student_id: {type: integer}
+        user_id: {type: integer}
+        exam_id: {type: integer}
+        slot_id: {type: integer}
+        reason: {type: string}
+        status: {type: string, enum: [pending, approved, rejected]}
+        decided_by: {type: integer}
+        decided_at: {type: string, format: date-time}
+        decision_note: {type: string}
+        created_at: {type: string, format: date-time}
+    SyncRequest:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            required: [event_id, device_id, exam_id, student_id, status, source, hlc]
+            properties:
+              event_id: {type: string, format: uuid, description: "UUIDv7"}
+              device_id: {type: string}
+              exam_id: {type: integer}
+              student_id: {type: integer}
+              status: {type: string, enum: [present, absent]}
+              source: {type: string, enum: [qr, manual]}
+              hlc: {type: object, properties: {wall: {type: integer, description: ms}, counter: {type: integer}}}
+    SyncResult:
+      type: object
+      properties:
+        accepted: {type: integer}
+        duplicates: {type: integer}
+        new_conflicts: {type: integer}
+        rejected: {type: array, items: {type: object, properties: {event_id: {type: string}, reason: {type: string}}}}
+    QRUseRequest:
+      type: object
+      required: [token, device_id]
+      properties: {token: {type: string}, device_id: {type: string}}
+    AttendanceSummary:
+      type: object
+      properties: {enrolled: {type: integer}, present: {type: integer}, absent: {type: integer}, conflicts: {type: integer}}

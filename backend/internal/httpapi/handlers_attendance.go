@@ -93,6 +93,12 @@ func (s *Server) examCard(w http.ResponseWriter, r *http.Request) error {
 	if s.qr == nil {
 		return Unavailable("QR yapılandırılmadı")
 	}
+	// Onaylanmış mazereti olan öğrenciye bu sınav için kart verilmez (V-6).
+	if ex, err := store.HasApprovedExcuse(r.Context(), s.pool, p.StudentID, examID); err != nil {
+		return err
+	} else if ex {
+		return &APIError{Status: http.StatusConflict, Code: "excused", Message: "bu sınav için onaylanmış mazeretiniz var; sınav kartı verilmez"}
+	}
 	// Kart, sınav bitiminden 1 saat sonrasına kadar geçerli.
 	expires := card.EndsAt.Add(time.Hour)
 	tok, err := s.qr.Issue(r.Context(), s.pool, examID, p.StudentID, expires)

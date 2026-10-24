@@ -312,29 +312,81 @@ func ToStorePlan(assignment map[int64]int, res *Result, invIn invigilation.Input
 	return p
 }
 
-// BuildAll, veri kümesi için T-1..T-4'ü çalıştırıp kalıcılaştırılabilir plan döner
-// (test fikstürü ve simülatör için; servis katmanı aynı adımları DB'den kurar).
-func BuildAll(ds *simdata.Dataset, seed int64, iterations int) (store.SchedulePlan, error) {
+// Report, bir çizelge üretiminin ölçüm özeti (schedules.metrics ve iş sonucu olarak saklanır).
+type Report struct {
+	Scheduling           scheduling.Metrics   `json:"scheduling"`
+	Penalty              int64                `json:"penalty"`
+	ConstructionPenalty  int64                `json:"construction_penalty"`
+	Iterations           int                  `json:"iterations"`
+	GraphEdges           int                  `json:"graph_edges"`
+	SchedulingMs         int64                `json:"scheduling_ms"`
+	RoomsUsed            int                  `json:"rooms_used"`
+	RoomViolations       int                  `json:"room_violations"`
+	SeatViolations       int                  `json:"seat_violations"`
+	Unseated             int                  `json:"unseated"`
+	Invigilation         invigilation.Metrics `json:"invigilation"`
+	InvigilationUnfilled int                  `json:"invigilation_unfilled"`
+	// Infeasibility doluysa çizelge üretilemedi: hangi sınavların neden yerleşemediği.
+	Infeasibility *scheduling.InfeasibilityReport `json:"infeasibility,omitempty"`
+	UnplacedRooms []rooms.Unplaced                `json:"unplaced_rooms,omitempty"`
+}
+
+// InfeasibleError, çizelge üretilemediğinde (T-1 yerleşemeyen sınav, T-2 sığmayan sınav)
+// açıklayıcı raporu taşır; kısmi çizelge ASLA kalıcılaştırılmaz.
+type InfeasibleError struct {
+	Message string
+	Report  *Report
+}
+
+func (e *InfeasibleError) Error() string { return e.Message }
+
+// BuildFrom, veri kümesi için T-1..T-4'ü çalıştırır. excused: gözetmen kullanıcı
+// kimliği -> mazeretli slot indeksleri.
+func BuildFrom(ds *simdata.Dataset, seed int64, iterations int, excused map[int64][]int) (store.SchedulePlan, *Report, error) {
 	in := SchedulingInput(ds, seed)
 	in.MaxIterations = iterations
 	r, err := scheduling.Solve(in)
 	if err != nil {
-		return store.SchedulePlan{}, err
+		return store.SchedulePlan{}, nil, err
 	}
+	rep := &Report{Penalty: r.Penalty, ConstructionPenalty: r.ConstructionPenalty, Iterations: r.Iterations,
+		GraphEdges: r.Graph.Edges, SchedulingMs: r.Duration.Milliseconds(), Infeasibility: r.Infeasibility}
 	if len(r.Unplaced) > 0 {
-		return store.SchedulePlan{}, fmt.Errorf("T-1: %d sınav yerleşemedi", len(r.Unplaced))
+		return store.SchedulePlan{}, rep, &InfeasibleError{
+			Message: fmt.Sprintf("%d sınav hiçbir slota yerleştirilemedi", len(r.Unplaced)), Report: rep}
 	}
+	rep.Scheduling = scheduling.Validate(in, r.Assignment).Metrics
+
 	res, err := Plan(ds, r.Assignment, rooms.Config{})
 	if err != nil {
-		return store.SchedulePlan{}, err
+		return store.SchedulePlan{}, rep, err
 	}
-	invIn := InvigilationInput(ds, res, nil)
+	tot := res.Totals()
+	rep.RoomsUsed, rep.RoomViolations, rep.SeatViolations, rep.Unseated = tot.RoomsUsed, tot.RoomViolations, tot.SeatViolations, tot.Unseated
+	if tot.ExamsUnplaced > 0 || tot.RoomViolations > 0 || tot.SeatViolations > 0 || tot.Unseated > 0 {
+		for _, s := range res.Slots {
+			rep.UnplacedRooms = append(rep.UnplacedRooms, s.Rooms.Unplaced...)
+		}
+		return store.SchedulePlan{}, rep, &InfeasibleError{
+			Message: fmt.Sprintf("salon/oturma planı kurulamadı: %d sınav salonlara sığmadı, %d öğrenci yerleşemedi",
+				tot.ExamsUnplaced, tot.Unseated), Report: rep}
+	}
+
+	invIn := InvigilationInput(ds, res, excused)
 	inv, err := invigilation.Assign(invIn)
 	if err != nil {
-		return store.SchedulePlan{}, err
+		return store.SchedulePlan{}, rep, err
 	}
+	rep.Invigilation = invigilation.Fairness(invIn, inv)
+	rep.InvigilationUnfilled = len(inv.Unfilled)
+
 	sp := ToStorePlan(r.Assignment, res, invIn, inv, func(i int) int64 { return ds.Slots[i].ID })
-	sp.PeriodID, sp.Seed = ds.Period.ID, seed
-	sp.Metrics = map[string]any{"penalty": r.Penalty, "unfilled_invigilation": len(inv.Unfilled)}
-	return sp, nil
+	sp.PeriodID, sp.Seed, sp.Metrics = ds.Period.ID, seed, rep
+	return sp, rep, nil
+}
+
+// BuildAll, test fikstürleri için BuildFrom'un mazeretsiz ve hata-raporsuz kısayoludur.
+func BuildAll(ds *simdata.Dataset, seed int64, iterations int) (store.SchedulePlan, error) {
+	sp, _, err := BuildFrom(ds, seed, iterations, nil)
+	return sp, err
 }

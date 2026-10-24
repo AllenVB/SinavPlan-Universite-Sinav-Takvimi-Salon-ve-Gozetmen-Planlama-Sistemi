@@ -1,0 +1,341 @@
+### SınavPlan — elle deneme koleksiyonu (VS Code "REST Client" eklentisi)
+### Önce `cp .env.example .env && docker compose up --build`. Demo parolası: Demo!1234
+### Her bölümde önce ilgili rolle "login" isteğini çalıştırın; token otomatik kullanılır.
+
+@host = http://localhost:8080
+@password = Demo!1234
+@json = application/json
+
+############################################################ ALTYAPI
+### Sağlık (veritabanı dahil)
+GET {{host}}/health
+
+### Prometheus metrikleri
+GET {{host}}/metrics
+
+### Swagger UI için tarayıcıda: http://localhost:8080/docs
+GET {{host}}/openapi.yaml
+
+############################################################ KİMLİK (5 rol)
+### secretary — Bölüm sekreteri
+# @name loginSecretary
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "sekreter@sinavplan.test", "password": "{{password}}"}
+
+###
+@secretary = {{loginSecretary.response.body.access_token}}
+@secretaryRefresh = {{loginSecretary.response.body.refresh_token}}
+
+### lecturer — Öğretim üyesi
+# @name loginLecturer
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "hoca@sinavplan.test", "password": "{{password}}"}
+
+###
+@lecturer = {{loginLecturer.response.body.access_token}}
+
+### invigilator — Gözetmen
+# @name loginInvigilator
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "gozetmen@sinavplan.test", "password": "{{password}}"}
+
+###
+@invigilator = {{loginInvigilator.response.body.access_token}}
+
+### student_affairs — Öğrenci işleri
+# @name loginAffairs
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "ogrenciisleri@sinavplan.test", "password": "{{password}}"}
+
+###
+@affairs = {{loginAffairs.response.body.access_token}}
+
+### student — Öğrenci
+# @name loginStudent
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "ogrenci@sinavplan.test", "password": "{{password}}"}
+
+###
+@student = {{loginStudent.response.body.access_token}}
+
+### Yanlış parola -> 401
+POST {{host}}/auth/login
+Content-Type: {{json}}
+
+{"email": "sekreter@sinavplan.test", "password": "yanlis"}
+
+### Oturum sahibi
+GET {{host}}/me
+Authorization: Bearer {{secretary}}
+
+### Refresh (rotasyon: eski token iptal olur, tekrar kullanılırsa tüm zincir iptal)
+POST {{host}}/auth/refresh
+Content-Type: {{json}}
+
+{"refresh_token": "{{secretaryRefresh}}"}
+
+### Çıkış
+POST {{host}}/auth/logout
+Content-Type: {{json}}
+
+{"refresh_token": "{{secretaryRefresh}}"}
+
+############################################################ YETKİ (401 / 403)
+### Token yok -> 401
+GET {{host}}/students
+
+### Öğrenci, öğrenci listesini göremez -> 403
+GET {{host}}/students
+Authorization: Bearer {{student}}
+
+### Öğrenci BAŞKASININ programını göremez -> 403
+GET {{host}}/students/2/exams
+Authorization: Bearer {{student}}
+
+############################################################ F-1 CSV İÇE AKTARMA
+### Öğrenciler (satır bazlı hata raporu; aynı dosya tekrar yüklenince created=0)
+POST {{host}}/imports/students
+Authorization: Bearer {{secretary}}
+Content-Type: text/csv
+
+student_no,full_name,department_code,disability
+990001,Deneme Öğrenci,BLM,false
+990002,Engelli Deneme,ELK,true
+9,Hatalı Numara,BLM,false
+990003,Bilinmeyen Bölüm,XXX,false
+
+### Dersler
+POST {{host}}/imports/courses
+Authorization: Bearer {{secretary}}
+Content-Type: text/csv
+
+code,name,department_code,year,requires_lab
+TST101,Deneme Dersi,BLM,1,false
+
+### Şubeler
+POST {{host}}/imports/sections
+Authorization: Bearer {{secretary}}
+Content-Type: text/csv
+
+course_code,section_code,lecturer_email
+TST101,A,hoca@sinavplan.test
+
+### Kayıtlar
+POST {{host}}/imports/enrollments
+Authorization: Bearer {{secretary}}
+Content-Type: text/csv
+
+student_no,course_code,section_code
+990001,TST101,A
+
+############################################################ F-2 SALONLAR
+### Liste (keyset: ?limit=&after=) — laboratuvarlar
+GET {{host}}/rooms?type=lab&limit=5
+Authorization: Bearer {{lecturer}}
+
+### Salon + koltuk düzeni
+GET {{host}}/rooms/1
+Authorization: Bearer {{secretary}}
+
+### Salon oluştur (satır, sütun; pasif ve erişilebilir koltuklar [satır, sütun])
+# @name newRoom
+POST {{host}}/rooms
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"code": "DEMO-1", "building": "Z", "floor": 1, "type": "classic", "rows": 4, "cols": 6,
+ "inactive_seats": [[3, 5]], "accessible_seats": [[0, 0], [0, 2]]}
+
+###
+@roomId = {{newRoom.response.body.id}}
+
+### Salonu güncelle (kullanılmıyorsa düzen de değişebilir)
+PUT {{host}}/rooms/{{roomId}}
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"code": "DEMO-1", "building": "Z", "floor": 2, "type": "classic", "rows": 4, "cols": 6,
+ "inactive_seats": [], "accessible_seats": [[0, 0], [0, 2]]}
+
+### Salonu sil (çizelgede kullanılıyorsa 409)
+DELETE {{host}}/rooms/{{roomId}}
+Authorization: Bearer {{secretary}}
+
+############################################################ F-3 TAKVİM (asenkron)
+### Dönemler
+# @name periods
+GET {{host}}/periods
+Authorization: Bearer {{secretary}}
+
+###
+@periodId = {{periods.response.body.items[0].id}}
+
+### Takvim oluşturmayı başlat -> 202 + iş kimliği (T-1..T-4 zinciri arka planda)
+# @name createSchedule
+POST {{host}}/schedules
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"period_id": {{periodId}}, "seed": 42, "iterations": 300000}
+
+###
+@jobId = {{createSchedule.response.body.job_id}}
+
+### İş durumu/sonucu (queued -> running -> succeeded | failed; başarısızsa çözümsüzlük raporu)
+# @name job
+GET {{host}}/schedule-jobs/{{jobId}}
+Authorization: Bearer {{secretary}}
+
+###
+@scheduleId = {{job.response.body.schedule_id}}
+
+### Sürümler
+GET {{host}}/schedules?period_id={{periodId}}
+Authorization: Bearer {{secretary}}
+
+### Sürüm ve kalite metrikleri (ceza, salon sayısı, gözetmen adaleti)
+GET {{host}}/schedules/{{scheduleId}}
+Authorization: Bearer {{secretary}}
+
+### Yayınla (Idempotency-Key: aynı anahtarla tekrar aynı yanıtı verir)
+POST {{host}}/schedules/{{scheduleId}}/publish
+Authorization: Bearer {{secretary}}
+Idempotency-Key: publish-{{scheduleId}}
+
+############################################################ F-4 SALON VE OTURMA PLANI
+### Takvim (keyset)
+# @name calendar
+GET {{host}}/schedules/{{scheduleId}}/exams?limit=20
+Authorization: Bearer {{lecturer}}
+
+###
+@examId = {{calendar.response.body.items[0].exam_id}}
+@slotId = {{calendar.response.body.items[0].slot_id}}
+
+### Bir slottaki salon planı
+GET {{host}}/schedules/{{scheduleId}}/rooms?slot_id={{slotId}}
+Authorization: Bearer {{secretary}}
+
+### Bir sınavın oturma planı (öğretim üyesi yalnız kendi dersini görür)
+GET {{host}}/schedules/{{scheduleId}}/seating?exam_id={{examId}}&limit=20
+Authorization: Bearer {{secretary}}
+
+############################################################ F-5 GÖZETMEN
+### Görevler
+# @name duties
+GET {{host}}/schedules/{{scheduleId}}/invigilators?limit=20
+Authorization: Bearer {{secretary}}
+
+###
+@dutyUser = {{duties.response.body.items[0].user_id}}
+
+### Gözetmen hastalandı: çıkar ve minimum değişiklikle yeniden hesapla (diğer atamalar kilitli)
+POST {{host}}/schedules/{{scheduleId}}/invigilators/{{dutyUser}}/remove
+Authorization: Bearer {{secretary}}
+Idempotency-Key: remove-{{scheduleId}}-{{dutyUser}}
+
+### Gözetmenin kendi görevleri
+GET {{host}}/me/duties
+Authorization: Bearer {{invigilator}}
+
+############################################################ F-6 MAZERET VE ÇAKIŞMA
+### Öğrenci: sınav için mazeret
+# @name studentExcuse
+POST {{host}}/excuses
+Authorization: Bearer {{student}}
+Content-Type: {{json}}
+
+{"exam_id": {{examId}}, "reason": "Hastane raporum var"}
+
+###
+@excuseId = {{studentExcuse.response.body.id}}
+
+### Gözetmen: slot için mazeret (onaylanırsa sonraki çizelgelerde T-4 kısıtı olur)
+POST {{host}}/excuses
+Authorization: Bearer {{invigilator}}
+Content-Type: {{json}}
+
+{"slot_id": {{slotId}}, "reason": "Başka sınavda görevliyim"}
+
+### Öğrenci işleri: bekleyen mazeretler
+GET {{host}}/excuses?status=pending
+Authorization: Bearer {{affairs}}
+
+### Karar (Idempotency-Key destekli; karara bağlanmış mazeret 409)
+POST {{host}}/excuses/{{excuseId}}/decision
+Authorization: Bearer {{affairs}}
+Idempotency-Key: decide-{{excuseId}}
+Content-Type: {{json}}
+
+{"decision": "approved", "note": "Rapor doğrulandı"}
+
+### Kendi mazeretlerim
+GET {{host}}/me/excuses
+Authorization: Bearer {{student}}
+
+### Çizelge çakışmaları: aynı gün birden çok sınavı olan öğrenciler
+GET {{host}}/schedules/{{scheduleId}}/conflicts?limit=20
+Authorization: Bearer {{affairs}}
+
+############################################################ F-7 YOKLAMA VE SINAV KARTI
+### Öğrencinin kendi programı (salon ve koltuk dahil)
+# @name myExams
+GET {{host}}/me/exams
+Authorization: Bearer {{student}}
+
+###
+@myExam = {{myExams.response.body.items[0].exam_id}}
+
+### Sınav kartı (tek kullanımlık QR; her çağrı eskisini iptal eder)
+# @name card
+POST {{host}}/me/exams/{{myExam}}/card
+Authorization: Bearer {{student}}
+
+###
+@qr = {{card.response.body.qr_token}}
+
+### Gözetmen kartı okutur -> 200; ikinci okutma -> 409 qr_already_used
+POST {{host}}/attendance/qr
+Authorization: Bearer {{invigilator}}
+Idempotency-Key: scan-{{qr}}
+Content-Type: {{json}}
+
+{"token": "{{qr}}", "device_id": "tablet-demo"}
+
+### Çevrimdışı cihazın toplu senkronu (event_id UUIDv7; tekrar gelenler yok sayılır)
+POST {{host}}/attendance/sync
+Authorization: Bearer {{invigilator}}
+Content-Type: {{json}}
+
+{"events": [
+  {"event_id": "0191a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b", "device_id": "tablet-demo", "exam_id": {{myExam}}, "student_id": 1,
+   "status": "present", "source": "manual", "hlc": {"wall": 1790000000000, "counter": 0}}
+]}
+
+### Sınavın yoklama durumu ve özeti
+GET {{host}}/exams/{{myExam}}/attendance
+Authorization: Bearer {{secretary}}
+
+### Yoklama çakışmaları (iki cihaz farklı durum bildirdi)
+GET {{host}}/attendance/conflicts?exam_id={{myExam}}
+Authorization: Bearer {{affairs}}
+
+############################################################ T-5 TAHLİYE (toplu salon değişikliği)
+### Bir slotta bir salonun tüm öğrencilerini başka salona taşı (Idempotency-Key destekli)
+### from_room_id / to_room_id: yukarıdaki "salon planı" yanıtından seçin
+POST {{host}}/schedules/{{scheduleId}}/room-change
+Authorization: Bearer {{secretary}}
+Idempotency-Key: evacuate-demo-1
+Content-Type: {{json}}
+
+{"slot_id": {{slotId}}, "from_room_id": 1, "to_room_id": 2, "reason": "yangın tatbikatı"}
