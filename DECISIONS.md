@@ -253,3 +253,52 @@ ceza hesabındaydı; tek-taşıma hızlı yolu 27 sn → 10 sn indirdi ve **ayn�
 - Slot kapasitesi verilmezse çözücü öğrencileri az sayıda slota yığar (test: 28 slot, tek slotta
   3.100 öğrenci) — T-2'yi imkânsız kılabileceği için API ve kanıt komutu kapasiteyi her zaman verir.
 - Veri "kolay" (DSatur 13 renk, 45 slot); daha sıkı girdide (`prove t1 --days N`) davranış ayrıca gözlenebilir.
+
+---
+
+## ADR-008 — T-2/T-3: etkin kapasite, komşuluk tanımı ve engelli öğrenci kuralı
+
+**Bağlam.** "Aynı ders yan yana oturmaz" (T-3) kuralı yüzünden bir salonun kullanılabilir
+koltuk sayısı sabit değil, içindeki sınav bileşimine bağlı. T-2 bunu hesaba katmadan ham
+kapasiteyle yerleştirirse T-3 uygulanamaz plan alır (görev tanımının "KRİTİK etkileşim" maddesi).
+
+**Karar — komşuluk (T-3).** Aynı sırada sütun farkı 1 (sol/sağ): **zorunlu**. Ön/arka (aynı sütunda
+sıra farkı 1): yalnız `Strict` modda, **varsayılan kapalı** (`proje.md` §6 yalnızca "yan yana" diyor).
+Çapraz komşu değil. Kullanılmayan koltuk komşuluğu kesmez ama kimse oturmaz.
+
+**Karar — etkin kapasite (T-2).** `Single` = her satırdaki ardışık aktif koltuk dizisinde
+`ceil(uzunluk/2)` toplamı (bir koltuk atlayarak oturma); `Active` = aktif koltuk sayısı.
+- tek sınavlı salon: pay ≤ `Single`;
+- karışık salon: her sınavın payı ≤ `Single − (başka sınavların engelli sayısı)`, toplam ≤ `Active − Σ engelli`.
+Bu nedenle iki sınavı aynı salonda karıştırmak öğrenci sığdırma gücünü neredeyse iki katına
+çıkarır (60 salon: tek sınavlı etkin kapasite 2.319, aktif koltuk 4.476 → %52); Best-Fit
+Decreasing + bölme + **paylaşım** bunu kullanır, ardından salon sayısını azaltan birleştirme
+geçişi uygulanır. Lab sınavı yalnız lab salona, diğerleri yalnız klasik salona gider.
+Tüm sıralamalarda küçük kimlik eşitlik bozucudur → girdi sırasından bağımsız deterministik.
+
+**Karar — engelli öğrenci.** Engelli öğrenciler erişilebilir koltuklara ÖNCE oturur. Aynı sınavın
+iki engellisi komşu koltuğa oturamayacağı için erişilebilir koltuklar sütun 0, 2, 4 olacak şekilde
+birbirine komşu değil üretilir (seed'de bitişik idi; düzeltildi, ADR-004 özeti yenilendi). Engelli
+yerleştirilemiyorsa öğrenci yanlış koltuğa konmaz, `Unseated{no_accessible_seat}` döner.
+
+**Yolda bulunan hata (testle yakalandı).** İlk kuralda ("karışık salonda toplam ≤ Active, pay ≤ Single")
+T-2 doğrulayıcısı 0 ihlal derken T-3, 52.033 öğrencinin **110'unu** açıkta bırakıyordu; hepsi tam
+dolu iki sınavlı salonlardı. Kök neden: payı `Single`'a eşit bir sınav her satırda maksimum bağımsız
+kümeyi doldurmak zorunda; başka sınavın engelli öğrencisi bu kümeden bir koltuğu önce alınca pay 1
+azalıyor. Kayıp toplamda değil **payda**. Düzeltme: yukarıdaki `Single − (başkalarının engellisi)`
+terimi (bir köşeyi çıkarmak maksimum bağımsız kümeyi ≤ 1 azaltır) → 0 açıkta. Denenip **atılanlar**:
+yerleşimde ileriye bakış (110'u değiştirmedi), dört doldurma yönü (değiştirmedi) — ikisi de
+sorunun yerleşimde değil kuralda olduğunu gösterdi. Regresyon: `TestOtherExamsDisabledLowersShareCeiling`
+(T-2) ve `TestSeatingCannotFitWhatTheRoomRuleForbids` (T-3 gerçekten sığdıramıyor).
+
+**Ölçümler** (`make prove-t2/t3`, seed=42, 42 slot): 0 doğrulayıcı ihlali, 0 yerleşemeyen sınav,
+52.033/52.033 öğrenci-sınav çifti tam bir koltukta, 1.151 engelli öğrencinin hepsi erişilebilir
+koltukta, 0 yan yana ihlali; aynı çizelge ikinci kez planlanınca birebir aynı çıktı.
+
+**Bilinen sınırlar (dürüst notlar).**
+- Salon sayısı **optimal değil**: slot toplamı 674 salon, gevşek alt sınır 435. Alt sınır tek-sınav payı,
+  lab ve engelli kısıtlarını yok saydığı için gerçek optimum bilinmiyor; boşluğun ne kadarı kazanılabilir
+  bilmiyorum. Sınavlar ortalama ~4 parçaya bölünüyor (1.264 pay / 300 sınav).
+- `Single − başkalarının engellisi` kuralı **yeterlilik değil güvenli yaklaşım**: bazı yerleşebilir
+  kombinasyonları reddedebilir (kapasite israfı), ama kabul ettiğini T-3 yerleştirir (tam ölçekte kanıtlandı).
+- Sıkı mod (`Strict`) birim testlerle sınanıyor ama tam ölçekte ayrıca doğrulanmadı.

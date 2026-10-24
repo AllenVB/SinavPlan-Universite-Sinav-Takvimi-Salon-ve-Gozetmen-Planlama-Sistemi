@@ -321,13 +321,15 @@ func (d *Dataset) genRooms(r *rand.Rand) {
 		room := Room{ID: int64(i), Code: fmt.Sprintf("%s-%02d", prefix, i), Building: string(rune('A' + (i-1)%4)),
 			Floor: (i - 1) % 4, Type: typ, Rows: lay[0], Cols: lay[1]}
 
-		// Erişilebilir koltuklu salonlar: ilk sıra, kapıya yakın iki sütun. Salonların
-		// yaklaşık üçte ikisinde var.
-		hasAccessible := !isLab && i%3 != 0
+		// Erişilebilir koltuklar ön sırada, kapıya yakın ve BİRBİRİNE KOMŞU DEĞİL
+		// (sütun 0, 2, 4): aynı dersin iki engelli öğrencisi yan yana oturamayacağı için
+		// (T-3) bitişik erişilebilir koltuklar bir salona dersin tek engelli öğrencisini
+		// sığdırırdı. Salonların ~2/3'ünde var; laboratuvarların yarısında da var.
+		hasAccessible := (!isLab && i%3 != 0) || (isLab && i%2 == 0)
 		for row := 0; row < room.Rows; row++ {
 			for col := 0; col < room.Cols; col++ {
 				seatID++
-				accessible := hasAccessible && row == 0 && col < 2
+				accessible := hasAccessible && row == 0 && col%2 == 0 && col <= 4
 				active := accessible || r.Float64() >= 0.04 // koltukların ~%4'ü kullanılamaz
 				if active {
 					room.Capacity++

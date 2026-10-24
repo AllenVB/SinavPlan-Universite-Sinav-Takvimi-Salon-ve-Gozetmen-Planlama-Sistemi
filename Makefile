@@ -111,6 +111,14 @@ verify: ## Uçtan uca doğrulama: F-1..F-7, T-1..T-5, health, 401/403 (<15 dk)
 prove-t1: ## T-1 kanıtı: 300 sınav/8.000 öğrenci/15 gün -> süre, ihlal, metrikler
 	cd $(BACKEND_DIR) && go run ./cmd/prove t1
 
+.PHONY: prove-t2
+prove-t2: ## T-2 kanıtı: salon atama (ihlal, salon sayısı, determinizm)
+	cd $(BACKEND_DIR) && go run ./cmd/prove t2
+
+.PHONY: prove-t3
+prove-t3: ## T-3 kanıtı: oturma düzeni (ihlal sayacı, bozuk plan sınaması)
+	cd $(BACKEND_DIR) && go run ./cmd/prove t3
+
 .PHONY: prove-all
 prove-all: ## T-1..T-5 kanıt komutlarını sırayla çalıştır
 	cd $(BACKEND_DIR) && go run ./cmd/prove all

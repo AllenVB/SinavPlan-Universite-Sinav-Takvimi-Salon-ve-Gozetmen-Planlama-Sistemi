@@ -25,7 +25,7 @@ func TestDifferentSeedProducesDifferentData(t *testing.T) {
 // değiştirildiğinde bu sabit güncellenir; commit mesajında belirtilmelidir.
 func TestGoldenHashForSeed42(t *testing.T) {
 	d, _ := Generate(DefaultConfig(42))
-	const golden = "3d33cbcecbaa4db030fee171e9175eec7ec334c1e254060abdf35c6f44d558b2"
+	const golden = "3a4b7adbbf5f25025438d5ad12f07479505553983c09da6aaff9f9124d8f72e5"
 	if d.Hash() != golden {
 		t.Fatalf("seed=42 özeti değişti: %s", d.Hash())
 	}
@@ -84,6 +84,23 @@ func TestRoomsAreConsistent(t *testing.T) {
 		}
 		if acc[r.ID] {
 			accessibleRooms++
+		}
+	}
+	// Erişilebilir koltuklar birbirine komşu olmamalı (aynı dersin iki engelli öğrencisi).
+	byRoom := map[int64]map[[2]int]bool{}
+	for _, s := range d.Seats {
+		if s.Accessible {
+			if byRoom[s.RoomID] == nil {
+				byRoom[s.RoomID] = map[[2]int]bool{}
+			}
+			byRoom[s.RoomID][[2]int{s.Row, s.Col}] = true
+		}
+	}
+	for rid, m := range byRoom {
+		for k := range m {
+			if m[[2]int{k[0], k[1] + 1}] {
+				t.Fatalf("salon %d: erişilebilir koltuklar yan yana", rid)
+			}
 		}
 	}
 	if labs == 0 || accessibleRooms == 0 {

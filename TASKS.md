@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 15:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 16:10 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -46,8 +46,18 @@ Güncelleme: 2026-10-24 15:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `cmd/prove t1` / `make prove-t1`: 10,3 sn, 0 ihlal, ceza 16.851 → 8.407; CI'da da koşuyor
 - 12 test + benchmark, kapsam **%95,1**; artımlı ceza = doğrulayıcı cezası testi
 
+**Faz 5 — T-2 salon atama + T-3 oturma (P0-7, P0-8 karşılandı):**
+- `internal/domain/seating`: sol/sağ komşuluk (ön/arka `Strict`, varsayılan kapalı), engelli öğrenciler önce
+  erişilebilir koltuğa, sütun dönüşümlü / koltuk atlamalı, bağımsız `CountViolations` — kapsam %100
+- `internal/domain/rooms`: etkin kapasite modeli, BFD + bölme + paylaşım + salon birleştirme, lab/klasik ayrımı,
+  erişilebilir koltuk, kısmi yerleştirme yok, bağımsız `Validate`, girdi sırasından bağımsız deterministik — kapsam %97,9
+- `internal/planning`: T-1 → T-2 → T-3 zinciri (Faz 8 servisi aynı dönüşümleri DB satırlarından yapacak)
+- `make prove-t2` / `prove-t3` / `prove-all` (CI'da koşuyor)
+- Seed düzeltmesi: erişilebilir koltuklar komşu değil (sütun 0,2,4), labların yarısında da var (ADR-004 özeti yenilendi)
+- **Bulunan ve düzeltilen hata:** T-2 doğrulayıcısı 0 ihlal derken T-3 110 öğrenciyi açıkta bırakıyordu (kural iyimserdi) — ADR-008
+
 ## Sürmekte
-Faz 5 — T-2 salon atama + T-3 oturma. Model: **Sonnet 5.5** (PROJECT_PLAN §7).
+Faz 6 — T-4 adil gözetmen atama + Reassign. Model: **Opus 5.5** (PROJECT_PLAN §7: minimum-değişiklik garantisi).
 
 ## Bloke
 Yok.
@@ -58,8 +68,8 @@ Yok.
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
-P0-7..P0-11 T-2..T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (79/40 test ✓; domain kapsamı: scheduling %95,1) · P0-15 frontend
+P0-9..P0-11 T-4..T-5 ·
+P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (108/40 test ✓; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100) · P0-15 frontend
 
 ## Kalan P1
 OpenAPI+`/docs` · k6 · chaos betiği ·
@@ -74,17 +84,17 @@ EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-d
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (Faz 4)
+## Son doğrulama sonuçları (Faz 5)
 ```
-make prove-t1                 10,3 sn · 0 ihlal · 0 yerleşmeyen · ceza 16.851 -> 8.407 · ardışık gün 0
-çözümsüz girdi (4-klik/3 slot) klik [10 20 30 40] ve engelleyenler raporlandı
-go test (scheduling)          12 test geçti, kapsam %95,1; tam ölçek 11 sn
-go test -race (scheduling)    geçti (tam ölçek yarış derlemesinde atlanır; CI'da prove-t1 koşar)
-determinizm                   aynı tohum + aynı bütçe = aynı çizelge (test); hızlı yol ile genel yol aynı sonucu verdi
+make prove-t2   0 doğrulayıcı ihlali · 0 yerleşemeyen sınav · 42 slot · aynı girdi ikinci kez birebir aynı plan
+make prove-t3   52.033/52.033 öğrenci-sınav çifti tam bir koltukta · 0 ihlal · 1.151 engelli hepsi erişilebilir koltukta
+                bozuk plan: bulunan {yan yana 1, çift rezerve 1, engelli erişilemez 1} = beklenen
+go test ./...   108 test geçti, 0 başarısız (gerçek Postgres dahil); -race temiz (rooms, seating, planning)
+reset-demo      yeni üreticiyle çalışıyor; eski veritabanına yeni seed "make reset-demo" önerisiyle reddediliyor
 ```
-**Doğrulanmadı:** CI GitHub'da çalıştırılmadı.
+**Bilinen sınır:** salon sayısı optimal değil (674, gevşek alt sınır 435; gerçek optimum bilinmiyor) — ADR-008.
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; `Strict` mod tam ölçekte denenmedi; Windows'ta denenmedi.
 
 ## Sıradaki eylem
-Faz 5: `internal/domain/rooms` (FFD/BFD + bölme + paylaşım, etkin kapasite, lab, erişilebilir koltuk,
-determinizm, doğrulayıcı) ve `internal/domain/seating` (sol/sağ komşuluk, engelli önce, sütun dönüşümlü /
-koltuk atlamalı, CountViolations). Sonnet 5.5'e geçiş önerilir.
+Faz 6: `internal/domain/invigilation` — kısıtlar (kendi dersi, aynı slot, aynı gün ardışık oturum, >50 öğrenci ≥2 gözetmen,
+mazeretli slot), max−min adalet, açgözlü + takas, `Reassign` (diğer atamalar kilitli, minimum değişiklik, diff).
