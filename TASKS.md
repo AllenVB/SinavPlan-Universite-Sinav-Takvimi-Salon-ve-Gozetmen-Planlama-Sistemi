@@ -133,3 +133,5 @@ Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Fa
 **Faz 10 doğrulama:** `make load` 47.612 istek, hata %0, p95 63 ms; `make chaos` GEÇTİ (503, ~1 sn toparlanma); `make explain` 4 sorgu. Kaos, veri uçlarının 500 döndüğünü yakaladı → 503'e düzeltildi.
 
 **Faz 8.5 doğrulama:** 11 ekran, 5 rol; Playwright: 16/16 ekran hatasız + 8/8 akış PASS (Vite üzerinden); nginx /api vekili ayrı konteynerde doğrulandı; `docker compose build frontend` bu ortamda npm ci ağ erişimi yüzünden çalışmadı (kullanıcı makinesinde denenmeli).
+
+**Faz 11 doğrulama:** X-1..X-7 tamam (ÖBS kapsam dışı, ADR-014). `make verify` 21/21 PASS (tam ölçek), `go test ./...` 165 test ok, mutasyonla taşıma ihlal denetiminin testi doğrulandı, UI duman: QR/indirme/simülasyon/akış/gerçek sürükle-bırak PASS.

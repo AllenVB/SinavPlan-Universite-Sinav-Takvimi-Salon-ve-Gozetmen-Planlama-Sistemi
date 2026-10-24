@@ -339,3 +339,61 @@ Idempotency-Key: evacuate-demo-1
 Content-Type: {{json}}
 
 {"slot_id": {{slotId}}, "from_room_id": 1, "to_room_id": 2, "reason": "yangın tatbikatı"}
+
+############################################################ FAZ 11: FARK YARATAN ÖZELLİKLER
+### Excel / CSV / iCal (tarayıcıda dosya olarak iner)
+GET {{host}}/schedules/{{scheduleId}}/export?format=xlsx
+Authorization: Bearer {{secretary}}
+
+###
+GET {{host}}/schedules/{{scheduleId}}/export?format=csv
+Authorization: Bearer {{secretary}}
+
+###
+GET {{host}}/schedules/{{scheduleId}}/calendar.ics
+Authorization: Bearer {{lecturer}}
+
+### Öğrencinin kendi sınavları (salon + koltuk) ve gözetmenin görevleri
+GET {{host}}/me/exams.ics
+Authorization: Bearer {{student}}
+
+###
+GET {{host}}/me/duties.ics
+Authorization: Bearer {{invigilator}}
+
+### Hızlı simülasyon: T-1'i KAYDETMEDEN çalıştırır, yayındaki sürümle kıyaslar
+POST {{host}}/schedules/simulate
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"period_id": {{periodId}}, "seed": 7, "iterations": 50000}
+
+### Etkinlik akışı (denetim kaydından)
+GET {{host}}/activity?limit=20
+Authorization: Bearer {{secretary}}
+
+### Dönem slotları (editör hedefleri)
+# @name slots
+GET {{host}}/periods/{{periodId}}/slots
+Authorization: Bearer {{secretary}}
+
+###
+@slotId2 = {{slots.response.body.items[1].id}}
+
+### Sürükle-bırak editörün API'si: önce dry_run (yazmaz), sonra gerçek taşıma (yeni TASLAK sürüm)
+POST {{host}}/schedules/{{scheduleId}}/exams/{{examId}}/move
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"slot_id": {{slotId2}}, "dry_run": true}
+
+###
+POST {{host}}/schedules/{{scheduleId}}/exams/{{examId}}/move
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"slot_id": {{slotId2}}}
+
+### İki sürümü karşılaştır
+GET {{host}}/schedules/compare?a=1&b=2
+Authorization: Bearer {{secretary}}

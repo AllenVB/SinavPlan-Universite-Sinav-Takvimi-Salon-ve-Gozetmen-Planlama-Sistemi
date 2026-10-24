@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './auth'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Calendar } from './pages/Calendar'
+import { Editor } from './pages/Editor'
 import { Rooms } from './pages/Rooms'
 import { Invigilators } from './pages/Invigilators'
 import { Conflicts } from './pages/Conflicts'
@@ -23,6 +24,7 @@ const routes: Route[] = [
   { path: 'yoklama', label: 'Yoklama ve görevlerim', roles: ['invigilator'], page: Tablet },
   { path: 'panel', label: 'Ana panel', roles: ['secretary'], page: Dashboard },
   { path: 'takvim', label: 'Sınav takvimi', roles: ['secretary', 'student_affairs', 'lecturer'], page: Calendar },
+  { path: 'duzenle', label: 'Takvim editörü', roles: ['secretary'], page: Editor },
   { path: 'salonlar', label: 'Salon ve oturma planı', roles: ['secretary', 'lecturer', 'student_affairs', 'invigilator'], page: Rooms },
   { path: 'gozetmenler', label: 'Gözetmen atama', roles: ['secretary', 'student_affairs'], page: Invigilators },
   { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: Conflicts },

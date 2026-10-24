@@ -54,6 +54,11 @@ func main() {
 		{"OWNERSHIP", checkOwnership},
 		{"F-7", checkF7},
 		{"T-5", checkT5},
+		{"X-2", checkX2},
+		{"X-3", checkX3},
+		{"X-4", checkX4},
+		{"X-5/X-7", checkX5X7},
+		{"X-6", checkX6},
 	}
 	var results []result
 	for _, c := range checks {

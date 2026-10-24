@@ -1,4 +1,4 @@
-import { all, get } from '../api'
+import { all, fmtDateTime, get } from '../api'
 import { Async, Bar, Card, Empty, Pill, Stat, useAsync } from '../ui'
 import { useExams, useRooms, useSchedules, ScheduleSelect } from './common'
 
@@ -8,6 +8,7 @@ export function Dashboard() {
   const rooms = useRooms()
   const periods = useAsync(async () => (await get('/periods')).items as { id: number; name: string; exams: number; days: number; sessions_per_day: number }[])
   const pending = useAsync(async () => (await all('/excuses?status=pending')).length)
+  const feed = useAsync(async () => (await get<{ items: Act[] }>('/activity?limit=12')).items)
   const m = sch.current?.metrics
   const cap = rooms.data?.reduce((a, r) => a + r.capacity, 0)
 
@@ -59,6 +60,21 @@ export function Dashboard() {
         </Async>
       </Card>
 
+      <Card title="Son olaylar" aside={<span className="small muted">denetim kaydından</span>}>
+        <Async s={feed} empty={(d) => d.length === 0}>
+          {(items) => (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 }}>
+              {items.map((a) => (
+                <li key={a.id} className="row" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--container)', paddingBottom: 8 }}>
+                  <span><b>{actLabel(a)}</b> <span className="muted small">#{a.entity_id}</span>{a.actor && <span className="muted small"> · {a.actor}</span>}</span>
+                  <span className="small muted">{fmtDateTime(a.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Async>
+      </Card>
+
       <Card title="Günlük oturum yoğunluğu" aside={<span className="small muted">sınav sayısı / gün</span>}>
         <Async s={exams} empty={() => rows.length === 0}>
           {() => (
@@ -84,6 +100,13 @@ export function Dashboard() {
     </>
   )
 }
+
+type Act = { id: number; action: string; entity: string; entity_id: string; actor?: string; created_at: string; detail?: Record<string, unknown> }
+const LABEL: Record<string, string> = {
+  'schedule.create': 'Takvim sürümü oluşturuldu', 'schedule.publish': 'Takvim yayınlandı', 'excuse.create': 'Mazeret bildirildi', 'excuse.decide': 'Mazeret karara bağlandı',
+  'room.create': 'Salon eklendi', 'room.update': 'Salon güncellendi', 'room.delete': 'Salon silindi', 'room.change': 'Toplu salon değişikliği (tahliye)', 'invigilator.remove': 'Gözetmen çizelgeden çıkarıldı',
+}
+const actLabel = (a: Act) => (a.action.startsWith('import.') ? `Veri içe aktarıldı: ${a.entity_id}` : LABEL[a.action] ?? a.action)
 
 const Step = ({ ok, label, note }: { ok: boolean; label: string; note: string }) => (
   <div className="card" style={{ boxShadow: 'none' }}>

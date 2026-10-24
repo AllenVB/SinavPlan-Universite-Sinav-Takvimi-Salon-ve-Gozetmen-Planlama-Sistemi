@@ -92,6 +92,18 @@ flowchart LR
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
 Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipografi sistemi ve düzenine göre 11 ekrana entegre edildi (ADR-013). Tarayıcı aynı kaynağa konuşur: nginx `/api/` isteklerini API'ye vekiller, bu yüzden CORS gerekmez.
 
+## Fark yaratan özellikler (Faz 11)
+
+| Özellik | Nerede | Nasıl kanıtlandı |
+|---|---|---|
+| Gerçek QR kodu (sınav kartı) | Öğrenci → Sınav programım | UI duman testi: SVG çizilir; jeton aynı |
+| Excel (.xlsx) / CSV / iCal (.ics) dışa aktarma | Sınav takvimi; öğrenci/gözetmen kendi `.ics` | `make verify` X-2, X-3 (olay sayıları verilerle birebir) |
+| Hızlı simülasyon (kaydetmez, yayındakiyle kıyaslar) | Sınav takvimi | `make verify` X-4 (sürüm sayısı değişmez, deterministik) |
+| Sürüm karşılaştırma (metrik farkı + taşınan sınavlar) | Sınav takvimi | `make verify` X-5/X-7 |
+| Sürükle-bırak takvim editörü (kısıt ihlalinde reddeder, uygunsa yeni taslak) | Takvim editörü | `make verify` X-5/X-7 + HTTP testi (ihlalli taşıma 422 ve sürüm oluşmaz; mutasyonla doğrulandı) |
+| Gerçek etkinlik akışı (denetim kaydından) | Ana panel | `make verify` X-6 |
+| Yazdır / PDF | her ekran (yazdırma stili) | elle |
+
 ## Ölçümler
 
 ### Doğruluk (T-1..T-5, 300 sınav / 8.000 öğrenci, `make verify` + `make prove-*`)
@@ -102,7 +114,7 @@ Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipogra
 | T-2/T-3 | 52.033 / 52.033 öğrenci-sınav çifti oturtuldu, 0 ihlal; 1.151 engelli öğrenci erişilebilir koltukta |
 | T-4 | 1.092 görev; gözetmen yükü min 10 / max 11 (fark 1 = ideal) |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | 156 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
+| Testler | 165 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 
@@ -200,7 +212,8 @@ make prove-t1
 
 ## Bilinen sınırlar ve yapılmayanlar
 
-- **Frontend:** tasarımlardaki, arka uçta karşılığı olmayan öğeler (ÖBS senkronu, Excel/PDF dışa aktarma, "hızlı simülasyon", etkinlik akışı, yazdırma, sürükle-bırak) **yapılmadı**. Sınav kartındaki QR, görsel kod yerine metin jetonu olarak gösterilir (QR çizen bir kütüphane eklenmedi). Arayüz Playwright duman testiyle (`deploy/ui-smoke/`) denendi; bileşen birim testi yok. Bu ortamda `docker compose build frontend` (npm ci ağ erişimi) çalışmadı; arayüz Vite ile derlendi ve nginx yapılandırması ayrı konteynerde doğrulandı — tam `docker compose up --build` zinciri bu ortamda frontend için sınanmadı.
+- **ÖBS entegrasyonu yapılmadı:** üniversitenin ÖBS'si harici bir sistem; erişimi/protokolü yok ve sahte bir "canlı bağlantı" göstermek yanıltıcı olurdu. ÖBS'den alınan dışa aktarım CSV ile F-1 içe aktarma uçlarından (öğrenci/ders/şube/kayıt) sisteme girer.
+- **Arayüz** birim testsiz; Playwright duman testleri var (`deploy/ui-smoke/`). Tasarımlardaki yazdırma, PDF için tarayıcının "PDF olarak kaydet"i kullanılır (sunucuda PDF üretilmez). Sürükle-bırak editör bir sınavı taşır ve **yeni taslak sürüm** üretir; tam yeniden kurulum tam ölçekte ~birkaç sn sürer.
+- Bu ortamda `docker compose build frontend` ilk denemede ağ yüzünden çalışmamıştı; kullanıcı makinesinde derleme başarıyla tamamlandı (kullanıcı çıktısı).
 - **Doğrulanmadı:** GitHub Actions CI (hiç çalışmadı), Windows'ta çalıştırma.
 - **testcontainers-go** yerine `TEST_DATABASE_URL` + test başına geçici veritabanı kullanıldı (ADR-010).
-- **P2 (yapılmadı):** iCal dışa aktarma, plan karşılaştırma, sürükle-bırak editör.

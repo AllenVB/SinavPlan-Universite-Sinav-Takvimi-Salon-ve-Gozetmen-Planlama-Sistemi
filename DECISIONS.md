@@ -466,4 +466,22 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 
 **Alternatifler.** Tailwind derlemesi (yeni bağımlılık + yapılandırma), tasarım HTML'ini olduğu gibi gömmek (sahte veri, erişilebilirlik ve durum yönetimi yok), CORS başlıkları (ek yüzey).
 
-**Sonuçlar.** Tasarımlardaki ÖBS senkronu, dışa aktarma, simülasyon, etkinlik akışı, yazdırma, sürükle-bırak ve QR görseli yapılmadı (karşılığı yok / bağımlılık gerekir). Arayüz birim testsiz; Playwright duman testi var.
+**Sonuçlar.** İlk sürümde karşılığı olmayan öğeler ertelenmişti; kullanıcı kararıyla Faz 11'de (ADR-014) gerçek uçlarla eklendi. ÖBS hâlâ kapsam dışı. Arayüz birim testsiz; Playwright duman testi var.
+
+## ADR-014 — Faz 11: dışa aktarma, simülasyon, karşılaştırma, elle düzenleme
+
+**Bağlam.** Tasarımlardaki ve proje.md §11'deki farklılaştırıcı özellikler (Excel/PDF, iCal, simülasyon, plan karşılaştırma, sürükle-bırak, etkinlik akışı, QR görseli) kullanıcı kararıyla plana alındı. Kural: sahte veri/işlev yok, her biri test ve `make verify` kimliği taşır.
+
+**Karar.**
+- **xlsx bağımlılıksız:** en küçük geçerli OOXML (zip + XML, satır içi metin) elle yazıldı (`internal/export`); sayfa adı/XML-kaçış/geçersiz karakter kuralları testli. CSV: UTF-8 BOM + `;` (Türkçe Excel) ve formül enjeksiyonuna karşı `'` öneki. **PDF:** sunucuda üretilmez; yazdırma stili + tarayıcı "PDF olarak kaydet" (ek bağımlılık ve yazı tipi gömme yükü yok).
+- **iCal:** UTC, kararlı UID (`exam-<id>-…@sinavplan`), RFC 5545 satır katlama ve kaçış; öğrencinin dosyasında salon+koltuk.
+- **Simülasyon:** yalnız T-1 (`planning.Simulate`), yazmaz, eşzamanlı çalışır (≤300.000 iterasyon, uca özel 45 sn süre sınırı `slow()`); yayındaki sürümle ceza kıyaslanır.
+- **Elle düzenleme = türev taslak sürüm:** taşıma mevcut sürümü DEĞİŞTİRMEZ; sert kısıtlar `scheduling.Validate` ile (çözücüyle aynı doğrulayıcı) denetlenir, ihlalde 422 + neden listesi; uygunsa çözücü ATLANARAK aynı `finishPlan` yolundan T-2..T-4 yeniden kurulur ve `derived_from`/`edit` kaydıyla yeni sürüm oluşur. Geri alma = önceki sürüme dönmek; denetim kaydı ve karşılaştırma ücretsiz gelir. `dry_run` yazmadan doğrular (sürüklerken önizleme).
+- **Karşılaştırma:** metrikler `schedules.metrics`'ten, taşınan sınavlar `schedule_exams` birleşiminden (tek SQL).
+- **Etkinlik akışı:** `audit_log`'dan (zaten eklemeli-yalnız); yeni tablo yok.
+- **QR görseli:** tek küçük bağımlılık `qrcode-generator` (MIT, bağımlılıksız, SVG) — kendi QR kodlayıcımı yazmak hata riski taşırdı.
+- **ÖBS:** kapsam dışı; harici sistem erişimi yok, sahte bağlantı gösterilmez. ÖBS dışa aktarımı F-1 CSV içe aktarmasından girer.
+
+**Alternatifler.** excelize (büyük bağımlılık ağacı), sunucuda PDF (yazı tipi/yerelleştirme yükü), taşımada kaynak sürümü yerinde değiştirmek (geri alınamaz, denetlenemez, yayındaki sürümü bozabilir).
+
+**Sonuçlar.** 9 yeni uç (OpenAPI'de), 165 test, 21 doğrulama kimliği. Taşıma tam ölçekte ~birkaç sn (T-2..T-4 yeniden kurulur) olduğundan uç 60 sn süre sınırlıdır. Türev sürümler sürüm listesini büyütür (temizleme/arşivleme yapılmadı).

@@ -3,6 +3,7 @@ import { get, idemKey, post, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../auth'
 import { Async, Card, ErrorBox, Empty, Field, Pill, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useExams, useSchedules, type Exam } from './common'
+import { Compare, ExportButtons, Simulator } from './Tools'
 
 export function Calendar() {
   const { user } = useAuth()
@@ -40,7 +41,10 @@ export function Calendar() {
         </div>
       </div>
       {publish.error && <ErrorBox error={publish.error} />}
-      {secretary && <Generator onDone={() => (sch.list.reload(), sch.setSel(null))} />}
+      <div className="noprint"><ExportButtons schedule={sch.sel} /></div>
+      {secretary && <div className="noprint"><Generator onDone={() => (sch.list.reload(), sch.setSel(null))} /></div>}
+      {secretary && <div className="noprint"><Simulator periodId={sch.current?.period_id} /></div>}
+      {secretary && sch.list.data && sch.list.data.length > 1 && <div className="noprint"><Compare schedules={sch.list.data} current={sch.sel} /></div>}
 
       {m && (
         <div className="grid g4">

@@ -151,3 +151,28 @@ export const fmtDate = (s: string) => new Intl.DateTimeFormat('tr-TR', { timeZon
 export const fmtShort = (s: string) => new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(s))
 export const fmtTime = (s: string) => new Intl.DateTimeFormat('tr-TR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(new Date(s))
 export const fmtDateTime = (s: string) => `${fmtShort(s)} ${fmtTime(s)}`
+
+/** Kimlik doğrulamalı dosya indirir (başlık gerektiği için düz <a href> yetmez). */
+export async function download(path: string, fallbackName: string) {
+  let res = await raw('GET', path)
+  if (res.status === 401 && (await refresh())) res = await raw('GET', path)
+  if (!res.ok) {
+    let msg = `İndirme başarısız (HTTP ${res.status})`
+    try {
+      msg = (await res.json())?.error?.message ?? msg
+    } catch {
+      /* gövde JSON değil */
+    }
+    throw new ApiError(res.status, 'download', msg)
+  }
+  const cd = res.headers.get('Content-Disposition') ?? ''
+  const name = /filename="([^"]+)"/.exec(cd)?.[1] ?? fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}

@@ -131,3 +131,13 @@ tr:hover td { background: var(--surface); }
   .bottomnav a[aria-current='page'] { color: var(--primary); box-shadow: inset 0 2px 0 var(--primary); }
   .main { padding-bottom: 56px; }
 }
+
+/* yazdırma / PDF: menü ve etkileşim kontrolleri gizlenir, tablo tam genişlik */
+@media print {
+  .side, .top, .bottomnav, .noprint, .actions, button, select, input, details { display: none !important; }
+  .shell { display: block; }
+  .page { padding: 0; max-width: none; }
+  .card { box-shadow: none; break-inside: avoid; }
+  .tablewrap { overflow: visible !important; max-height: none !important; }
+  body { background: #fff; }
+}

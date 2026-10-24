@@ -29,6 +29,13 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | F-7 | kart → QR → senkron | QR 200, ikinci okutma 409 `qr_already_used`; sync tekrarı `duplicates`; QR≻elle-absent çakışması `qr_present` | `make verify` (F-7) |
 | T-5 | 20 eşzamanlı okutma; tahliye | tam 1×200 + 19×409; yetersiz kapasite 409 ve veri değişmez; başarılı tahliye sonrası T-3/T-4 ihlali 0 | `make verify` (T-5) · `make prove-t5` |
 
+| X-2 | `GET /schedules/{id}/export?format=xlsx\|csv` | geçerli zip (2 sayfa); csv BOM'lu, satır = sınav sayısı; geçersiz biçim 422 | `make verify` (X-2) |
+| X-3 | `calendar.ics`, `/me/exams.ics`, `/me/duties.ics` | VEVENT sayısı = veri; öğrenci `.ics` salon+koltuk içerir; CRLF | `make verify` (X-3) |
+| X-4 | `POST /schedules/simulate` | `saved=false`, sürüm sayısı değişmez, aynı girdi aynı ceza | `make verify` (X-4) |
+| X-5/X-7 | `POST /schedules/{id}/exams/{e}/move`, `GET /schedules/compare` | çakışan taşıma 422 (sürüm yok); geçerli taşıma yeni taslak, ihlal 0, yalnız 1 sınav farklı; karşılaştırma 1 | `make verify` (X-5/X-7) |
+| X-6 | `GET /activity` | denetim kaydından, yeniden eskiye; öğrenci/hoca/gözetmen 403 | `make verify` (X-6) |
+| X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
+
 Birim/entegrasyon testleri (gerçek PostgreSQL ister): `make test` (yarış dedektörüyle) ya da
 `TEST_DATABASE_URL=… go test ./...`. Etki alanı paketleri deterministik/saf Go'dur; DB'siz çalışanlar için `make test-short`.
 
@@ -51,6 +58,10 @@ gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin s
 | İçe aktarma | Veri içe aktarma → hatalı CSV | satır numaralı hata tablosu |
 | Mazeret | öğrenci: mazeret gönder → öğrenci işleri: onayla | onaylanan sınavın kartı "mazeretiniz var" uyarısı verir |
 | Yoklama | gözetmen: görev seç → Geldi → Senkronla | "1 senkron bekliyor" → "kabul edildi"; çevrimdışıyken kuyruk kalır |
+| QR | öğrenci → Sınav kartı | gerçek QR + jeton metni (açılır); yeni kart eskisini geçersiz kılar |
+| Dışa aktarma | takvim → Excel/CSV/iCal | dosya iner, Excel Türkçe karakterleri doğru açar |
+| Simülasyon | takvim → Simüle et | ceza/ihlal, yayındakiyle fark; sürüm sayısı değişmez |
+| Editör | Takvim editörü → bir sınavı sürükle | uygunsa ceza farkı + "Uygula" → yeni taslak; ihlalde nedenler (×N) |
 | Mobil | 390 px genişlik | yatay taşma yok, alt menü |
 
 Otomatik duman testi (Playwright gerekir): `NODE_PATH=$(npm root -g) UI_URL=http://localhost:3000 node deploy/ui-smoke/pages.cjs` ve `flows.cjs`

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { all, fmtDateTime, get, idemKey, post } from '../api'
+import { all, download, fmtDateTime, get, idemKey, post } from '../api'
 import { Async, Card, Empty, ErrorBox, Field, Pill, useAction, useAsync } from '../ui'
 
 type Duty = { id: number; slot_id: number; room_id: number; room_code: string; building: string; starts_at: string; exam_id: number; course_code: string }
@@ -64,7 +64,7 @@ export function Tablet() {
     <>
       <div className="head">
         <div><div className="caps">Gözetmen tableti</div><h1>Yoklama ve görevlerim</h1></div>
-        <div className="actions"><Pill kind={online ? 'ok' : 'err'}>{online ? 'Çevrimiçi' : 'Çevrimdışı'}</Pill><Pill kind={queue.length ? 'warn' : ''}>{queue.length} senkron bekliyor</Pill></div>
+        <div className="actions"><button className="btn sm" onClick={() => void download('/me/duties.ics', 'gorevlerim.ics').catch(() => undefined)}>Görevlerimi takvime ekle (.ics)</button><Pill kind={online ? 'ok' : 'err'}>{online ? 'Çevrimiçi' : 'Çevrimdışı'}</Pill><Pill kind={queue.length ? 'warn' : ''}>{queue.length} senkron bekliyor</Pill></div>
       </div>
       <Card title="Görevlerim">
         <Async s={duties} empty={(d) => d.length === 0}>
