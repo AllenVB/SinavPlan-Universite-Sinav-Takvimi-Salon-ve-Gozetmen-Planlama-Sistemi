@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -105,35 +107,98 @@ func (s *Server) observe(next http.Handler) http.Handler {
 
 // timeout, her isteğe context zaman aşımı uygular. Süre aşılırsa ortak hata
 // biçiminde 504 döner.
+//
+// Handler ayrı bir goroutine'de çalışır ve yanıtı doğrudan istemciye değil bir
+// arabelleğe (timeoutWriter) yazar. Bu iki hatayı önler:
+//  1. Zaman aşımında 504 yazılırken handler'ın aynı ResponseWriter'a yazması
+//     (veri yarışı ve bozuk gövde). Zaman aşımından sonraki yazmalar atılır.
+//  2. Goroutine içindeki paniğin, dış goroutine'deki recoverPanic'i atlayıp süreci
+//     düşürmesi. Panik yakalanır ve dış goroutine'de yeniden fırlatılır.
 func (s *Server) timeout(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), s.requestTimeout)
 		defer cancel()
 
+		tw := &timeoutWriter{header: make(http.Header)}
 		done := make(chan struct{})
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		var panicVal any
 
 		go func() {
-			defer close(done)
-			next.ServeHTTP(rec, r.WithContext(ctx))
+			defer func() {
+				if p := recover(); p != nil {
+					panicVal = p
+				}
+				close(done)
+			}()
+			next.ServeHTTP(tw, r.WithContext(ctx))
 		}()
 
 		select {
 		case <-done:
-			return
-		case <-ctx.Done():
-			// Handler hâlâ çalışıyor olabilir; yanıtı yalnızca henüz bir şey
-			// yazılmadıysa biz üretiriz, aksi halde gövdeyi bozarız.
-			if !rec.wrote {
-				WriteError(w, r, &APIError{
-					Status:  http.StatusGatewayTimeout,
-					Code:    CodeTimeout,
-					Message: "istek zaman aşımına uğradı",
-				})
+			if panicVal != nil {
+				panic(panicVal) // recoverPanic dış goroutine'de yakalar
 			}
-			<-done
+			tw.flushTo(w)
+		case <-ctx.Done():
+			tw.markTimedOut()
+			WriteError(w, r, &APIError{
+				Status:  http.StatusGatewayTimeout,
+				Code:    CodeTimeout,
+				Message: "istek zaman aşımına uğradı",
+			})
 		}
 	})
+}
+
+// timeoutWriter, handler yanıtını arabelleğe alır.
+type timeoutWriter struct {
+	mu       sync.Mutex
+	header   http.Header
+	buf      bytes.Buffer
+	status   int
+	timedOut bool
+}
+
+func (tw *timeoutWriter) Header() http.Header { return tw.header }
+
+func (tw *timeoutWriter) WriteHeader(code int) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	if tw.status == 0 && !tw.timedOut {
+		tw.status = code
+	}
+}
+
+func (tw *timeoutWriter) Write(b []byte) (int, error) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	if tw.timedOut {
+		return 0, http.ErrHandlerTimeout
+	}
+	if tw.status == 0 {
+		tw.status = http.StatusOK
+	}
+	return tw.buf.Write(b)
+}
+
+func (tw *timeoutWriter) markTimedOut() {
+	tw.mu.Lock()
+	tw.timedOut = true
+	tw.mu.Unlock()
+}
+
+func (tw *timeoutWriter) flushTo(w http.ResponseWriter) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	dst := w.Header()
+	for k, v := range tw.header {
+		dst[k] = v
+	}
+	if tw.status == 0 {
+		tw.status = http.StatusOK
+	}
+	w.WriteHeader(tw.status)
+	_, _ = w.Write(tw.buf.Bytes())
 }
 
 // recoverPanic, bir handler panikleyince süreci düşürmek yerine 500 döner.

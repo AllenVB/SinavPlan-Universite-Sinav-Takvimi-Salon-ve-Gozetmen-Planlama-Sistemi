@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 // fakePinger, /health testlerinin gerçek veritabanı olmadan çalışmasını
@@ -167,4 +169,50 @@ func contains(haystack, needle string) bool {
 			}
 			return false
 		}()
+}
+
+// Handler paniği süreci düşürmemeli: 500 ortak biçimde dönmeli. (Bu test, timeout
+// middleware'inin goroutine'indeki paniğin recoverPanic'i atladığı hatayı yakalar.)
+func TestPanickingHandlerReturns500AndServerSurvives(t *testing.T) {
+	s := newTestServer(t, fakePinger{})
+	s.handle(s.router, http.MethodGet, "/panik", Public(), func(http.ResponseWriter, *http.Request) error {
+		panic("beklenmedik durum")
+	})
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/panik", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("durum %d, beklenen 500", rec.Code)
+	}
+	var body ErrorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil || body.Error.Code != CodeInternal {
+		t.Fatalf("ortak hata biçimi bekleniyordu: %v %+v", err, body)
+	}
+	// Sunucu hâlâ yanıt veriyor.
+	rec2 := httptest.NewRecorder()
+	s.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("panik sonrası sunucu yanıt vermeli: %d", rec2.Code)
+	}
+}
+
+// Zaman aşımında 504 döner ve geç kalan handler'ın yazması yanıtı bozmaz.
+func TestSlowHandlerTimesOutWith504(t *testing.T) {
+	s := NewServer(Options{DB: fakePinger{}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		RequestTimeout: 50 * time.Millisecond})
+	release := make(chan struct{})
+	s.handle(s.router, http.MethodGet, "/yavas", Public(), func(w http.ResponseWriter, r *http.Request) error {
+		<-r.Context().Done()
+		<-release
+		WriteJSON(w, http.StatusOK, map[string]string{"geç": "kaldım"})
+		return nil
+	})
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/yavas", nil))
+	close(release)
+	if rec.Code != http.StatusGatewayTimeout || !strings.Contains(rec.Body.String(), CodeTimeout) {
+		t.Fatalf("504 bekleniyordu: %d %s", rec.Code, rec.Body)
+	}
+	if strings.Contains(rec.Body.String(), "kaldım") {
+		t.Fatal("zaman aşımından sonra handler yanıtı yazmamalı")
+	}
 }

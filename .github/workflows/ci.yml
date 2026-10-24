@@ -57,7 +57,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      TEST_DATABASE_URL: postgres://sinavplan:test_pw@localhost:5432/sinavplan_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://sinavplan:test_pw@localhost:5432/sinavplan_test?sslmode=disable&connect_timeout=5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -1,106 +1,26 @@
-package store
+package store_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
-	"net/url"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/AllenVB/sinavplan/backend/internal/simdata"
+	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/AllenVB/sinavplan/backend/internal/store/sqlc"
+	"github.com/AllenVB/sinavplan/backend/internal/testdb"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Bu testler gerçek PostgreSQL ister: şema kısıtları, trigger'lar ve rol yetkileri
-// sahte bir veritabanıyla doğrulanamaz. TEST_DATABASE_URL, veritabanı oluşturma
-// yetkisi olan bir kullanıcıya işaret etmeli (CI'da service container). Her test
-// kendi geçici veritabanını yaratıp siler.
-//
-// Değişken yoksa test BAŞARISIZ olur (sessizce atlanmaz); yalnızca `go test -short`
-// ile atlanır.
-const appRole, appPassword = "sinavplan_test_app", "test_app_pw_0123456789"
+// sahte bir veritabanıyla doğrulanamaz. Kurulum: internal/testdb.
 
 var discard = slog.New(slog.NewTextHandler(io.Discard, nil))
-
-func adminDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		if testing.Short() {
-			t.Skip("TEST_DATABASE_URL yok; -short ile atlandı")
-		}
-		t.Fatal("TEST_DATABASE_URL gerekli (ör. postgres://u:p@host:5432/postgres?sslmode=disable); atlamak için -short")
-	}
-	return dsn
-}
-
-func withDB(dsn, name string) string {
-	u, err := url.Parse(dsn)
-	if err != nil {
-		panic(err)
-	}
-	u.Path = "/" + name
-	return u.String()
-}
-
-type testEnv struct {
-	ownerDSN, appDSN string
-	owner            *DB
-}
-
-// newTestDB, geçici veritabanını kurar, migrasyonları uygular, uygulama rolünü ve
-// yetkilerini hazırlar.
-func newTestDB(t *testing.T) *testEnv {
-	t.Helper()
-	admin := adminDSN(t)
-	ctx := context.Background()
-
-	suffix := make([]byte, 4)
-	_, _ = rand.Read(suffix)
-	name := "t_" + hex.EncodeToString(suffix)
-
-	ac, err := pgx.Connect(ctx, admin)
-	if err != nil {
-		t.Fatalf("admin bağlantısı: %v", err)
-	}
-	if _, err := ac.Exec(ctx, `CREATE DATABASE `+name); err != nil {
-		t.Fatalf("veritabanı oluşturulamadı: %v", err)
-	}
-
-	env := &testEnv{ownerDSN: withDB(admin, name)}
-	t.Cleanup(func() {
-		env.owner.Close()
-		_, _ = ac.Exec(ctx, `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`)
-		_ = ac.Close(ctx)
-	})
-
-	env.owner, err = Open(ctx, env.ownerDSN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := EnsureAppRole(ctx, env.owner, appRole, appPassword); err != nil {
-		t.Fatalf("rol: %v", err)
-	}
-	if _, err := Migrate(ctx, env.ownerDSN); err != nil {
-		t.Fatalf("migrasyon: %v", err)
-	}
-	if err := ApplyGrants(ctx, env.owner, appRole); err != nil {
-		t.Fatalf("yetkiler: %v", err)
-	}
-
-	u, _ := url.Parse(env.ownerDSN)
-	u.User = url.UserPassword(appRole, appPassword)
-	env.appDSN = u.String()
-	return env
-}
 
 func sqlState(err error) string {
 	var pe *pgconn.PgError
@@ -110,33 +30,9 @@ func sqlState(err error) string {
 	return ""
 }
 
-func smallDataset(t *testing.T, seed int64) *simdata.Dataset {
-	t.Helper()
-	ds, err := simdata.Generate(simdata.Config{Seed: seed, Exams: 48, Students: 200, Rooms: 10,
-		Days: 5, SessionsPerDay: 3, DisabilityRate: 0.02})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ds
-}
-
-func seeded(t *testing.T) (*testEnv, *simdata.Dataset) {
-	env := newTestDB(t)
-	ds := smallDataset(t, 7)
-	conn, err := pgx.Connect(context.Background(), env.ownerDSN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = conn.Close(context.Background()) })
-	if err := Seed(context.Background(), conn, ds, "Demo!1234", discard); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	return env, ds
-}
-
 func TestMigrateIsIdempotent(t *testing.T) {
-	env := newTestDB(t) // ilk Migrate newTestDB içinde çalıştı
-	applied, err := Migrate(context.Background(), env.ownerDSN)
+	env := testdb.New(t) // ilk Migrate newTestDB içinde çalıştı
+	applied, err := store.Migrate(context.Background(), env.OwnerDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +40,7 @@ func TestMigrateIsIdempotent(t *testing.T) {
 		t.Fatalf("ikinci çalıştırma yeni sürüm uygulamamalı: %v", applied)
 	}
 	var n int
-	_ = env.owner.Pool.QueryRow(context.Background(),
+	_ = env.Owner.Pool.QueryRow(context.Background(),
 		`SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`).Scan(&n)
 	if n < 28 {
 		t.Fatalf("tablo sayısı %d, en az 28 bekleniyordu", n)
@@ -152,23 +48,23 @@ func TestMigrateIsIdempotent(t *testing.T) {
 }
 
 func TestAuditLogIsAppendOnlyForEveryone(t *testing.T) {
-	env := newTestDB(t)
+	env := testdb.New(t)
 	ctx := context.Background()
-	if _, err := env.owner.Pool.Exec(ctx,
+	if _, err := env.Owner.Pool.Exec(ctx,
 		`INSERT INTO audit_log(action,entity,entity_id) VALUES ('t','t','1')`); err != nil {
 		t.Fatal(err)
 	}
 
 	// Sahip rol: trigger durdurur.
 	for _, stmt := range []string{`UPDATE audit_log SET action='x'`, `DELETE FROM audit_log`, `TRUNCATE audit_log`} {
-		_, err := env.owner.Pool.Exec(ctx, stmt)
+		_, err := env.Owner.Pool.Exec(ctx, stmt)
 		if err == nil || !strings.Contains(err.Error(), "eklemeli-yalnız") {
 			t.Errorf("sahip rol için %q trigger tarafından reddedilmeliydi: %v", stmt, err)
 		}
 	}
 
 	// Uygulama rolü: yetki hiç yok (42501), ama INSERT çalışır.
-	app, err := Open(ctx, env.appDSN)
+	app, err := store.Open(ctx, env.AppDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,12 +81,12 @@ func TestAuditLogIsAppendOnlyForEveryone(t *testing.T) {
 }
 
 func TestSeedIsIdempotentAndRefusesDifferentDataset(t *testing.T) {
-	env, ds := seeded(t)
+	env, ds := testdb.Seeded(t)
 	ctx := context.Background()
-	conn, _ := pgx.Connect(ctx, env.ownerDSN)
+	conn, _ := pgx.Connect(ctx, env.OwnerDSN)
 	defer conn.Close(ctx)
 
-	if err := Seed(ctx, conn, ds, "Demo!1234", discard); err != nil {
+	if err := store.Seed(ctx, conn, ds, "Demo!1234", discard); err != nil {
 		t.Fatalf("aynı veri ikinci kez yazılırken hata olmamalı: %v", err)
 	}
 	var n int
@@ -198,15 +94,15 @@ func TestSeedIsIdempotentAndRefusesDifferentDataset(t *testing.T) {
 	if n != len(ds.Students) {
 		t.Fatalf("öğrenci sayısı %d, beklenen %d (çift yazım?)", n, len(ds.Students))
 	}
-	if err := Seed(ctx, conn, smallDataset(t, 8), "Demo!1234", discard); err == nil {
+	if err := store.Seed(ctx, conn, testdb.SmallDataset(t, 8), "Demo!1234", discard); err == nil {
 		t.Fatal("farklı tohumlu veri mevcut veritabanının üstüne yazılmamalı")
 	}
 }
 
 func TestSeedSetsSequencesSoAppCanInsert(t *testing.T) {
-	env, _ := seeded(t)
+	env, _ := testdb.Seeded(t)
 	ctx := context.Background()
-	app, _ := Open(ctx, env.appDSN)
+	app, _ := store.Open(ctx, env.AppDSN)
 	defer app.Close()
 	var id int64
 	if err := app.Pool.QueryRow(ctx, `INSERT INTO departments(code,name) VALUES ('NEW','Yeni') RETURNING id`).Scan(&id); err != nil {
@@ -218,9 +114,9 @@ func TestSeedSetsSequencesSoAppCanInsert(t *testing.T) {
 }
 
 func TestSchemaConstraints(t *testing.T) {
-	env, _ := seeded(t)
+	env, _ := testdb.Seeded(t)
 	ctx := context.Background()
-	exec := func(q string, args ...any) error { _, err := env.owner.Pool.Exec(ctx, q, args...); return err }
+	exec := func(q string, args ...any) error { _, err := env.Owner.Pool.Exec(ctx, q, args...); return err }
 
 	cases := []struct {
 		name, code string
@@ -245,9 +141,9 @@ func TestSchemaConstraints(t *testing.T) {
 // Aynı dönemde yalnızca bir yayınlanmış çizelge olabilir; slot ve koltuk
 // tutarlılığı bileşik FK'larla korunur.
 func TestScheduleIntegrity(t *testing.T) {
-	env, _ := seeded(t)
+	env, _ := testdb.Seeded(t)
 	ctx := context.Background()
-	exec := func(q string, args ...any) error { _, err := env.owner.Pool.Exec(ctx, q, args...); return err }
+	exec := func(q string, args ...any) error { _, err := env.Owner.Pool.Exec(ctx, q, args...); return err }
 
 	if err := exec(`INSERT INTO schedules(period_id,version,status,published_at) VALUES (1,1,'published',now())`); err != nil {
 		t.Fatal(err)
@@ -264,7 +160,7 @@ func TestScheduleIntegrity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var sid int64
-	_ = env.owner.Pool.QueryRow(ctx, `SELECT id FROM schedules WHERE version=4`).Scan(&sid)
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT id FROM schedules WHERE version=4`).Scan(&sid)
 	if err := exec(`INSERT INTO schedule_exams VALUES ($1,1,1),($1,2,2)`, sid); err != nil {
 		t.Fatal(err)
 	}
@@ -296,9 +192,9 @@ func TestScheduleIntegrity(t *testing.T) {
 }
 
 func TestSqlcQueriesWorkAsAppRole(t *testing.T) {
-	env, ds := seeded(t)
+	env, ds := testdb.Seeded(t)
 	ctx := context.Background()
-	app, err := Open(ctx, env.appDSN)
+	app, err := store.Open(ctx, env.AppDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +233,7 @@ func TestSqlcQueriesWorkAsAppRole(t *testing.T) {
 	}
 
 	// QR: tek kullanım (yarış testi Faz 7'de; burada ardışık davranış).
-	if _, err := env.owner.Pool.Exec(ctx, `INSERT INTO qr_tokens(exam_id,student_id,token_hash,expires_at) VALUES (1,1,'\xdeadbeef', now()+interval '1 hour')`); err != nil {
+	if _, err := env.Owner.Pool.Exec(ctx, `INSERT INTO qr_tokens(exam_id,student_id,token_hash,expires_at) VALUES (1,1,'\xdeadbeef', now()+interval '1 hour')`); err != nil {
 		t.Fatal(err)
 	}
 	use := func() error {

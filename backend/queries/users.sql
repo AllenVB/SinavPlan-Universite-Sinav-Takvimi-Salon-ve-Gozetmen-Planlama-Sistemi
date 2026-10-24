@@ -26,3 +26,9 @@ UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1 AND
 
 -- name: RevokeRefreshTokenFamily :exec
 UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL;
+
+-- name: ListStudentsAfter :many
+-- Keyset sayfalama: OFFSET yok; son görülen id'den sonrası. Bir fazla satır
+-- istenir ki sonraki sayfanın varlığı ek sorgu olmadan bilinsin.
+SELECT id, student_no, full_name, department_id, disability_flag
+FROM students WHERE id > $1 ORDER BY id LIMIT $2;

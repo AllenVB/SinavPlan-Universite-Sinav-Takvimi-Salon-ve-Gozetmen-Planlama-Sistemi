@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AllenVB/sinavplan/backend/internal/auth"
 	"github.com/AllenVB/sinavplan/backend/internal/config"
 	"github.com/AllenVB/sinavplan/backend/internal/httpapi"
 	"github.com/AllenVB/sinavplan/backend/internal/logging"
@@ -64,6 +65,11 @@ func run() error {
 		log.Info("veritabanı bağlantısı doğrulandı")
 	}
 
+	authSvc, err := auth.NewService(db.Pool, auth.NewIssuer(cfg.JWTSecret, cfg.AccessTokenTTL), cfg.RefreshTokenTTL)
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpapi.NewServer(httpapi.Options{
@@ -72,6 +78,8 @@ func run() error {
 			Version:        version,
 			RequestTimeout: cfg.RequestTimeout,
 			Registry:       prometheus.NewRegistry(),
+			Pool:           db.Pool,
+			Auth:           authSvc,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,

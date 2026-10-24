@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 14:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 14:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -28,8 +28,20 @@ Güncelleme: 2026-10-24 14:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `cmd/simulator seed`: tek transaction + COPY, idempotent; `cmd/migrate [up|reset]`
 - `make reset-demo` çalışıyor (6 sn); compose soğuk kurulumda seed otomatik
 
+**Faz 3 — auth, RBAC, idempotency, audit, keyset (P0-5 karşılandı):**
+- `internal/auth`: JWT HS256 (alg sabit, iss/exp zorunlu), access 15 dk; refresh 7 gün, DB'de SHA-256,
+  rotasyonlu, yeniden kullanımda **aile iptali**, FOR UPDATE ile eşzamanlı yenilemede tek kazanan;
+  zamanlama eşitlemeli giriş (kullanıcı numaralandırması yok)
+- `internal/httpapi/rbac.go`: tipli route kaydı, Access sıfır değeri açılışta panik, Walk testi (ADR-006)
+- `internal/idempotency` + middleware: replay / 422 / 409 / 5xx saklanmaz
+- `internal/audit`: aynı transaction içinde yazım
+- Keyset sayfalama (`?limit=&after=`, opak imleç, OFFSET yok)
+- Uçlar: `POST /auth/login|refresh|logout`, `GET /me`, `GET /students`, `GET /students/{id}/exams`, `GET /me/exams`
+- **Bulunup düzeltilen hata:** zaman aşımı middleware'inde panik süreci düşürüyordu + 2 veri yarışı (ADR-006)
+- `make test-integration`: DB testleri konteynerde, compose ağında
+
 ## Sürmekte
-Faz 3 — auth, RBAC, hata biçimi, audit, idempotency, keyset sayfalama. Model önerisi: **Opus 5.5** (PROJECT_PLAN §7).
+Faz 4 — T-1 sınav takvimi çizelgeleme. Model: **Opus 5.5** (algoritma + performans).
 
 ## Bloke
 Yok.
@@ -40,11 +52,11 @@ Yok.
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
-P0-5 auth/RBAC · P0-6..P0-11 T-1..T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (36/40 test) · P0-15 frontend
+P0-6..P0-11 T-1..T-5 ·
+P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (67/40 test ✓; domain kapsamı henüz yok) · P0-15 frontend
 
 ## Kalan P1
-Idempotency · audit trigger · keyset · OpenAPI+`/docs` · k6 · chaos betiği ·
+OpenAPI+`/docs` · k6 · chaos betiği ·
 EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-demo · simülatör `--live`
 
 ## Bilinen kusurlar / sınırlar
@@ -56,22 +68,18 @@ EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-d
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (Faz 2)
+## Son doğrulama sonuçları (Faz 3)
 ```
-go vet -mod=vendor ./...                       OK
-go test -race ./... (TEST_DATABASE_URL ile)    bkz. aşağıdaki sayım
-store testleri gerçek Postgres 16'ya karşı     7 test geçiyor
-mutasyon kontrolü                              REVOKE kaldırılınca ve koltuk-salon FK'sı kaldırılınca testler BAŞARISIZ oldu
-make reset-demo                                6 sn
-compose soğuk kurulum (down -v sonrası)        24 sn (imajlar önbellekli); seed otomatik, /health 200
-seed idempotent                                ikinci çalıştırma "zaten yüklü, atlanıyor"
-dizi ayarı                                     seed sonrası uygulama INSERT'ü çakışmıyor
-T-1 yapısal çözülebilirlik                     DSatur 13 renk <= 45 slot
+go test -race ./... (gerçek Postgres)     67 test geçiyor, veri yarışı yok (2 ardışık tur)
+make test-integration                     konteyner içinde, 60 sn, tümü geçti
+mutasyon kontrolü                         idempotency INSERT çakışması yok sayılınca 4 test,
+                                          rol kontrolü kaldırılınca RBAC testleri BAŞARISIZ
+çalışan yığında uçtan uca (curl)          yanlış parola 401 · token yok 401 · yetkisiz rol 403 ·
+                                          başkasının verisi 403 · kendi programı 200 · keyset imleci
+API log'unda parola/token                 0 geçiş
 ```
-**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows makinende `docker compose up` denenmedi;
-EXPLAIN (ANALYZE) ölçümleri Faz 10'da.
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows makinende denenmedi.
 
 ## Sıradaki eylem
-Faz 3: `internal/auth` (JWT access 15 dk + refresh 7 gün, DB'de hash'li, rotasyonlu, yeniden kullanım
-tespitinde aile iptali), RBAC sarmalayıcı (rol listesi zorunlu; listesiz route'u yakalayan test),
-`internal/audit`, `internal/idempotency`, keyset sayfalama. Opus 5.5'e geçiş önerilir.
+Faz 4: `internal/domain/scheduling` — bitset çatışma grafı, DSatur, tabu/SA yerel arama, Validate,
+çözümsüzlük raporu, 300/8000/15 gün benchmark, `make prove-t1`.

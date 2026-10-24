@@ -170,3 +170,41 @@ REVOKE — sahip rol aşar. İkisi birlikte iki bağımsız hata gerektirir.
 başarısız olur (mutasyon kontrolü yapıldı). **Sınırlama:** tablo sahibi rol hâlâ
 `DROP TRIGGER` çalıştırabilir; `make reset-demo` bu yüzden sahip rolle şemayı komple
 yeniden kurar ve `APP_ENV=production` iken reddedilir.
+
+---
+
+## ADR-006 — RBAC tipli route kaydıyla; idempotency middleware'de, sınırı açık
+
+**Bağlam.** Her uçta yetki kontrolü olmalı ve "rol listesi olmayan route derlenmemeli
+veya testte yakalanmalı". Kritik POST'lar `Idempotency-Key` desteklemeli.
+
+**Karar — RBAC.** Route'lar yalnızca `s.handle(r, method, pattern, Access, h)` ile kaydedilir.
+`Access` sıfır değeri geçersizdir: `Public()` ya da boş olmayan `Roles(...)` verilmezse
+sunucu açılışta panikler (`Roles()` boş listeyle de panikler). `TestEveryRouteDeclaresAccess`
+router'ı `chi.Walk` ile gezer; chi'nin `r.Get`'i doğrudan kullanılırsa test başarısız olur.
+`TestPublicRoutesAreAnExplicitAllowList` herkese açık uçları sabit bir listeyle sınırlar.
+Kimliksiz/geçersiz token 401 (+ `WWW-Authenticate`), yetkisiz rol 403. Öğrenci kimliği
+giriş anında token'a gömülür; sahiplik kontrolü sunucuda bu kimlikle yapılır.
+
+**Karar — Idempotency.** `(key, user_id)` birincil anahtarına `INSERT … ON CONFLICT DO NOTHING`:
+eşzamanlı aynı anahtarlı isteklerden yalnız biri kazanır, diğerleri 409 alır (V-5); tamamlanınca
+aynı gövde saklı yanıtı alır (`Idempotent-Replayed: true`), farklı gövde 422. 5xx saklanmaz,
+anahtar bırakılır.
+
+**Alternatifler.** Derleme zamanı garantisi için her rol kombinasyonuna ayrı tip — Go'da
+hantal; kayıt fonksiyonu + Walk testi aynı güvenceyi verir. İkinci istek için 409 yerine
+bekletme — bağlantı tutar ve testi zamanlamaya bağlar.
+
+**Sonuçlar ve bilinen sınır.** Idempotency kaydı, handler'ın iş transaction'ıyla **aynı
+transaction'da değil**: handler commit edip yanıt saklanmadan süreç çökerse, aynı anahtarla
+yeniden deneme işlemi ikinci kez çalıştırabilir. Bu pencereyi kritik işlemlerin kendi
+doğal idempotansı kapatır (QR kullanımı koşullu UPDATE, yoklama olayı `event_id` UNIQUE,
+yayınlama durum kontrolü). Mutasyon kontrolü: INSERT çakışması yok sayılınca 4 idempotency
+testi, rol kontrolü kaldırılınca RBAC testleri başarısız oldu.
+
+**Yolda bulunan hata.** İstek zaman aşımı middleware'i handler'ı ayrı goroutine'de
+çalıştırıyordu; (1) oradaki panik `recoverPanic`'i atlayıp **süreci düşürüyordu**,
+(2) zaman aşımında 504 ile handler aynı `ResponseWriter`'a yazıyordu, (3) chi'nin
+`RouteContext`'i iki goroutine'den erişiliyordu. Düzeltme: handler arabelleğe yazar,
+panik dış goroutine'de yeniden fırlatılır, zaman aşımı route başına uygulanır (yönlendirme
+bittikten sonra). Üçü de testle (`-race` dahil) kanıtlandı.

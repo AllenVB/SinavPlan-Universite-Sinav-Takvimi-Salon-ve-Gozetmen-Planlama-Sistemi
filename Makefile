@@ -9,6 +9,9 @@
 #   make test       birim testleri + kapsam
 
 SHELL := /bin/bash
+
+# .env varsa değişkenlerini Makefile'a da al (POSTGRES_* vb.).
+-include .env
 .DEFAULT_GOAL := help
 
 COMPOSE     := docker compose
@@ -62,6 +65,13 @@ test: ## Tüm testleri yarış dedektörüyle çalıştır
 .PHONY: test-short
 test-short: ## Yalnızca hızlı testler (Postgres gerektirenler atlanır)
 	cd $(BACKEND_DIR) && go test -short -race ./...
+
+.PHONY: test-integration
+test-integration: .env ## DB testleri: compose ağındaki postgres'e karşı, konteyner içinde (-race)
+	$(COMPOSE) up -d postgres
+	docker run --rm --network sinavplan_default -v "$(CURDIR)/backend:/src" -w /src \
+	  -e TEST_DATABASE_URL="postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/postgres?sslmode=disable&connect_timeout=5" \
+	  golang:1.24 go test -mod=vendor -race -count=1 ./...
 
 .PHONY: cover
 cover: ## Kapsam raporu üret; domain paketleri için özet bas

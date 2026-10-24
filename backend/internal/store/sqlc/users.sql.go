@@ -152,6 +152,52 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 	return i, err
 }
 
+const listStudentsAfter = `-- name: ListStudentsAfter :many
+SELECT id, student_no, full_name, department_id, disability_flag
+FROM students WHERE id > $1 ORDER BY id LIMIT $2
+`
+
+type ListStudentsAfterParams struct {
+	ID    int64 `json:"id"`
+	Limit int32 `json:"limit"`
+}
+
+type ListStudentsAfterRow struct {
+	ID             int64  `json:"id"`
+	StudentNo      string `json:"student_no"`
+	FullName       string `json:"full_name"`
+	DepartmentID   int64  `json:"department_id"`
+	DisabilityFlag bool   `json:"disability_flag"`
+}
+
+// Keyset sayfalama: OFFSET yok; son görülen id'den sonrası. Bir fazla satır
+// istenir ki sonraki sayfanın varlığı ek sorgu olmadan bilinsin.
+func (q *Queries) ListStudentsAfter(ctx context.Context, arg ListStudentsAfterParams) ([]ListStudentsAfterRow, error) {
+	rows, err := q.db.Query(ctx, listStudentsAfter, arg.ID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListStudentsAfterRow{}
+	for rows.Next() {
+		var i ListStudentsAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StudentNo,
+			&i.FullName,
+			&i.DepartmentID,
+			&i.DisabilityFlag,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserRoles = `-- name: ListUserRoles :many
 SELECT role FROM user_roles WHERE user_id = $1 ORDER BY role
 `
