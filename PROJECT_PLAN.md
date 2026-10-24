@@ -59,9 +59,20 @@ OpenAPI + `/docs` · `make load` (k6 p50/p95/p99) · `make chaos` ·
 EXPLAIN betiği + `docs/explain/` · `DECISIONS.md` ≥5 ADR · README Doğrulama Soruları ·
 `TESTING.md` · `make reset-demo` · simülatör `--live` modu
 
-### P2 — Opsiyonel (çekirdek bitince)
-iCal dışa aktarma · plan karşılaştırma (iki çözümün metrikleri) ·
-sürükle-bırak takvim düzenleme (proje.md §11)
+### P2 — Fark yaratan özellikler (Faz 11, kullanıcı kararıyla plana alındı)
+
+| # | Özellik | Kabul ölçütü |
+|---|---|---|
+| X-1 | QR görseli | sınav kartında tarayıcının okuyabileceği gerçek QR; jeton değişmez |
+| X-2 | Dışa aktarma | takvim+gözetmen `.xlsx` ve `.csv` (sunucuda üretilir, Excel açar); PDF = yazdırma stili (tarayıcıdan PDF) |
+| X-3 | iCal | `.ics`: öğrenci programı, gözetmen görevleri, tüm takvim; UTC, kararlı UID |
+| X-4 | Hızlı simülasyon | kaydetmeden T-1 çalıştır: ceza/ihlal/süre, yayındaki sürümle fark |
+| X-5 | Plan karşılaştırma | iki sürümün metrik farkı + taşınan sınavlar listesi |
+| X-6 | Etkinlik akışı | panelde gerçek denetim kaydından son olaylar (sahte veri yok) |
+| X-7 | Sürükle-bırak editör | sınavı slota sürükle; sert kısıt ihlalinde reddet (neden listesiyle); başarılıysa T-2..T-4 yeniden kurulur ve **yeni taslak sürüm** oluşur |
+| X-8 | ÖBS | **kapsam dışı (canlı entegrasyon):** harici sistem erişimi yok; sahte bağlantı yapılmaz. Yerine mevcut CSV içe aktarma (F-1) ÖBS dışa aktarımını karşılar |
+
+Kural: her özellik API'de gerçek veriye dayanır, testi ve `make verify` kimliği vardır; test edilmeyen özellik "yapıldı" sayılmaz.
 
 ## 3. Kritik yol
 
