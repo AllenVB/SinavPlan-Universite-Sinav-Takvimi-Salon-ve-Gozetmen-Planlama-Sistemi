@@ -4,6 +4,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 	"log/slog"
 	"net/http"
 )
@@ -115,6 +120,9 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 			slog.String("path", r.URL.Path),
 		)
 		apiErr = Internal()
+		if dbUnavailable(err) {
+			apiErr = Unavailable("veritabanına şu an erişilemiyor; lütfen biraz sonra tekrar deneyin")
+		}
 	}
 	if apiErr.Status >= 500 {
 		slog.ErrorContext(r.Context(), "sunucu hatası",
@@ -127,4 +135,20 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 		Message: apiErr.Message,
 		Fields:  apiErr.Fields,
 	}})
+}
+
+// dbUnavailable, hatanın bağlantı/erişilebilirlik sorunu olup olmadığını söyler (bağlantı
+// reddi, ağ hatası, sunucu kapanıyor, bağlantı sınıfı SQLSTATE 08/57P). Bu durumda istemci
+// 500 yerine 503 görür: sorun istekte değil bağımlılıktadır, yeniden denenebilir.
+func dbUnavailable(err error) bool {
+	var ne net.Error
+	if errors.As(err, &ne) {
+		return true
+	}
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) {
+		return strings.HasPrefix(pe.Code, "08") || strings.HasPrefix(pe.Code, "57P")
+	}
+	var ce *pgconn.ConnectError
+	return errors.As(err, &ce) || strings.Contains(err.Error(), "failed to connect") || strings.Contains(err.Error(), "closed pool")
 }

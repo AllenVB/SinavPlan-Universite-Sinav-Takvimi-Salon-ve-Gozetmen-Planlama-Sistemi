@@ -439,3 +439,16 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Sınırlar.** İşin yarıda kesilmesi (süreç çökmesi) iptal değil "failed"dir; yeniden başlatmak gerekir. Tek API
 örneği varsayıldı (iki örnek aynı işi iki kez almaz — `FOR UPDATE` korur — ama yarım iş temizliği açılışta tüm
 çalışanları kapatır). `starts_at` UTC döner; arayüz yerel saate (UTC+3) çevirmelidir.
+
+## ADR-012 — Ölçüm araçları: k6 konteyneri, EXPLAIN'de geri alınan DROP INDEX, bağımlılık kesintisinde 503
+
+**Bağlam.** Yük, kaos ve dizin ölçümleri tek komutla ve yan etkisiz tekrarlanabilmeli; sahte "iyi" sonuç üretmemeli.
+
+**Karar.**
+- k6 `grafana/k6` konteynerinde, compose ağından `api:8080`'e çalışır (host'a kurulum yok); özet `handleSummary` ile markdown tablo olarak yazılır.
+- EXPLAIN: dizin bir transaction içinde `DROP INDEX` edilir, plan alınır, `ROLLBACK` ile geri gelir; şema/veri kalıcı değişmez. Fark yaratmayan dizin de raporlanır (`schedule_exams_slot_idx`).
+- Kaos testi, kesintide veri uçlarının 500 yerine **503** dönmesini şart koşar. Bunun için bağlantı/ağ/SQLSTATE 08,57P hataları `Unavailable`'a eşlenir (`dbUnavailable`, birim testli). Kaos koşusu bu eksiği 500 olarak ortaya çıkardı.
+
+**Alternatifler.** Host'a k6 kurmak (taşınabilir değil). Kalıcı `DROP/CREATE INDEX` (yarışa ve veri değişikliğine açık).
+
+**Sonuçlar.** `make load|chaos|explain` tekrarlanabilir; yük sonucu tek makine ölçümüdür, kapasite iddiası değildir.
