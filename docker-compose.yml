@@ -129,6 +129,25 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Canlı izleme gösterisi (isteğe bağlı): yayınlanmış çizelgenin ilk oturumu için yoklama akıtır.
+  # Çalıştırma: docker compose --profile demo run --rm demo   (veya: make demo)
+  demo:
+    profiles: ["demo"]
+    build:
+      context: ./backend
+      args:
+        TARGET: simulator
+        VERSION: ${APP_VERSION:-dev}
+    command: ["demo", "--duration=${DEMO_DURATION:-90s}"]
+    environment:
+      API_BASE_URL: http://api:8080
+      LOG_LEVEL: ${LOG_LEVEL}
+      DEMO_PASSWORD: ${DEMO_PASSWORD}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
   frontend:
     build:
       context: ./frontend

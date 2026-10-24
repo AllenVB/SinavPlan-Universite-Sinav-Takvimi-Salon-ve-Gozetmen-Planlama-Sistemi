@@ -16,7 +16,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: Ctx = {
     user,
     ready,
-    login: async (e, p) => setUser(await api.login(e, p)),
+    login: async (e, p) => {
+      const u = await api.login(e, p)
+      setUser(await api.me().catch(() => u)) // ad bilgisi /me'den gelir; okunamazsa giriş yanıtı yeter
+    },
     logout: async () => {
       await api.logout()
       setUser(null)

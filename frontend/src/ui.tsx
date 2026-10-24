@@ -142,3 +142,111 @@ export function useAction<A extends unknown[], R>(fn: (...a: A) => Promise<R>) {
   }
   return { run, busy, error, result, reset: () => (setError(null), setResult(null)) }
 }
+
+// ---- Tasarım sistemi v2: canlı bileşenler -----------------------------------------------
+import { Icon, type IconName } from './icons'
+
+export type Tone = 'ok' | 'warn' | 'err' | 'info' | 'mute'
+
+/** Durum ışığı (yeşil/sarı/kırmızı nokta). */
+export const Dot = ({ tone = 'ok', pulse }: { tone?: Tone; pulse?: boolean }) => <i className={`dot ${tone} ${pulse ? 'pulse' : ''}`} aria-hidden="true" />
+
+/** Noktalı durum çipi: "● Geldi". */
+export const Status = ({ tone = 'mute', children }: { tone?: Tone; children: ReactNode }) => (
+  <span className={`pill ${tone === 'mute' ? '' : tone}`}>
+    <Dot tone={tone} />
+    {children}
+  </span>
+)
+
+/** İkonlu istatistik kartı; isteğe bağlı ilerleme çubuğu. */
+export function StatCard({ icon, tone = 'info', label, value, note, progress }: { icon: IconName; tone?: Tone; label: string; value: ReactNode; note?: ReactNode; progress?: number }) {
+  return (
+    <div className="card stat2">
+      <div className="row between">
+        <span className="caps">{label}</span>
+        <span className={`ibadge ${tone}`}><Icon name={icon} size={18} /></span>
+      </div>
+      <div className="v">{value}</div>
+      {progress !== undefined && <div className={`bar ${tone === 'err' ? 'err' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : ''}`} role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>}
+      {note && <div className="small muted" style={{ marginTop: 6 }}>{note}</div>}
+    </div>
+  )
+}
+
+/** Kenarlıklı uyarı şeridi (kırmızı alarm, turuncu çevrimdışı, mavi bilgi, yeşil başarı). */
+export function Banner({ tone = 'info', icon, title, children, actions }: { tone?: Tone; icon?: IconName; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className={`banner ${tone}`} role={tone === 'err' ? 'alert' : 'status'}>
+      {icon && <span className="bicon"><Icon name={icon} size={22} /></span>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <b>{title}</b>
+        {children && <div className="small">{children}</div>}
+      </div>
+      {actions && <div className="actions">{actions}</div>}
+    </div>
+  )
+}
+
+/** Baş harflerden yuvarlak avatar; renk addan türetilir (kararlı). */
+export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  const ini = ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toLocaleUpperCase('tr-TR')
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360
+  return (
+    <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.4, background: `hsl(${h} 70% 92%)`, color: `hsl(${h} 55% 30%)` }} aria-hidden="true">
+      {ini}
+    </span>
+  )
+}
+
+/** Parçalı çubuk: örn. geldi (yeşil) / gelmedi (kırmızı) / işaretsiz (gri). */
+export function SegBar({ parts }: { parts: { value: number; tone: Tone; label: string }[] }) {
+  const total = parts.reduce((a, p) => a + p.value, 0) || 1
+  return (
+    <div className="segbar" role="img" aria-label={parts.map((p) => `${p.label}: ${p.value}`).join(', ')}>
+      {parts.map((p) => p.value > 0 && <i key={p.label} className={p.tone} style={{ width: `${(p.value / total) * 100}%` }} title={`${p.label}: ${p.value}`} />)}
+    </div>
+  )
+}
+
+/** Geri sayım halkası (0..1 arası kalan oran). */
+export function Ring({ fraction, size = 52, children }: { fraction: number; size?: number; children?: ReactNode }) {
+  const r = (size - 8) / 2
+  const c = 2 * Math.PI * r
+  const f = Math.max(0, Math.min(1, fraction))
+  return (
+    <span className="ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--container)" strokeWidth="5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={f < 0.2 ? 'var(--error)' : 'var(--primary)'} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - f)} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: 'stroke-dashoffset .9s linear' }} />
+      </svg>
+      <span className="ringlabel">{children}</span>
+    </span>
+  )
+}
+
+/** Gün başına yığılmış sütun grafiği (SVG yok; erişilebilir tablo özeti ile). */
+export function StackedBars({ data, labels, colors, height = 150 }: { data: { label: string; values: number[] }[]; labels: string[]; colors: string[]; height?: number }) {
+  const max = Math.max(1, ...data.map((d) => d.values.reduce((a, b) => a + b, 0)))
+  return (
+    <div>
+      <div className="legend" style={{ marginBottom: 8 }}>{labels.map((l, i) => <span key={l}><i style={{ background: colors[i] }} />{l}</span>)}</div>
+      <div className="sbars" style={{ height }} role="img" aria-label="Günlük oturum yoğunluğu">
+        {data.map((d) => {
+          const total = d.values.reduce((a, b) => a + b, 0)
+          return (
+            <div key={d.label} className="sbar" title={`${d.label}: ${total} sınav (${d.values.join(' / ')})`}>
+              <span className="sval">{total}</span>
+              <div className="sstack" style={{ height: `${(total / max) * 100}%` }}>
+                {d.values.map((v, i) => v > 0 && <i key={i} style={{ flex: v, background: colors[i] }} />)}
+              </div>
+              <span className="slab">{d.label}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

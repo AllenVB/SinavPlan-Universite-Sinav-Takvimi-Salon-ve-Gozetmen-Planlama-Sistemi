@@ -485,3 +485,19 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Alternatifler.** excelize (büyük bağımlılık ağacı), sunucuda PDF (yazı tipi/yerelleştirme yükü), taşımada kaynak sürümü yerinde değiştirmek (geri alınamaz, denetlenemez, yayındaki sürümü bozabilir).
 
 **Sonuçlar.** 9 yeni uç (OpenAPI'de), 165 test, 21 doğrulama kimliği. Taşıma tam ölçekte ~birkaç sn (T-2..T-4 yeniden kurulur) olduğundan uç 60 sn süre sınırlıdır. Türev sürümler sürüm listesini büyütür (temizleme/arşivleme yapılmadı).
+
+## ADR-015 — Canlı arayüz: artımlı yoklama, kısa ömürlü dönen QR, salon bazlı canlı özet
+
+**Bağlam.** Kullanıcı geri bildirimi: arayüz tasarımlardaki kadar "canlı" değil; QR kodlar sürekli güncellenmeli. Kural: canlı görünen her şey gerçek veriye bağlı olmalı (sahte sayaç/animasyon yok).
+
+**Karar.**
+- **Yoklama (polling), itme değil:** SSE/WebSocket yerine artımlı yoklama: `useLive` görünür sekmede yeniler, gizliyken durur, hatada üstel geri çekilme (≤30 sn); sunucu tarafında artımlı uçlar (`/activity?after_id=`, `/live/events?since=`) maliyeti düşük tutar. Tek örnekli API'de itme altyapısı (pub/sub, bağlantı yönetimi, vekil/zaman aşımı sorunları) kazandırdığından fazla karmaşıklık getirirdi. "Son güncelleme" göstergesi son BAŞARILI yenilemeyi yansıtır.
+- **Canlı özet:** `GET /schedules/{id}/live` salon başına oturan/gelen/gelmedi/işaretsiz sayısını `attendance_state` (olaylardan türetilen son durum) ile `seat_assignments` birleşiminden tek geçişte üretir; toplamlar salon satırlarından türetilir (ayrı sorgu yok → tutarlılık). `slot_id` yoksa süren, yoksa EN ERKEN sıradaki, yoksa son oturum seçilir. `make verify` L-1 bunu bağımsız uçlarla (oturma planı + sınav bazlı yoklama) çapraz doğrular. Bu kontrolün yazımı, ilk sürümdeki bir hatayı da yakaladı (varsayılan slot "en erken" yerine "son sıradaki" seçiliyordu).
+- **Dinamik QR:** jeton ömrü `QR_TTL` (varsayılan 2 dk, 15 sn–1 sa); sınav bitiminden 1 saat sonrasını aşmaz. İstemci ömrün %60'ında yeniler; her yenileme öğrencinin o sınav için kullanılmamış eski jetonlarını iptal eder (zaten vardı) → eski kod 409 `qr_expired`. Ödünleşim: öğrencinin cihazı çevrimdışıysa kod yenilenemez ve süresi dolunca kullanılamaz; ekran bunu açıkça gösterir ("Süresi doldu — yenile"). Tablet çevrimdışıyken QR okutamaz (tek kullanımlık doğrulama sunucuda), elle işaretleme çalışır (zaten offline-first).
+- **Kamera:** `jsQR` (MIT, bağımlılıksız) ile; üretici-çözücü gidiş-dönüş testi var. Kamera izni yoksa/engelliyse açık hata + elle kod.
+- **Canlı demo verisi:** `simulator demo` yalnızca API'yi kullanır (çizelge yoksa üretir/yayınlar, ilk oturum için yoklama akıtır); izleme ekranı gerçek zamanlı ilerler.
+- **Öğrenci krokisi:** `GET /me/exams/{id}/seatmap` yalnız salon düzeni ve kendi koltuğunu döner (başka öğrenci verisi yok; testle denetlenir).
+
+**Alternatifler.** SSE (tek örnekte kazanç az, karmaşıklık fazla), sabit uzun ömürlü QR (ekran görüntüsüyle paylaşılabilir), kendi QR çözücüm (hata riski).
+
+**Sonuçlar.** Yeni uçlar OpenAPI'de ve testli; 171 test, 23 doğrulama kimliği. Bilinen sınır: izleme verisi en fazla ~5 sn gecikmeli; sekme gizliyken yenilenmez.

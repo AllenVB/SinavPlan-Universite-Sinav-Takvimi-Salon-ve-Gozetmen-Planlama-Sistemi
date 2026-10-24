@@ -101,17 +101,24 @@ func PickLiveSlot(ctx context.Context, pool *pgxpool.Pool, scheduleID, slotID in
 		}
 		return "past"
 	}
-	pick := slots[len(slots)-1] // hiçbiri sürmüyor ve sıradaki yoksa: son biten
+	pick := slots[len(slots)-1] // süren de sıradaki de yoksa: son biten
 	if slotID != 0 {
 		pick = slots[0]
 	} else {
-		for _, s := range slots { // slots başlangıca göre sıralı: önce süren, yoksa ilk sıradaki
-			if m := modeOf(s); m == "active" {
-				pick = s
+		// slots başlangıca göre sıralı: önce süren, yoksa EN ERKEN sıradaki
+		upcoming := -1
+		for i, s := range slots {
+			m := modeOf(s)
+			if m == "active" {
+				pick, upcoming = s, -2
 				break
-			} else if m == "upcoming" && modeOf(pick) != "upcoming" {
-				pick = s
 			}
+			if m == "upcoming" && upcoming == -1 {
+				upcoming = i
+			}
+		}
+		if upcoming >= 0 {
+			pick = slots[upcoming]
 		}
 	}
 	mode := modeOf(pick)

@@ -3,7 +3,7 @@ require('fs').mkdirSync('./shots', { recursive: true });
 const { chromium } = require('playwright');
 const BASE = process.env.UI_URL || 'http://localhost:3000';
 const roles = [
-  ['sekreter@sinavplan.test', ['panel','takvim','salonlar','gozetmenler','cakisma','ice-aktar','canli']],
+  ['sekreter@sinavplan.test', ['panel','takvim','duzenle','salonlar','gozetmenler','cakisma','ice-aktar','canli']],
   ['hoca@sinavplan.test', ['takvim','salonlar']],
   ['gozetmen@sinavplan.test', ['yoklama','mazeret']],
   ['ogrenciisleri@sinavplan.test', ['mazeret','cakisma','canli']],

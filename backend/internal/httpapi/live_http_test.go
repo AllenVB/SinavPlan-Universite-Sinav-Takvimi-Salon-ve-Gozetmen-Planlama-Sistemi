@@ -123,11 +123,20 @@ func TestLiveOverviewMatchesSeatingAndAttendance(t *testing.T) {
 		t.Fatalf("2027 tarihli oturum 'upcoming' olmalı: %v", mode)
 	}
 
-	// slot verilmezse sıradaki (en erken) oturum seçilir
+	// slot verilmezse sıradaki (EN ERKEN) oturum seçilir
+	var earliest int64
+	earliestStart := ""
+	_, cal := do(t, f.s, http.MethodGet, "/schedules/"+f.sid+"/exams?limit=200", f.sec, "", "")
+	for _, it := range cal["items"].([]any) {
+		m := it.(map[string]any)
+		if st := m["starts_at"].(string); earliestStart == "" || st < earliestStart {
+			earliestStart, earliest = st, int64(m["slot_id"].(float64))
+		}
+	}
 	_, def := do(t, f.s, http.MethodGet, "/schedules/"+f.sid+"/live", f.aff, "", "")
 	dslot := def["slot"].(map[string]any)
-	if dslot["mode"] != "upcoming" || dslot["id"].(float64) != 1 && dslot["id"] == nil {
-		t.Fatalf("varsayılan slot: %v", dslot)
+	if dslot["mode"] != "upcoming" || int64(dslot["id"].(float64)) != earliest {
+		t.Fatalf("varsayılan slot en erken sıradaki (%d) olmalı: %v", earliest, dslot)
 	}
 }
 

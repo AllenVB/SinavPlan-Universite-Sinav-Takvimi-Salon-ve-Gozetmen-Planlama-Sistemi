@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func (e *env) raw(ctx context.Context, path, tok string) resp {
@@ -194,4 +195,115 @@ func checkX6(ctx context.Context, e *env, f *failures) string {
 		f.check(r.code == 403, "%s akış: HTTP %d (403)", role, r.code)
 	}
 	return fmt.Sprintf("%d olay türü, yeniden eskiye; öğrenci/hoca/gözetmen 403", len(seen))
+}
+
+// L-1: canlı özet, bağımsız kaynaklarla (oturma planı + sınav bazlı yoklama uçları) birebir tutarlı.
+func checkL1(ctx context.Context, e *env, f *failures) string {
+	if !needSnap(e, f) {
+		return ""
+	}
+	sec := e.tok["secretary"]
+	// en erken oturum
+	var slot int64
+	var first string
+	for _, ex := range e.sn.exams {
+		if st := str(ex, "starts_at"); first == "" || st < first {
+			first, slot = st, num(ex, "slot_id")
+		}
+	}
+	// bu oturumda kontrollü yoklama üret: 3 geldi + 1 gelmedi; canlı özet bunu yansıtmalı
+	for id, ex := range e.sn.exams {
+		if num(ex, "slot_id") != slot || len(e.sn.byExam[id]) < 4 {
+			continue
+		}
+		now := time.Now()
+		var evs []M
+		for i, row := range e.sn.byExam[id][:4] {
+			st := "present"
+			if i == 3 {
+				st = "absent"
+			}
+			evs = append(evs, M{"event_id": uuidv7(now), "device_id": "verify-l1", "exam_id": id, "student_id": num(row, "student_id"), "status": st, "source": "manual", "hlc": M{"wall": now.UnixMilli(), "counter": i}})
+		}
+		if sy, err := e.a.post(ctx, "/attendance/sync", e.tok["invigilator"], M{"events": evs}); !f.expectCode("yoklama üret", sy, err, 200) {
+			return ""
+		}
+		break
+	}
+	r, err := e.a.get(ctx, fmt.Sprintf("/schedules/%d/live?slot_id=%d", e.sched2, slot), sec)
+	if !f.expectCode("canlı özet", r, err, 200) {
+		return ""
+	}
+	wantSeated, wantPresent, wantAbsent := 0, 0, 0
+	for id, ex := range e.sn.exams {
+		if num(ex, "slot_id") != slot {
+			continue
+		}
+		wantSeated += len(e.sn.byExam[id])
+		rows, err := e.a.all(ctx, fmt.Sprintf("/exams/%d/attendance", id), sec)
+		if err != nil {
+			f.check(false, "yoklama okunamadı: %v", err)
+			return ""
+		}
+		for _, row := range rows {
+			switch str(row, "status") {
+			case "present":
+				wantPresent++
+			case "absent":
+				wantAbsent++
+			}
+		}
+	}
+	tot := obj(r.body, "totals")
+	f.check(int(num(tot, "seated")) == wantSeated, "oturan %d, oturma planında %d", num(tot, "seated"), wantSeated)
+	f.check(wantPresent >= 3 && wantAbsent >= 1, "kontrollü yoklama okunamadı (gelen %d, gelmedi %d)", wantPresent, wantAbsent)
+	f.check(int(num(tot, "present")) == wantPresent, "gelen %d, yoklama uçlarında %d", num(tot, "present"), wantPresent)
+	f.check(int(num(tot, "absent")) == wantAbsent, "gelmedi %d, yoklama uçlarında %d", num(tot, "absent"), wantAbsent)
+	f.check(int(num(tot, "unmarked")) == wantSeated-wantPresent-wantAbsent, "işaretsiz tutarsız")
+	rooms := arr(r.body, "rooms")
+	sum := 0
+	for _, it := range rooms {
+		m := it.(M)
+		sum += int(num(m, "seated"))
+		f.check(len(arr(m, "invigilators")) >= 1, "salon %s gözetmensiz", str(m, "room_code"))
+	}
+	f.check(sum == wantSeated && int(num(tot, "rooms")) == len(rooms), "salon toplamı %d ≠ %d", sum, wantSeated)
+	ev, err := e.a.get(ctx, fmt.Sprintf("/schedules/%d/live/events?slot_id=%d&limit=5", e.sched2, slot), sec)
+	f.expectCode("olay akışı", ev, err, 200)
+	// artımlı etkinlik akışı
+	a1, _ := e.a.get(ctx, "/activity?limit=3", sec)
+	latest := num(a1.body, "latest_id")
+	a2, _ := e.a.get(ctx, fmt.Sprintf("/activity?after_id=%d", latest), sec)
+	f.check(a2.code == 200 && len(arr(a2.body, "items")) == 0, "after_id=latest boş olmalı")
+	for _, role := range []string{"lecturer", "invigilator", "student"} {
+		x, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/live", e.sched2), e.tok[role])
+		f.check(x.code == 403, "%s canlı özet: HTTP %d (403)", role, x.code)
+	}
+	return fmt.Sprintf("oturum %d: oturan %d = oturma planı, gelen %d / gelmedi %d = yoklama uçları; %d salon, hepsinde gözetmen", slot, wantSeated, wantPresent, wantAbsent, len(rooms))
+}
+
+// Q-1: dinamik QR — kısa ömürlü jeton, yenileme eskisini iptal eder.
+func checkQ1(ctx context.Context, e *env, f *failures) string {
+	_, exam := e.studentPicks(ctx, f)
+	if exam == 0 {
+		return ""
+	}
+	path := fmt.Sprintf("/me/exams/%d/card", exam)
+	a, err := e.a.post(ctx, path, e.tok["student"], nil)
+	if !f.expectCode("kart 1", a, err, 201) {
+		return ""
+	}
+	b, _ := e.a.post(ctx, path, e.tok["student"], nil)
+	ttl := num(b.body, "ttl_seconds")
+	f.check(ttl > 0 && ttl <= 3600, "ttl_seconds=%d (1..3600 bekleniyor)", ttl)
+	f.check(str(a.body, "qr_token") != str(b.body, "qr_token"), "jeton yenilenmedi")
+	scan := func(tok, key string) resp {
+		r, _ := e.a.post(ctx, "/attendance/qr", e.tok["invigilator"], M{"token": tok, "device_id": "verify-q1"}, "Idempotency-Key", key)
+		return r
+	}
+	old := scan(str(a.body, "qr_token"), fmt.Sprintf("q1-old-%d", e.runID))
+	f.check(old.code == 409 && errCode(old) == "qr_expired", "yenilenen kartın eski jetonu: HTTP %d %s (409 qr_expired)", old.code, errCode(old))
+	cur := scan(str(b.body, "qr_token"), fmt.Sprintf("q1-cur-%d", e.runID))
+	f.check(cur.code == 200, "güncel jeton: HTTP %d (200)", cur.code)
+	return fmt.Sprintf("jeton ömrü %d sn; yenileme eski jetonu iptal eder (409 qr_expired), güncel jeton 200", ttl)
 }

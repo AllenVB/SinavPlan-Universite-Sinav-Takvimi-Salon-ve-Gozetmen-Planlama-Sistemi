@@ -3,7 +3,7 @@
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export type Role = 'secretary' | 'lecturer' | 'invigilator' | 'student_affairs' | 'student'
-export type User = { id: number; roles: Role[]; student_id?: number; lecturer_id?: number }
+export type User = { id: number; full_name?: string; roles: Role[]; student_id?: number; lecturer_id?: number }
 
 export class ApiError extends Error {
   constructor(

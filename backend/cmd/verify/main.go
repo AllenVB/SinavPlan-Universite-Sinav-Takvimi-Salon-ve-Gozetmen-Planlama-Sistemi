@@ -59,6 +59,8 @@ func main() {
 		{"X-4", checkX4},
 		{"X-5/X-7", checkX5X7},
 		{"X-6", checkX6},
+		{"L-1", checkL1},
+		{"Q-1", checkQ1},
 	}
 	var results []result
 	for _, c := range checks {

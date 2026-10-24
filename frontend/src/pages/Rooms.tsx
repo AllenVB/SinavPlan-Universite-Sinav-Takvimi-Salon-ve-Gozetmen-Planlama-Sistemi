@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { all, get, idemKey, post } from '../api'
 import { useAuth } from '../auth'
-import { Async, Card, Empty, ErrorBox, Field, Pill, Tabs, useAction, useAsync } from '../ui'
+import { Async, Bar, Card, Empty, ErrorBox, Field, Pill, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useExams, useRooms, useSchedules, type Room } from './common'
 
 type Seat = { row: number; col: number; active: boolean; accessible: boolean }
@@ -42,7 +42,7 @@ const Legend = ({ withStudents }: { withStudents?: boolean }) => (
 )
 
 export function Rooms() {
-  const [tab, setTab] = useState<'inv' | 'plan'>('plan')
+  const [tab, setTab] = useState<'cap' | 'inv' | 'plan'>('cap')
   return (
     <>
       <div className="head">
@@ -50,9 +50,9 @@ export function Rooms() {
           <div className="caps">Derslik ve salon</div>
           <h1>Salon ve oturma planı</h1>
         </div>
-        <Tabs value={tab} onChange={setTab} items={[['plan', 'Sınav oturma planı'], ['inv', 'Salon envanteri']]} />
+        <Tabs value={tab} onChange={setTab} items={[['cap', 'Kapasite panosu'], ['plan', 'Sınav oturma planı'], ['inv', 'Salon envanteri']]} />
       </div>
-      {tab === 'inv' ? <Inventory /> : <Plan />}
+      {tab === 'inv' ? <Inventory /> : tab === 'cap' ? <Capacity /> : <Plan />}
     </>
   )
 }
@@ -174,3 +174,60 @@ function Evacuate({ scheduleId, slotId, from, rooms, onDone }: { scheduleId: num
     </Card>
   )
 }
+
+type SlotRoom = { room_id: number; room_code: string; room_type: string; building: string; exam_id: number; course_code: string; students: number }
+
+/** Bir oturumdaki salon doluluğu: renkli çubuk (yeşil/sarı/kırmızı) ve atanan sınavlar. */
+function Capacity() {
+  const sch = useSchedules()
+  const rooms = useRooms()
+  const slots = useAsync(async () => (sch.current ? ((await get<{ items: { id: number; day: number; session: number; starts_at: string }[] }>(`/periods/${sch.current.period_id}/slots`)).items) : []), [sch.current?.period_id])
+  const [slot, setSlot] = useState(0)
+  const cur = slot || slots.data?.[0]?.id || 0
+  const items = useAsync(async () => (sch.sel && cur ? (await get<{ items: SlotRoom[] }>(`/schedules/${sch.sel}/rooms?slot_id=${cur}`)).items : []), [sch.sel, cur])
+  const [type, setType] = useState('')
+  const cards = useMemo(() => {
+    const m = new Map<number, { room: Room | undefined; list: SlotRoom[]; total: number }>()
+    items.data?.forEach((x) => {
+      const e = m.get(x.room_id) ?? { room: rooms.data?.find((r) => r.id === x.room_id), list: [], total: 0 }
+      e.list.push(x); e.total += x.students; m.set(x.room_id, e)
+    })
+    return [...m.entries()].map(([id, v]) => ({ id, ...v, pct: v.room ? (v.total / v.room.capacity) * 100 : 0 })).filter((c) => !type || c.room?.type === type).sort((a, b) => b.pct - a.pct)
+  }, [items.data, rooms.data, type])
+  const used = cards.length
+  const assigned = cards.reduce((a, c) => a + c.total, 0)
+  const capUsed = cards.reduce((a, c) => a + (c.room?.capacity ?? 0), 0)
+  const critical = cards.filter((c) => c.pct > 90).length
+  const free = (rooms.data?.length ?? 0) - (items.data ? new Set(items.data.map((x) => x.room_id)).size : 0)
+  const tone = (p: number) => (p > 90 ? 'err' : p > 70 ? 'warn' : 'ok')
+  return (
+    <>
+      <div className="row noprint">
+        <ScheduleSelect s={sch} />
+        <select aria-label="Oturum" value={cur} onChange={(e) => setSlot(Number(e.target.value))} style={{ width: 'auto' }}>{slots.data?.map((s) => <option key={s.id} value={s.id}>{s.day + 1}. gün · {s.session + 1}. oturum · {new Date(s.starts_at).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</option>)}</select>
+        <select aria-label="Salon türü" value={type} onChange={(e) => setType(e.target.value)} style={{ width: 'auto' }}><option value="">Tüm türler</option><option value="classic">Derslik</option><option value="lab">Laboratuvar</option></select>
+      </div>
+      <div className="grid g4">
+        <StatCard icon="building" tone="info" label="Kullanılan salon" value={used} note={`${Math.max(0, free)} salon bu oturumda boş`} />
+        <StatCard icon="users" tone="info" label="Atanan öğrenci" value={assigned.toLocaleString('tr-TR')} note={`${capUsed.toLocaleString('tr-TR')} koltuk kapasitesi`} />
+        <StatCard icon="seat" tone={tone(capUsed ? (assigned / capUsed) * 100 : 0)} label="Genel doluluk" value={`%${capUsed ? Math.round((assigned / capUsed) * 100) : 0}`} progress={capUsed ? (assigned / capUsed) * 100 : 0} />
+        <StatCard icon="alert" tone={critical ? 'err' : 'ok'} label="Kritik doluluk (>%90)" value={critical} note={critical ? 'yoğun salonlar kırmızı' : 'tüm salonlar güvenli'} />
+      </div>
+      <Async s={items} empty={() => cards.length === 0}>
+        {() => (
+          <div className="grid g3">
+            {cards.map((c) => (
+              <section className="card roomcard" key={c.id}>
+                <div className="row between"><div><h2>{c.room?.code ?? `#${c.id}`}</h2><div className="small muted">{c.room?.building} · {c.room?.type === 'lab' ? 'Laboratuvar' : 'Derslik'}</div></div><Status tone={tone(c.pct)}>%{Math.round(c.pct)} dolu</Status></div>
+                <div className="small">{c.list.map((x) => <div key={x.exam_id}><b>{x.course_code}</b> <span className="muted">({x.students} öğrenci)</span></div>)}</div>
+                <Bar pct={c.pct} />
+                <div className="meta"><div><b>{c.room?.capacity ?? '—'}</b><span className="small muted">Kapasite</span></div><div><b>{c.total}</b><span className="small muted">Atanan</span></div><div><b>{(c.room?.capacity ?? 0) - c.total}</b><span className="small muted">Boş</span></div></div>
+              </section>
+            ))}
+          </div>
+        )}
+      </Async>
+    </>
+  )
+}
+void Field

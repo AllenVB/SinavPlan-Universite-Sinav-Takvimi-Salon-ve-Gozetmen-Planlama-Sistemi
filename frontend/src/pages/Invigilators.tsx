@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { all, fmtDateTime, idemKey, post } from '../api'
 import { useAuth } from '../auth'
-import { Async, Card, ErrorBox, Pill, Stat, useAction, useAsync } from '../ui'
+import { Icon } from '../icons'
+import { Async, Bar, Card, ErrorBox, Pill, StatCard, Status, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useSchedules } from './common'
 
 type Duty = { id: number; user_id: number; full_name: string; slot_id: number; day: number; session: number; starts_at: string; room_code: string; building: string; exam_id: number; course_code: string }
@@ -20,6 +21,22 @@ export function Invigilators() {
     return m
   }, [duties.data])
   const loads = [...load.values()].map((x) => x.n)
+  const spread = loads.length ? Math.max(...loads) - Math.min(...loads) : 0
+  const hist = useMemo(() => { const m = new Map<number, number>(); loads.forEach((n) => m.set(n, (m.get(n) ?? 0) + 1)); return [...m.entries()].sort((a, b) => b[0] - a[0]) }, [loads.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pend = useAsync(async () => (await all<{ user_id?: number; kind: string }>('/excuses?status=pending')).filter((e) => e.kind === 'invigilator' && e.user_id).map((e) => e.user_id!))
+  const pendingUsers = new Set(pend.data ?? [])
+  const violations = useMemo(() => {
+    if (!duties.data) return 0
+    let v = 0
+    const slot = new Map<string, number>(), byUserDay = new Map<string, Set<number>>()
+    duties.data.forEach((d) => {
+      slot.set(`${d.user_id}:${d.slot_id}`, (slot.get(`${d.user_id}:${d.slot_id}`) ?? 0) + 1)
+      const k = `${d.user_id}:${d.day}`; (byUserDay.get(k) ?? byUserDay.set(k, new Set()).get(k)!).add(d.session)
+    })
+    slot.forEach((n) => { if (n > 1) v++ })
+    byUserDay.forEach((ss) => ss.forEach((x) => { if (ss.has(x + 1)) v++ }))
+    return v
+  }, [duties.data])
   const rows = useMemo(() => (duties.data ?? []).filter((d) => `${d.full_name} ${d.room_code} ${d.course_code}`.toLowerCase().includes(q.toLowerCase())), [duties.data, q])
   const pages = Math.ceil(rows.length / 50)
   const [removed, setRemoved] = useState<{ name: string; r: Removal } | null>(null)
@@ -38,9 +55,24 @@ export function Invigilators() {
         <ScheduleSelect s={sch} />
       </div>
       <div className="grid g4">
-        <Stat label="Görev" value={duties.data?.length ?? '—'} />
-        <Stat label="Gözetmen" value={load.size || '—'} />
-        <Stat label="Yük aralığı" value={loads.length ? `${Math.min(...loads)}–${Math.max(...loads)}` : '—'} note={loads.length ? `fark ${Math.max(...loads) - Math.min(...loads)} (adil dağılım)` : undefined} />
+        <StatCard icon="list" tone="info" label="Toplam görev" value={duties.data?.length ?? '—'} />
+        <StatCard icon="users" tone="info" label="Gözetmen" value={load.size || '—'} note={pendingUsers.size ? `${pendingUsers.size} gözetmenin mazereti bekliyor` : undefined} />
+        <StatCard icon="shield" tone={loads.length && spread <= 2 ? 'ok' : 'warn'} label="Maksimum görev farkı" value={loads.length ? spread : '—'} note={loads.length ? `en çok ${Math.max(...loads)} – en az ${Math.min(...loads)} görev` : undefined} progress={loads.length ? Math.max(0, 100 - spread * 25) : 0} />
+        <StatCard icon="checkCircle" tone={violations === 0 ? 'ok' : 'err'} label="Kural ihlali" value={violations} note="aynı slot / ardışık oturum" />
+      </div>
+      <div className="grid g2">
+        <Card title="Görev sayısı dağılımı">
+          {hist.length === 0 ? <div className="skel" /> : <div className="hist">{hist.map(([n, c]) => <div className="hrow" key={n}><span>{n} görev</span><Bar pct={(c / load.size) * 100} /><span className="muted">{c} kişi (%{Math.round((c / load.size) * 100)})</span></div>)}</div>}
+        </Card>
+        <Card title="Aktif atama kuralları" aside={<Pill kind={violations === 0 ? 'ok' : 'err'}>{violations === 0 ? 'Hepsi sağlanıyor' : `${violations} ihlal`}</Pill>}>
+          <ul className="checks">
+            <li><Icon name="check" size={16} /> Bir gözetmen aynı oturumda yalnızca tek salonda görevlendirilir.</li>
+            <li><Icon name="check" size={16} /> Aynı gün art arda iki oturumda görev verilmez.</li>
+            <li><Icon name="check" size={16} /> 50'den fazla öğrencili salonlara en az 2 gözetmen atanır.</li>
+            <li><Icon name="check" size={16} /> Onaylı mazereti olan gözetmen o oturuma atanmaz.</li>
+            <li><Icon name="check" size={16} /> Görev yükü eşitliği: en çok–en az fark en aza indirilir.</li>
+          </ul>
+        </Card>
       </div>
       {removed && (
         <div className="alert ok" role="status">
@@ -73,7 +105,14 @@ export function Invigilators() {
           )}
         </Async>
       </Card>
-      <Card title="Gözetmen yükleri"><Pill kind="info">{load.size} gözetmen</Pill> <span className="small muted">Yükler görev sayısına göre; adalet hedefi en çok–en az farkını en aza indirmektir.</span></Card>
+      <Card title="Gözetmen yükleri" aside={<span className="small muted">çubuk: en yüklü gözetmene göre</span>}>
+        <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }}><table>
+          <thead><tr><th>Gözetmen</th><th style={{ width: '45%' }}>Görev yükü</th><th>Durum</th></tr></thead>
+          <tbody>{[...load.entries()].sort((a, b) => b[1].n - a[1].n || a[1].name.localeCompare(b[1].name, 'tr')).map(([id, v]) => (
+            <tr key={id} className={pendingUsers.has(id) ? 'tone-warn' : ''}><td>{v.name}</td><td><div className="row" style={{ flexWrap: 'nowrap' }}><div style={{ flex: 1 }}><Bar pct={(v.n / Math.max(...loads)) * 100} /></div><b>{v.n}</b></div></td><td>{pendingUsers.has(id) ? <Status tone="warn">Mazeret bekliyor</Status> : <Status tone="ok">Onaylandı</Status>}</td></tr>
+          ))}</tbody>
+        </table></div>
+      </Card>
     </>
   )
 }

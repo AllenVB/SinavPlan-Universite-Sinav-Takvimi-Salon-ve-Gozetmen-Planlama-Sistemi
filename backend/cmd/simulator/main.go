@@ -2,6 +2,7 @@
 //
 //	simulator seed --seed=N   deterministik demo verisini yükler (idempotent)
 //	simulator live --duration sınav günü yoklama olaylarını API üzerinden üretir
+//	simulator demo --duration yayınlanmış çizelgenin ilk oturumu için canlı yoklama gösterisi (make demo)
 //
 // Veritabanını ilk haline döndürmek için `make reset-demo` (migrate reset + seed).
 //
@@ -26,7 +27,7 @@ import (
 func main() {
 	log := logging.New(os.Stdout, os.Getenv("LOG_LEVEL"))
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "kullanım: simulator <seed|live> [bayraklar]")
+		fmt.Fprintln(os.Stderr, "kullanım: simulator <seed|live|demo> [bayraklar]")
 		os.Exit(2)
 	}
 	mode := os.Args[1]
@@ -41,6 +42,16 @@ func main() {
 	case "seed":
 		if err := runSeed(log, *seed); err != nil {
 			log.Error("seed başarısız", slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+	case "demo":
+		d, err := time.ParseDuration(*duration)
+		if err != nil || d <= 0 {
+			log.Error("geçersiz --duration", slog.String("value", *duration))
+			os.Exit(2)
+		}
+		if err := runDemo(log, d); err != nil {
+			log.Error("demo başarısız", slog.String("err", err.Error()))
 			os.Exit(1)
 		}
 	case "live":

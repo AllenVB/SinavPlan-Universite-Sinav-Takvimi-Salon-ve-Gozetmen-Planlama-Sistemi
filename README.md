@@ -46,6 +46,7 @@ Seed deterministiktir: 300 sınav, 8.000 öğrenci, 60 salon, 15 gün × 3 oturu
 | `make load` | k6 yük testi → `docs/load/results.md` |
 | `make chaos` | kaos senaryosu (postgres'i durdur/geri getir) |
 | `make explain` | dizinsiz/dizinli EXPLAIN → `docs/explain/` |
+| `make demo` | **canlı izleme gösterisi**: çizelge yoksa üretir/yayınlar, ilk oturum için ~90 sn yoklama akıtır (Sınav günü izleme ekranını izleyin) |
 | `make reset-demo` | veritabanını ilk seed haline döndürür (**veriyi siler**) |
 | `requests.http` | elle deneme koleksiyonu (VS Code REST Client) |
 
@@ -94,6 +95,23 @@ flowchart LR
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
 Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipografi sistemi ve düzenine göre 11 ekrana entegre edildi (ADR-013). Tarayıcı aynı kaynağa konuşur: nginx `/api/` isteklerini API'ye vekiller, bu yüzden CORS gerekmez.
 
+## Ekranlar
+
+| | |
+|---|---|
+| ![Ana panel](docs/screens/01-ana-panel.png) | ![Canlı izleme](docs/screens/02-canli-izleme.png) |
+| ![Kapasite panosu](docs/screens/03-kapasite-panosu.png) | ![Gözetmen atama](docs/screens/04-gozetmen-atama.png) |
+| ![Sürükle-bırak editör](docs/screens/05-surukle-birak-editor.png) | ![Gözetmen tableti](docs/screens/06-gozetmen-tableti.png) |
+
+Öğrenci (mobil, dinamik QR): ![Öğrenci](docs/screens/07-ogrenci-dinamik-qr.png)
+
+## Canlı arayüz (Faz 12–15)
+
+- **Gerçekten canlı:** panel, izleme masası, tablet ve üst çubuk, sekme görünürken kendiliğinden yenilenir (izleme 5 sn, olay akışı 3 sn, panel 10–30 sn); sekme gizliyken durur, hata olursa aralığı katlayarak geri çekilir. "● Canlı · Son güncelleme: N sn önce" göstergesi son BAŞARILI yenilemeyi yansıtır; bağlantı kopunca kırmızıya döner. Sunucudan itme (SSE/WebSocket) kullanılmadı: tek örnekli API için artımlı yoklama (`after_id`, `since`) yeterli ve basit (ADR-015).
+- **Dinamik QR:** sınav kartı jetonu kısa ömürlüdür (`QR_TTL`, varsayılan 2 dk); ekran ömrünün %60'ında kodu kendiliğinden yeniler (geri sayım halkası), her yenileme eski kodu iptal eder → ekran görüntüsü paylaşımı işe yaramaz. Tablet kamerayla okur (jsQR) veya elle kod girilir.
+- **Canlı demo:** `make demo` çalışırken Sınav günü izleme ekranında sayılar, çubuklar ve olay akışı gerçek zamanlı ilerler.
+- Renk dili: yeşil = tamam/geldi, sarı = bekliyor/dikkat, kırmızı = sorun/gelmedi, mavi = bilgi. Tüm durumlar renge ek olarak metinle de yazılıdır.
+
 ## Fark yaratan özellikler (Faz 11)
 
 | Özellik | Nerede | Nasıl kanıtlandı |
@@ -116,7 +134,7 @@ Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipogra
 | T-2/T-3 | 52.033 / 52.033 öğrenci-sınav çifti oturtuldu, 0 ihlal; 1.151 engelli öğrenci erişilebilir koltukta |
 | T-4 | 1.092 görev; gözetmen yükü min 10 / max 11 (fark 1 = ideal) |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | 165 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
+| Testler | 171 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

@@ -103,6 +103,11 @@ tidy: ## go mod tidy
 
 # ---------------------------------------------------------------- kanıt
 
+
+.PHONY: demo
+demo: ## Canlı izleme gösterisi: çizelge yoksa üretir/yayınlar, sonra ilk oturum için yoklama akıtır (90 sn)
+	$(COMPOSE) --profile demo run --rm demo
+
 .PHONY: verify
 verify: ## Uçtan uca doğrulama: F-1..F-7, T-1..T-5, health, 401/403 (<15 dk)
 	$(COMPOSE) --profile verify run --rm verify
