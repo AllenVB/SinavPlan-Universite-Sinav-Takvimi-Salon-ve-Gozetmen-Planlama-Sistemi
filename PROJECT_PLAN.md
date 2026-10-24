@@ -74,6 +74,26 @@ EXPLAIN betiği + `docs/explain/` · `DECISIONS.md` ≥5 ADR · README Doğrulam
 
 Kural: her özellik API'de gerçek veriye dayanır, testi ve `make verify` kimliği vardır; test edilmeyen özellik "yapıldı" sayılmaz.
 
+## 2b. Faz 12–15: Canlı arayüz (kullanıcı kararı: tasarımlar kadar "canlı" olsun)
+
+Kullanıcı geri bildirimi: arayüz doğru ama tasarım zip'lerindeki gibi canlı değil (kırmızı/yeşil durum ışıkları, renkli
+tablolar, grafikler) ve QR kodlar sürekli yenilenen/çalışan olmalı. Kural aynı: **veri sahte olamaz**; her canlı öğe gerçek
+API verisine bağlıdır, "Son güncelleme: N sn önce" göstergesi gerçek yenileme zamanını yansıtır.
+
+**Arka uç denetimi (bu planın girdisi):** 165 test + `make verify` 21/21 geçiyor. Canlı arayüz için eksikler:
+(1) salon bazlı canlı yoklama özeti yok (yalnız sınav bazlı), (2) etkinlik akışı filtre/artımlı okuma/sayfalama sunmuyor,
+(3) QR jetonu sınav bitimine +1 saat geçerli — "dinamik QR" için kısa ömür ve yenileme yok, (4) sunucudan itme (SSE/WebSocket)
+yok → kısa aralıklı yoklama (polling) ile canlılık, artımlı uçlarla maliyet düşük tutulur, (5) tablet için kamera tarama yok.
+
+| Faz | Kapsam | Kabul ölçütü |
+|---|---|---|
+| **12 Tasarım sistemi v2** | durum ışıkları (yeşil/sarı/kırmızı nokta + renkli çipler), ikonlu istatistik kartları, ilerleme çubukları, SVG grafikler (yığılmış sütun, histogram), avatar, üst çubukta "Canlı • son güncelleme", bildirim zili (gerçek sayaç), renkli tablo satırları; Ana panel, Takvim, Salon, Gözetmen, Mazeret, Çakışma, İçe aktarma ekranlarına uygulama | tüm ekranlar duman testinde hatasız; ekran görüntüleri tasarımla yan yana kıyaslanır; kontrast ≥ 4.5:1 |
+| **13 Canlı operasyon (arka uç + ekran)** | `GET /schedules/{id}/live` (salon bazlı gelen/gelmedi/işaretlenmemiş, son olay, gözetmenler); `/activity` filtre (`action`, `actor`), `after_id`/`before_id` artımlı okuma; denetim kaydı tablosu; `useLive` (görünür sekmede yenile, gizliyken dur, hata→geri çekilme); Sınav günü izleme ekranı: salon kartları + canlı olay akışı + denetim tablosu | HTTP testleri (toplamlar seating×attendance ile birebir, yetki, filtre); `make verify` L-1; canlı simülatör çalışırken sayılar değişir |
+| **14 Dinamik QR ve tablet** | QR jetonu kısa ömürlü (`QR_TTL`, varsayılan 2 dk) ve istemci 45 sn'de bir yeniler (geri sayım halkası; her yenileme eskiyi iptal eder); öğrenci ekranı: "sıradaki sınav" + geri sayım + dönen QR; tablet: kamera ile QR okuma (jsQR), çevrimdışı şeridi, istatistik kartları, satır renkleri, tahliye protokolü adımları | QR döndürme birim/HTTP testi (eski jeton 409/410, yenisi 200); jsQR ile üretilen QR'ın çözülmesi testi; UI duman |
+| **15 Cila ve teslim** | Gözetmen yük histogramı + kurallar kartı, Öğretim üyesi ekranı, boş/yükleniyor/hata durumları her yerde, mobil ve klavye erişimi, ekran görüntüleri `docs/screens/`, README/TESTING/ADR güncellemesi | duman testi + `make verify` hepsi geçer; bilinen sınırlar dürüstçe yazılı |
+
+Bu fazların hiçbiri P0'ı etkilemez; gecikme olursa sırayla düşer: 15 → 14'ün kamera kısmı → 13'ün denetim tablosu.
+
 ## 3. Kritik yol
 
 ```
