@@ -22,6 +22,8 @@ docker compose up --build -d  # postgres -> migrate -> seed -> api -> frontend (
 | http://localhost:8080/metrics | Prometheus metrikleri |
 | http://localhost:3000 | frontend |
 
+**Port çakışması ("8080 kullanımda"):** `.env` içinde `API_PORT=8081` yapıp `docker compose up -d` çalıştırın; Swagger/health adresleri `localhost:8081` olur. Arayüz (3000) etkilenmez. Windows'ta `cp` yerine `copy .env.example .env` kullanın.
+
 Seed deterministiktir: 300 sınav, 8.000 öğrenci, 60 salon, 15 gün × 3 oturum (`SEED=42`).
 
 ### Demo hesapları (her rol için bir tane; parola `Demo!1234`, yalnızca yerel demo)
