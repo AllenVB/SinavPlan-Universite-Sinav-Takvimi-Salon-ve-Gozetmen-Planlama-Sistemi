@@ -113,7 +113,8 @@ bench: ## Domain benchmark'larını çalıştır
 
 .PHONY: reset-demo
 reset-demo: ## Veritabanını ilk seed haline döndür
-	$(COMPOSE) run --rm seed reset --seed=$${SEED:-42}
+	$(COMPOSE) run --rm migrate reset
+	$(COMPOSE) run --rm seed seed --seed=$${SEED:-42}
 	@echo "demo verisi ilk haline döndürüldü"
 
 .PHONY: seed

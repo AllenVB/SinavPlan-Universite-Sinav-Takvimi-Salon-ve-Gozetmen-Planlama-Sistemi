@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 13:33 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 14:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -18,25 +18,34 @@ Güncelleme: 2026-10-24 13:33 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
   nginx root olmayan kullanıcı, port 8080
 - `Makefile` (26 hedef) · `.env.example` · `.github/workflows/ci.yml` (lint/test/docker/frontend) · `.golangci.yml`
 
+**Faz 2 — şema + seed (P0-3, P0-4 karşılandı):**
+- `migrations/`: 3 goose migrasyonu — 28 tablo, FK/UNIQUE/CHECK, 18 dizin, append-only trigger'lar (ADR-003, ADR-005)
+- `internal/store`: `Migrate`, `EnsureAppRole`, `ApplyGrants`, `Seed` (cmd'ler ince, testler aynı kodu kullanır)
+- sqlc v1.27 kuruldu; `queries/` + üretilen `internal/store/sqlc` commit'li
+- `internal/simdata`: deterministik üretici (300 sınav / 8.000 öğrenci / 52.033 kayıt / 60 salon / 4.044 koltuk),
+  `Hash()` + altın özet testi (ADR-004)
+- `internal/auth/password.go`: argon2id (PHC biçimi, sabit zamanlı karşılaştırma, bellek bombası koruması)
+- `cmd/simulator seed`: tek transaction + COPY, idempotent; `cmd/migrate [up|reset]`
+- `make reset-demo` çalışıyor (6 sn); compose soğuk kurulumda seed otomatik
+
 ## Sürmekte
-Faz 2 — şema, migrasyonlar, sqlc, deterministik seed.
+Faz 3 — auth, RBAC, hata biçimi, audit, idempotency, keyset sayfalama. Model önerisi: **Opus 5.5** (PROJECT_PLAN §7).
 
 ## Bloke
 Yok.
 
-## Yer tutucular (çalışıyormuş gibi gösterilmiyor; çıktıları "HENÜZ UYGULANMADI" diyor)
-- `cmd/migrate`: rol oluşturma gerçek, **şema migrasyonları yok** → Faz 2
-- `cmd/simulator`: argüman doğruluyor, **veri üretmiyor** → Faz 2
-- `cmd/verify`: yalnızca HEALTH gerçek; 15 kimlik `YAPILMADI`, **exit 1** → Faz 9
-- `frontend`: tek ekran (/health) → Faz 8.5
+## Yer tutucular (çalışıyormuş gibi gösterilmiyor)
+- `cmd/simulator live`: "HENÜZ UYGULANMADI" der (yoklama uçları Faz 7)
+- `cmd/verify`: yalnızca HEALTH gerçek; 15 kimlik `YAPILMADI`, exit 1 (Faz 9)
+- `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
-P0-3 şema+seed · P0-4 determinizm · P0-5 auth/RBAC · P0-6..P0-11 T-1..T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (17/40 test) · P0-15 frontend
+P0-5 auth/RBAC · P0-6..P0-11 T-1..T-5 ·
+P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (36/40 test) · P0-15 frontend
 
 ## Kalan P1
 Idempotency · audit trigger · keyset · OpenAPI+`/docs` · k6 · chaos betiği ·
-EXPLAIN · DECISIONS (3/5 ADR) · README · TESTING.md · reset-demo · simülatör `--live`
+EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-demo · simülatör `--live`
 
 ## Bilinen kusurlar / sınırlar
 - **Soğuk süre bu ortamda ölçüldü** (66 sn); base imaj indirme süresi senin ağına bağlı, orada doğrulanmadı.
@@ -47,24 +56,22 @@ EXPLAIN · DECISIONS (3/5 ADR) · README · TESTING.md · reset-demo · simülat
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (2026-10-24 13:33)
+## Son doğrulama sonuçları (Faz 2)
 ```
-go build / vet (-mod=vendor, Go 1.24)   OK
-go test -race ./...                      OK — 17 test (config 7, httpapi 6, logging 4)
-frontend: tsc --noEmit                   OK
-frontend: vite build                     OK — 145 KB JS (gzip 47 KB)
-docker compose config                    OK
-soğuk derleme + başlatma                 66 sn (hedef <= 300)
-/health sağlıklı                         200
-/health postgres durdurulmuş             503 + "postgres": unhealthy
-API çöktü mü                             hayır (running)
-postgres geri gelince                    2. denemede kendiliğinden 200
-postgres 5432 host'a açık mı             kapalı
-süreç kullanıcıları                      api uid=10001, nginx=nginx (root değil)
-make verify                              HEALTH PASS, 15 YAPILMADI, exit != 0 (doğru)
+go vet -mod=vendor ./...                       OK
+go test -race ./... (TEST_DATABASE_URL ile)    bkz. aşağıdaki sayım
+store testleri gerçek Postgres 16'ya karşı     7 test geçiyor
+mutasyon kontrolü                              REVOKE kaldırılınca ve koltuk-salon FK'sı kaldırılınca testler BAŞARISIZ oldu
+make reset-demo                                6 sn
+compose soğuk kurulum (down -v sonrası)        24 sn (imajlar önbellekli); seed otomatik, /health 200
+seed idempotent                                ikinci çalıştırma "zaten yüklü, atlanıyor"
+dizi ayarı                                     seed sonrası uygulama INSERT'ü çakışmıyor
+T-1 yapısal çözülebilirlik                     DSatur 13 renk <= 45 slot
 ```
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows makinende `docker compose up` denenmedi;
+EXPLAIN (ANALYZE) ölçümleri Faz 10'da.
 
 ## Sıradaki eylem
-Faz 2: `migrations/` (24 tablo + kısıtlar + dizinler + audit trigger + app rolü yetkileri),
-goose embed, sqlc, `cmd/simulator seed` (deterministik, hash testi).
-Model önerisi: **Sonnet 5.5** (rutin DDL + üretici), PROJECT_PLAN §7.
+Faz 3: `internal/auth` (JWT access 15 dk + refresh 7 gün, DB'de hash'li, rotasyonlu, yeniden kullanım
+tespitinde aile iptali), RBAC sarmalayıcı (rol listesi zorunlu; listesiz route'u yakalayan test),
+`internal/audit`, `internal/idempotency`, keyset sayfalama. Opus 5.5'e geçiş önerilir.

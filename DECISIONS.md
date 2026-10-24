@@ -96,3 +96,77 @@ kırıldı; sürümler bu yüzden sabitlendi.
   adımı gerektirir.
 - Frontend `npm ci` hâlâ ağ istiyor (npm paketleri vendor'lanmadı);
   `package-lock.json` depoda olduğu için derleme tekrarlanabilir.
+
+---
+
+## ADR-003 — Şema bütünlüğü: bileşik yabancı anahtarlar ve slot'lu koltuk benzersizliği
+
+**Bağlam.** Görev tanımı örnek olarak `UNIQUE(schedule_id, room_id, seat_id)` veriyor.
+Bir çizelgede aynı salon farklı slotlarda (farklı günler/oturumlar) kullanılır; bu
+kısıt aynı koltuğun ikinci kez kullanılmasını yanlışlıkla yasaklardı. Ayrıca
+`seat_assignments.slot_id` ile sınavın çizelgedeki slotu, ve koltuk ile salon,
+birbirinden bağımsız sütunlar olduğu için çelişebilirdi.
+
+**Karar.**
+- `seat_assignments`: `UNIQUE(schedule_id, slot_id, room_id, seat_id)` (bir koltuk bir slotta
+  tek öğrenciye) ve `UNIQUE(schedule_id, exam_id, student_id)` (her öğrenciye tam bir koltuk).
+- `schedule_exams` üzerinde `UNIQUE(schedule_id, exam_id, slot_id)`; `room_assignments`,
+  `seat_assignments`, `invigilator_assignments` bu üçlüye **bileşik FK** ile bağlanır →
+  slot tutarsızlığı veritabanında imkânsız.
+- `room_seats` üzerinde `UNIQUE(room_id, id)`; `seat_assignments (room_id, seat_id)` buna
+  bileşik FK ile bağlanır → başka salonun koltuğu atanamaz.
+- Dönem başına tek yayınlanmış çizelge: kısmi benzersiz dizin
+  `schedules(period_id) WHERE status='published'`. `archived` durumu yok (V-3).
+- Bir kullanıcı birden çok rol taşıyabilsin diye `user_roles` tablosu (V-4).
+
+**Alternatifler.** Tutarlılığı yalnızca uygulama kodunda denetlemek — hızlıdır ama yarış
+durumunda ve doğrulayıcıyı atlayan bir yolda bozulur; reddedildi. Tek `role` sütunu —
+öğretim üyesi + gözetmen birleşimini temsil edemez.
+
+**Sonuçlar.** `internal/store/store_test.go` her kısıtı gerçek PostgreSQL'e karşı sınar
+(aynı koltuk farklı slotta serbest, aynı slotta yasak, çelişen slot ve yabancı salon
+koltuğu reddedilir). Bedel: alt tablolara yazan kod, sınavın slotunu da bilmek zorunda.
+
+---
+
+## ADR-004 — Simülatör verisi müfredat yapısıyla üretilir
+
+**Bağlam.** Öğrenciler dersleri rastgele seçseydi, 300 dersin hemen her çifti en az bir
+ortak öğrenciye sahip olurdu: çatışma grafı tam grafa yaklaşır, T-1 45 slotta yapısal
+olarak çözümsüz kalırdı ve çizelgeleme "doğru" değil "imkânsız" olurdu.
+
+**Karar.** Dersler bölüm × yıl gruplarında üretilir (6 bölüm × 4 yıl × 12 ders = 288,
+artı 12 ortak seçmeli). Öğrenci 5–8 dersi kendi bölüm-yıl grubundan alır; %30 olasılıkla
+bir seçmeli ders ekler. Tüm rastgelelik `math/rand/v2` PCG üretecinden, tohumdan gelir;
+`Dataset.Hash()` kanonik özettir ve `seed=42` özeti testte sabitlenmiştir.
+
+**Alternatifler.** Tamamen rastgele kayıt — yukarıdaki nedenle reddedildi. Gerçek
+üniversite verisi — erişilebilir değil ve kişisel veri riski taşır.
+
+**Sonuçlar.** Ölçülen graf: 300 düğüm, 4.967 kenar, yoğunluk 0,11, en büyük derece 286
+(seçmeliler), klik alt sınırı 8; DSatur 13 renkle boyuyor, 45 slot var → problem
+çözülebilir ve yumuşak hedefi (ardışık gün yoğunluğu) optimize etmeye alan bırakır.
+**Sınırlama:** veri "kolay" bir örnek; gerçek bir fakültenin daha yoğun grafı için
+T-1 ayrıca daha sıkı girdilerle (az slot) denenecektir.
+
+---
+
+## ADR-005 — Eklemeli-yalnız denetim: trigger + rol yetkisi, iki ayrı DB rolü
+
+**Bağlam.** `audit_log` ve `attendance_events` değiştirilemez olmalı (proje.md §7).
+Yalnızca uygulama kodundaki disiplin yeterli bir garanti değil.
+
+**Karar.** İki katman. (1) `BEFORE UPDATE OR DELETE` ve `BEFORE TRUNCATE` trigger'ları
+istisna fırlatır — tablo sahibi dahil herkesi durdurur. (2) API, `migrate` servisinin
+oluşturduğu kısıtlı `sinavplan_app` rolüyle bağlanır; bu rolden bu tablolar üzerinde
+UPDATE/DELETE/TRUNCATE geri alınır ve `goose_db_version` kapatılır. Yetkiler her
+`migrate` çalışmasında yeniden uygulanır (yeni tablolar otomatik kapsanır). Rol
+oluşturma `format(%I, %L)` ile sunucu tarafında alıntılanır.
+
+**Alternatifler.** Yalnızca trigger — rolü olan biri trigger'ı `DROP` edebilir. Yalnızca
+REVOKE — sahip rol aşar. İkisi birlikte iki bağımsız hata gerektirir.
+
+**Sonuçlar.** Testler her iki katmanı ayrı doğrular ve REVOKE satırı kaldırıldığında test
+başarısız olur (mutasyon kontrolü yapıldı). **Sınırlama:** tablo sahibi rol hâlâ
+`DROP TRIGGER` çalıştırabilir; `make reset-demo` bu yüzden sahip rolle şemayı komple
+yeniden kurar ve `APP_ENV=production` iken reddedilir.
