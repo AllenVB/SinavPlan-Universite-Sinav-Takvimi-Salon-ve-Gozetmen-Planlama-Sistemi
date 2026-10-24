@@ -69,6 +69,9 @@ jobs:
         working-directory: backend
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
+      - name: T-1 kanıtı (300 sınav / 8.000 öğrenci / 15 gün, 0 ihlal, < 60 sn)
+        run: make prove-t1
+
       - name: Kapsam özeti
         working-directory: backend
         run: |

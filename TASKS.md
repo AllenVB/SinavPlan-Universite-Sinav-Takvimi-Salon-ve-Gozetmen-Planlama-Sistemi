@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 14:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 15:05 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -40,8 +40,14 @@ Güncelleme: 2026-10-24 14:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - **Bulunup düzeltilen hata:** zaman aşımı middleware'inde panik süreci düşürüyordu + 2 veri yarışı (ADR-006)
 - `make test-integration`: DB testleri konteynerde, compose ağında
 
+**Faz 4 — T-1 çizelgeleme (P0-6 karşılandı):**
+- `internal/domain/scheduling`: bitset çatışma grafı, DSatur yapıcı + onarım, tohumlu SA (taşıma + Kempe),
+  bağımsız `Validate`, çözümsüzlük raporu (engelleyenler, klik, aşırı yüklü öğrenci) — ADR-007
+- `cmd/prove t1` / `make prove-t1`: 10,3 sn, 0 ihlal, ceza 16.851 → 8.407; CI'da da koşuyor
+- 12 test + benchmark, kapsam **%95,1**; artımlı ceza = doğrulayıcı cezası testi
+
 ## Sürmekte
-Faz 4 — T-1 sınav takvimi çizelgeleme. Model: **Opus 5.5** (algoritma + performans).
+Faz 5 — T-2 salon atama + T-3 oturma. Model: **Sonnet 5.5** (PROJECT_PLAN §7).
 
 ## Bloke
 Yok.
@@ -52,8 +58,8 @@ Yok.
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
-P0-6..P0-11 T-1..T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (67/40 test ✓; domain kapsamı henüz yok) · P0-15 frontend
+P0-7..P0-11 T-2..T-5 ·
+P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (79/40 test ✓; domain kapsamı: scheduling %95,1) · P0-15 frontend
 
 ## Kalan P1
 OpenAPI+`/docs` · k6 · chaos betiği ·
@@ -68,18 +74,17 @@ EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-d
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (Faz 3)
+## Son doğrulama sonuçları (Faz 4)
 ```
-go test -race ./... (gerçek Postgres)     67 test geçiyor, veri yarışı yok (2 ardışık tur)
-make test-integration                     konteyner içinde, 60 sn, tümü geçti
-mutasyon kontrolü                         idempotency INSERT çakışması yok sayılınca 4 test,
-                                          rol kontrolü kaldırılınca RBAC testleri BAŞARISIZ
-çalışan yığında uçtan uca (curl)          yanlış parola 401 · token yok 401 · yetkisiz rol 403 ·
-                                          başkasının verisi 403 · kendi programı 200 · keyset imleci
-API log'unda parola/token                 0 geçiş
+make prove-t1                 10,3 sn · 0 ihlal · 0 yerleşmeyen · ceza 16.851 -> 8.407 · ardışık gün 0
+çözümsüz girdi (4-klik/3 slot) klik [10 20 30 40] ve engelleyenler raporlandı
+go test (scheduling)          12 test geçti, kapsam %95,1; tam ölçek 11 sn
+go test -race (scheduling)    geçti (tam ölçek yarış derlemesinde atlanır; CI'da prove-t1 koşar)
+determinizm                   aynı tohum + aynı bütçe = aynı çizelge (test); hızlı yol ile genel yol aynı sonucu verdi
 ```
-**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows makinende denenmedi.
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı.
 
 ## Sıradaki eylem
-Faz 4: `internal/domain/scheduling` — bitset çatışma grafı, DSatur, tabu/SA yerel arama, Validate,
-çözümsüzlük raporu, 300/8000/15 gün benchmark, `make prove-t1`.
+Faz 5: `internal/domain/rooms` (FFD/BFD + bölme + paylaşım, etkin kapasite, lab, erişilebilir koltuk,
+determinizm, doğrulayıcı) ve `internal/domain/seating` (sol/sağ komşuluk, engelli önce, sütun dönüşümlü /
+koltuk atlamalı, CountViolations). Sonnet 5.5'e geçiş önerilir.

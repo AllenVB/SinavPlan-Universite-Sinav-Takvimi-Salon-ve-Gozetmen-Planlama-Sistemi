@@ -208,3 +208,48 @@ testi, rol kontrolü kaldırılınca RBAC testleri başarısız oldu.
 `RouteContext`'i iki goroutine'den erişiliyordu. Düzeltme: handler arabelleğe yazar,
 panik dış goroutine'de yeniden fırlatılır, zaman aşımı route başına uygulanır (yönlendirme
 bittikten sonra). Üçü de testle (`-race` dahil) kanıtlandı.
+
+---
+
+## ADR-007 — T-1: DSatur + tohumlu simulated annealing, tam sayı ceza, iterasyon bütçesi
+
+**Bağlam.** 300 sınav / 8.000 öğrenci / 15 gün × 3 oturum, 60 sn sınır (hedef < 15 sn).
+Sert: çatışan sınavlar aynı slotta değil, öğrenci başına günde ≤ 2 sınav. Yumuşak:
+ardışık gün yoğunluğu. Sonuç deterministik olmalı.
+
+**Karar.**
+- **Ceza (tam sayı):** `ceza = 3 · Σ_öğrenci Σ_d [d ve d+1'de sınavı var] + 1 · Σ_öğrenci Σ_d [d'de 2 sınavı var]`.
+  Ardışık gün, aynı gün iki sınavdan ağırdır (görev tanımı "ardışık gün yoğunluğu en aza"
+  diyor, aynı günü "küçük ceza" sayıyor). Tam sayı olduğu için kayan nokta eşitlik sorunu yok.
+- **Veri yapısı:** öğrenci başına sınav kümesi bitset; çatışma grafı bitset'lerin OR'u; kenar
+  ağırlığı ortak öğrenci sayısı. Artımlı durum: öğrenci×gün sayaçları, sınav×slot çatışan
+  komşu sayaçları, slot yükleri.
+- **Yapıcı:** DSatur benzeri — en çok slotu çatışmayla kapanmış sınav önce (eşitlikte
+  ağırlıklı derece, sonra küçük kimlik); en az ceza artışlı uygun slota, eşitlikte yükü az olana.
+  Yerleşemeyen için tek-engelleyici onarımı.
+- **Yerel arama:** simulated annealing; hamleler sınav taşıma ve Kempe zinciri takası
+  (çatışma kısıtını kendiliğinden korur, zincir ≤ 30 sınav). T0 = 50·Wc, geometrik soğutma.
+- **Determinizm:** durma koşulu iterasyon bütçesi (varsayılan 1.000.000); süre limiti yalnız
+  güvenlik sınırı ve tetiklenirse `StoppedByTime=true` bildirilir.
+- **Slot kapasitesi** (isteğe bağlı sert kısıt): salonların toplam kapasitesinin %80'i, lab için ayrıca.
+- **Doğrulayıcı** çözücünün artımlı yapılarını kullanmaz, sıfırdan hesaplar.
+- **Çözümsüzlük:** yerleşemeyen sınavlar, engelleyen komşular, slotların neden kapandığı
+  (çatışma / günlük sınır / kapasite); açgözlü klik slot sayısını aşıyorsa veya bir öğrencinin
+  sınav sayısı 2·gün'ü aşıyorsa bu **kanıtlanabilir** neden olarak raporlanır.
+
+**Alternatifler.** Tamsayı programlama (ILP) — optimal ama çözücü bağımlılığı ve 60 sn'de
+garanti yok. Tabu arama — makul; SA daha az ayar parametresiyle yeterli çıktı. Süre bazlı
+durma — makineden makineye farklı sonuç verir, reddedildi.
+
+**Ölçümler** (`make prove-t1`, seed=42): 10,3 sn; 0 ihlal; ceza 16.851 → 8.407 (−%50); ardışık
+gün 0; en kalabalık slot 2.759 öğrenci (kapasite 3.104). Kalibrasyon (1M iterasyon): T0=4,5 →
+9.228 (açgözlü inişte takılıyordu), 60 → 8.484, 150 → 8.407. Profil: zamanın %62'si yerel
+ceza hesabındaydı; tek-taşıma hızlı yolu 27 sn → 10 sn indirdi ve **aynı** çizelgeyi üretti.
+
+**Sonuçlar / sınırlamalar.**
+- 3:1 ağırlıklarla çözücü ardışık günü tamamen yok edip öğrencileri aynı güne iki sınavla yığıyor
+  (5.939 öğrencinin en az bir günü çift sınavlı). Bu, formülün doğrudan sonucu; kurum aynı
+  günü daha kötü sayıyorsa ağırlıklar `Weights` ile değiştirilir.
+- Slot kapasitesi verilmezse çözücü öğrencileri az sayıda slota yığar (test: 28 slot, tek slotta
+  3.100 öğrenci) — T-2'yi imkânsız kılabileceği için API ve kanıt komutu kapasiteyi her zaman verir.
+- Veri "kolay" (DSatur 13 renk, 45 slot); daha sıkı girdide (`prove t1 --days N`) davranış ayrıca gözlenebilir.
