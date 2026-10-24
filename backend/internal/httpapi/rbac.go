@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/AllenVB/sinavplan/backend/internal/auth"
 	"github.com/go-chi/chi/v5"
@@ -51,9 +52,14 @@ type RouteInfo struct {
 	Method, Pattern string
 	Access          Access
 	Idempotent      bool
+	// Timeout sıfırdan farklıysa genel istek süre sınırının yerine geçer.
+	Timeout time.Duration
 }
 
 type routeOpt func(*RouteInfo)
+
+// slow, hesabı uzun süren uca daha geniş süre sınırı verir.
+func slow(d time.Duration) routeOpt { return func(ri *RouteInfo) { ri.Timeout = d } }
 
 // idempotent, uca Idempotency-Key desteği ekler.
 func idempotent() routeOpt { return func(ri *RouteInfo) { ri.Idempotent = true } }
@@ -80,6 +86,10 @@ func (s *Server) handle(r chi.Router, method, pattern string, acc Access, h Hand
 	})
 	if !acc.public {
 		handler = s.authorize(acc.roles, handler)
+	}
+	if ri.Timeout > 0 {
+		r.Method(method, pattern, s.timeoutFor(ri.Timeout, handler))
+		return
 	}
 	r.Method(method, pattern, s.timeout(handler))
 }

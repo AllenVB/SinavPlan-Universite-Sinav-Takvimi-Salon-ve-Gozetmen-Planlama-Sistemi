@@ -31,6 +31,7 @@ tags:
   - name: Mazeret (F-6)
   - name: Yoklama ve sınav kartı (F-7, T-5)
   - name: Öğrenci
+  - name: Ek özellikler (Faz 11)
 
 security:
   - bearerAuth: []
@@ -470,6 +471,97 @@ paths:
         - {$ref: "#/components/parameters/After"}
       responses:
         "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /schedules/simulate:
+    post:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Hızlı simülasyon — T-1'i kaydetmeden çalıştır
+      description: Yalnızca takvimi (T-1) hesaplar; hiçbir şey yazmaz. Yayındaki sürümün metrikleriyle birlikte döner. En çok 300.000 iterasyon.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [period_id, iterations], properties: {period_id: {type: integer, format: int64}, seed: {type: integer, format: int64}, iterations: {type: integer, minimum: 1, maximum: 300000}}}}}
+      responses:
+        "200": {description: "Simülasyon sonucu (saved=false)", content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /schedules/compare:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: İki sürümü karşılaştır (metrikler + taşınan sınavlar)
+      parameters:
+        - {name: a, in: query, required: true, schema: {type: integer, format: int64}}
+        - {name: b, in: query, required: true, schema: {type: integer, format: int64}}
+      responses:
+        "200": {description: Karşılaştırma, content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /activity:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Etkinlik akışı (denetim kaydından, yeniden eskiye)
+      parameters: [{name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}]
+      responses:
+        "200": {description: Etkinlikler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+  /periods/{id}/slots:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Dönemin tüm sınav oturumları (slotlar)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: Slotlar, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/export:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Takvimi Excel (.xlsx) veya CSV olarak indir
+      description: xlsx iki sayfa içerir (Takvim, Gözetmenler). CSV UTF-8 BOM'lu ve noktalı virgüllüdür (Türkçe Excel).
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: format, in: query, schema: {type: string, enum: [xlsx, csv], default: xlsx}}
+      responses:
+        "200": {description: Dosya, content: {application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {schema: {type: string, format: binary}}, text/csv: {schema: {type: string}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /schedules/{id}/calendar.ics:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Tüm sınavlar iCalendar (.ics)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: iCalendar, content: {text/calendar: {schema: {type: string}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/exams/{examId}/move:
+    post:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Sınavı başka slota taşı (sürükle-bırak düzenleme)
+      description: |
+        `dry_run=true` yalnızca doğrular (yazmaz). Aksi halde sert kısıtlar (aynı slotta çakışma, günlük sınır, slot kapasitesi)
+        sağlanıyorsa salon/oturma/gözetmen planı yeniden kurulur ve kaynak sürüm DEĞİŞMEDEN yeni bir taslak sürüm oluşur (201).
+        İhlalde 422 `constraint_violation` ve neden listesi; hiçbir şey değişmez.
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: examId, in: path, required: true, schema: {type: integer, format: int64}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [slot_id], properties: {slot_id: {type: integer, format: int64}, dry_run: {type: boolean}}}}}
+      responses:
+        "200": {description: "dry_run sonucu (ok, ihlaller, ceza farkı)", content: {application/json: {schema: {type: object}}}}
+        "201": {description: Yeni taslak sürüm, content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /me/exams.ics:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Öğrencinin sınavları iCalendar (salon ve koltukla)
+      responses:
+        "200": {description: iCalendar, content: {text/calendar: {schema: {type: string}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /me/duties.ics:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Gözetmenin görevleri iCalendar
+      responses:
+        "200": {description: iCalendar, content: {text/calendar: {schema: {type: string}}}}
 
 components:
   securitySchemes:

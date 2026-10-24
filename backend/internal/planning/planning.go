@@ -329,6 +329,16 @@ type Report struct {
 	// Infeasibility doluysa çizelge üretilemedi: hangi sınavların neden yerleşemediği.
 	Infeasibility *scheduling.InfeasibilityReport `json:"infeasibility,omitempty"`
 	UnplacedRooms []rooms.Unplaced                `json:"unplaced_rooms,omitempty"`
+	// Elle düzenlemeyle türetilen sürümlerde: kaynak sürüm ve yapılan taşıma.
+	DerivedFrom int64     `json:"derived_from,omitempty"`
+	Edit        *EditInfo `json:"edit,omitempty"`
+}
+
+// EditInfo, elle düzenlemenin (sürükle-bırak) kaydı.
+type EditInfo struct {
+	ExamID   int64 `json:"exam_id"`
+	FromSlot int64 `json:"from_slot_id"`
+	ToSlot   int64 `json:"to_slot_id"`
 }
 
 // InfeasibleError, çizelge üretilemediğinde (T-1 yerleşemeyen sınav, T-2 sığmayan sınav)
@@ -355,9 +365,16 @@ func BuildFrom(ds *simdata.Dataset, seed int64, iterations int, excused map[int6
 		return store.SchedulePlan{}, rep, &InfeasibleError{
 			Message: fmt.Sprintf("%d sınav hiçbir slota yerleştirilemedi", len(r.Unplaced)), Report: rep}
 	}
-	rep.Scheduling = scheduling.Validate(in, r.Assignment).Metrics
+	return finishPlan(ds, seed, in, r.Assignment, rep, excused)
+}
 
-	res, err := Plan(ds, r.Assignment, rooms.Config{})
+// finishPlan, sınav→slot atamasından T-2..T-4'ü kurar. BuildFrom (çözücü atamasıyla) ve
+// BuildFromAssignment (elle düzenlenmiş atamayla) aynı yolu kullanır: tek doğruluk kaynağı.
+func finishPlan(ds *simdata.Dataset, seed int64, in scheduling.Input, assignment map[int64]int, rep *Report, excused map[int64][]int) (store.SchedulePlan, *Report, error) {
+	rep.Scheduling = scheduling.Validate(in, assignment).Metrics
+	rep.Penalty = rep.Scheduling.Penalty
+
+	res, err := Plan(ds, assignment, rooms.Config{})
 	if err != nil {
 		return store.SchedulePlan{}, rep, err
 	}
@@ -380,13 +397,76 @@ func BuildFrom(ds *simdata.Dataset, seed int64, iterations int, excused map[int6
 	rep.Invigilation = invigilation.Fairness(invIn, inv)
 	rep.InvigilationUnfilled = len(inv.Unfilled)
 
-	sp := ToStorePlan(r.Assignment, res, invIn, inv, func(i int) int64 { return ds.Slots[i].ID })
+	sp := ToStorePlan(assignment, res, invIn, inv, func(i int) int64 { return ds.Slots[i].ID })
 	sp.PeriodID, sp.Seed, sp.Metrics = ds.Period.ID, seed, rep
 	return sp, rep, nil
+}
+
+// CheckAssignment, verilen sınav→slot atamasının sert kısıtlarını (çakışma, günlük sınır,
+// slot kapasitesi, geçersiz slot) ve ceza metriklerini hesaplar. Saf hesap: yazma yok.
+func CheckAssignment(ds *simdata.Dataset, seed int64, assignment map[int64]int) scheduling.Report {
+	return scheduling.Validate(SchedulingInput(ds, seed), assignment)
+}
+
+// BuildFromAssignment, çözücüyü ATLAYIP verilen (elle düzenlenmiş) atamadan salon, oturma ve
+// gözetmen planını yeniden kurar. Atama sert kısıtları bozuyorsa *ViolationError döner.
+func BuildFromAssignment(ds *simdata.Dataset, seed int64, assignment map[int64]int, excused map[int64][]int) (store.SchedulePlan, *Report, error) {
+	in := SchedulingInput(ds, seed)
+	if vr := scheduling.Validate(in, assignment); len(vr.Violations) > 0 {
+		return store.SchedulePlan{}, nil, &ViolationError{Violations: vr.Violations}
+	}
+	rep := &Report{}
+	return finishPlan(ds, seed, in, assignment, rep, excused)
+}
+
+// ViolationError, elle atamanın ihlal ettiği sert kısıtları taşır.
+type ViolationError struct{ Violations []scheduling.Violation }
+
+func (e *ViolationError) Error() string {
+	return fmt.Sprintf("atama %d sert kısıtı ihlal ediyor", len(e.Violations))
 }
 
 // BuildAll, test fikstürleri için BuildFrom'un mazeretsiz ve hata-raporsuz kısayoludur.
 func BuildAll(ds *simdata.Dataset, seed int64, iterations int) (store.SchedulePlan, error) {
 	sp, _, err := BuildFrom(ds, seed, iterations, nil)
 	return sp, err
+}
+
+// SimResult, kaydedilmeyen bir "ya şöyle olsaydı" T-1 koşusunun özeti.
+type SimResult struct {
+	Penalty             int64                           `json:"penalty"`
+	ConstructionPenalty int64                           `json:"construction_penalty"`
+	Iterations          int                             `json:"iterations"`
+	DurationMs          int64                           `json:"duration_ms"`
+	Unplaced            int                             `json:"unplaced"`
+	Violations          int                             `json:"violations"`
+	Metrics             scheduling.Metrics              `json:"metrics"`
+	Infeasibility       *scheduling.InfeasibilityReport `json:"infeasibility,omitempty"`
+}
+
+// Simulate, yalnızca T-1'i (takvim) çalıştırır ve hiçbir şey yazmaz: hızlı ön izleme.
+// Salon/oturma/gözetmen kurulmaz; tam üretim için Runner kullanılır.
+func Simulate(ds *simdata.Dataset, seed int64, iterations int) (*SimResult, error) {
+	in := SchedulingInput(ds, seed)
+	in.MaxIterations = iterations
+	r, err := scheduling.Solve(in)
+	if err != nil {
+		return nil, err
+	}
+	out := &SimResult{Penalty: r.Penalty, ConstructionPenalty: r.ConstructionPenalty, Iterations: r.Iterations,
+		DurationMs: r.Duration.Milliseconds(), Unplaced: len(r.Unplaced), Infeasibility: r.Infeasibility}
+	if len(r.Unplaced) == 0 {
+		v := scheduling.Validate(in, r.Assignment)
+		out.Violations, out.Metrics = len(v.Violations), v.Metrics
+	}
+	return out, nil
+}
+
+// SlotIndex, slot kimliği -> veri kümesindeki slot indeksi.
+func SlotIndex(ds *simdata.Dataset) map[int64]int {
+	m := make(map[int64]int, len(ds.Slots))
+	for i, s := range ds.Slots {
+		m[s.ID] = i
+	}
+	return m
 }

@@ -169,6 +169,16 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodPut, "/rooms/{id}", Roles(auth.RoleSecretary), s.updateRoom)
 	s.handle(r, http.MethodDelete, "/rooms/{id}", Roles(auth.RoleSecretary), s.deleteRoom)
 
+	// Fark yaratan özellikler (Faz 11). Statik yollar ({id} yollarından önce kaydedilir).
+	s.handle(r, http.MethodPost, "/schedules/simulate", Roles(auth.RoleSecretary), s.simulate, slow(45*time.Second))
+	s.handle(r, http.MethodGet, "/schedules/compare", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.compareSchedules)
+	s.handle(r, http.MethodGet, "/activity", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.activity)
+	s.handle(r, http.MethodGet, "/periods/{id}/slots", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.periodSlots)
+	s.handle(r, http.MethodGet, "/schedules/{id}/export", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.exportSchedule)
+	s.handle(r, http.MethodGet, "/schedules/{id}/calendar.ics", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleICS)
+	s.handle(r, http.MethodPost, "/schedules/{id}/exams/{examId}/move", Roles(auth.RoleSecretary), s.moveExam, slow(60*time.Second))
+	s.handle(r, http.MethodGet, "/me/exams.ics", Roles(auth.RoleStudent), s.myExamsICS)
+	s.handle(r, http.MethodGet, "/me/duties.ics", Roles(auth.RoleInvigilator), s.myDutiesICS)
 	s.handle(r, http.MethodPost, "/schedules", Roles(auth.RoleSecretary), s.createSchedule)
 	s.handle(r, http.MethodGet, "/schedule-jobs/{id}", Roles(auth.RoleSecretary), s.getJob)
 	s.handle(r, http.MethodGet, "/schedules", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.listSchedules)

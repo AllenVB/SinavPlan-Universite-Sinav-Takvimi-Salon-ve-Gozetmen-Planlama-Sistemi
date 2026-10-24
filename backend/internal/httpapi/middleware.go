@@ -114,9 +114,12 @@ func (s *Server) observe(next http.Handler) http.Handler {
 //     (veri yarışı ve bozuk gövde). Zaman aşımından sonraki yazmalar atılır.
 //  2. Goroutine içindeki paniğin, dış goroutine'deki recoverPanic'i atlayıp süreci
 //     düşürmesi. Panik yakalanır ve dış goroutine'de yeniden fırlatılır.
-func (s *Server) timeout(next http.Handler) http.Handler {
+func (s *Server) timeout(next http.Handler) http.Handler { return s.timeoutFor(s.requestTimeout, next) }
+
+// timeoutFor, bu uç için özel süre sınırı uygular (uzun hesap yapan uçlar için).
+func (s *Server) timeoutFor(d time.Duration, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), s.requestTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), d)
 		defer cancel()
 
 		tw := &timeoutWriter{header: make(http.Header)}
