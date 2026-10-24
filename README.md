@@ -90,7 +90,7 @@ flowchart LR
 
 **Teknoloji:** Go 1.24 (chi, pgx/v5, sqlc, goose) · PostgreSQL 16 · React + Vite + TypeScript · Docker Compose.
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
-Not: arayüz şu an yalnızca sağlık ekranını içerir; tam ekranlar tasarımlar entegre edilince eklenecek (aşağıda "Bilinen sınırlar").
+Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipografi sistemi ve düzenine göre 11 ekrana entegre edildi (ADR-013). Tarayıcı aynı kaynağa konuşur: nginx `/api/` isteklerini API'ye vekiller, bu yüzden CORS gerekmez.
 
 ## Ölçümler
 
@@ -200,7 +200,7 @@ make prove-t1
 
 ## Bilinen sınırlar ve yapılmayanlar
 
-- **Frontend:** yalnızca sağlık ekranı. Gerçek ekranlar (giriş, takvim, salon/oturma planı, gözetmenler, canlı yoklama, öğrenci programı + QR) tasarımlar depoya gelince entegre edilecek. Bu yüzden `TESTING.md` UI senaryoları henüz yok; API tam çalışır ve `/docs` + `requests.http` ile denenebilir.
+- **Frontend:** tasarımlardaki, arka uçta karşılığı olmayan öğeler (ÖBS senkronu, Excel/PDF dışa aktarma, "hızlı simülasyon", etkinlik akışı, yazdırma, sürükle-bırak) **yapılmadı**. Sınav kartındaki QR, görsel kod yerine metin jetonu olarak gösterilir (QR çizen bir kütüphane eklenmedi). Arayüz Playwright duman testiyle (`deploy/ui-smoke/`) denendi; bileşen birim testi yok. Bu ortamda `docker compose build frontend` (npm ci ağ erişimi) çalışmadı; arayüz Vite ile derlendi ve nginx yapılandırması ayrı konteynerde doğrulandı — tam `docker compose up --build` zinciri bu ortamda frontend için sınanmadı.
 - **Doğrulanmadı:** GitHub Actions CI (hiç çalışmadı), Windows'ta çalıştırma.
 - **testcontainers-go** yerine `TEST_DATABASE_URL` + test başına geçici veritabanı kullanıldı (ADR-010).
 - **P2 (yapılmadı):** iCal dışa aktarma, plan karşılaştırma, sürükle-bırak editör.

@@ -452,3 +452,18 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Alternatifler.** Host'a k6 kurmak (taşınabilir değil). Kalıcı `DROP/CREATE INDEX` (yarışa ve veri değişikliğine açık).
 
 **Sonuçlar.** `make load|chaos|explain` tekrarlanabilir; yük sonucu tek makine ölçümüdür, kapasite iddiası değildir.
+
+## ADR-013 — Frontend: Stitch tasarımları, bağımlılıksız React, aynı kaynak vekili
+
+**Bağlam.** 15 Stitch ekranı (Tailwind CDN + Google Fonts + sahte veri) verildi; derleme çevrimdışı ve tekrarlanabilir olmalı, ekranlar yalnızca gerçek API'ye dayanmalı.
+
+**Karar.**
+- Tasarım sisteminin renk/tipografi belirteçleri (`DESIGN.md`) CSS değişkenlerine taşındı; Tailwind/CDN/font indirmesi yok (Inter yoksa sistem yazı tipi). Yeni npm bağımlılığı eklenmedi (yönlendirme: hash tabanlı küçük yönlendirici).
+- Tarayıcı `/api`'ye konuşur; nginx (üretim) ve Vite (geliştirme) bunu API'ye vekiller → CORS yok, tek kaynak.
+- Rol bazlı menü; API zaten rol/sahiplik denetler, arayüz yalnızca ilgisiz ekranı gizler.
+- Eşleme: Login→giriş · Bölüm Sekreteri ana paneli→Ana panel · Sınav Oturumları ve Planlama + Takvim Oluşturma ve Dağıtım Motoru→Sınav takvimi · Derslik ve Salon Yerleşimi + Salon Envanteri + Salon ve Oturma Planı Dağılımı→Salon ve oturma planı · Gözetmen Atama ve Takip Masası→Gözetmen atama · Çakışma ve Uyarı Masası→Çakışma masası · Mazeret ve Çakışma Masası→Mazeretler · Veri içe aktarma→aynı · Sınav Günü Canlı İzleme→Sınav günü izleme · Gözetmen Tablet Yoklama Ekranı→Yoklama · Öğrenci Ekranı→Sınav programım · Öğretim Üyesi Ekranı→takvim + oturma planı (yalnız kendi dersleri; sunucu sınırlar).
+- Zaman: sunucu UTC verir, ekranda `Europe/Istanbul`.
+
+**Alternatifler.** Tailwind derlemesi (yeni bağımlılık + yapılandırma), tasarım HTML'ini olduğu gibi gömmek (sahte veri, erişilebilirlik ve durum yönetimi yok), CORS başlıkları (ek yüzey).
+
+**Sonuçlar.** Tasarımlardaki ÖBS senkronu, dışa aktarma, simülasyon, etkinlik akışı, yazdırma, sürükle-bırak ve QR görseli yapılmadı (karşılığı yok / bağımlılık gerekir). Arayüz birim testsiz; Playwright duman testi var.

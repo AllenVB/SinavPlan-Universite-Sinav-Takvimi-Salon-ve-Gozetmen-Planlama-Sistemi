@@ -38,10 +38,24 @@ Birim/entegrasyon testleri (gerçek PostgreSQL ister): `make test` (yarış dede
 gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin sayfa sınırına denk gelen ikinci günü atlanıyordu.
 İmleç `(öğrenci, gün)` çiftine çevrildi (`store.ConflictCursor`); aynı kontrol artık 9.180 = 9.180 ile geçiyor.
 
-## Elle UI senaryoları
+## Elle UI senaryoları (http://localhost:3000, demo hesapları yukarıda)
 
-Gerçek arayüz (Faz 8.5) tasarımlar gelince eklenecek; şimdilik arayüz tek ekran (`/health`). Yerine Swagger UI
-(`/docs`) ve `requests.http` kullanılabilir.
+| Senaryo | Adımlar | Beklenen |
+|---|---|---|
+| Giriş / hata | yanlış parola gir | kırmızı hata kutusu; doğru parolayla rolün ana ekranı |
+| Takvim üret | sekreter → Sınav takvimi → "Takvimi oluştur" | durum Sırada→Çalışıyor→Tamamlandı, yeni sürüm listede; ikinci tıklama çalışırken kapalı |
+| Yayınla | taslak sürümde "Bu sürümü yayınla" | sürüm "yayında"; öğrenci/öğretim üyesi artık görür |
+| Oturma planı | Salon ve oturma planı → sınav seç | salon başına koltuk haritası, engelli öğrenci yeşil, yan yana aynı sınav yok |
+| Tahliye | aynı ekranda kaynak/hedef salon + gerekçe | taşınan sayısı; sığmazsa kırmızı uyarı ve hiçbir şey değişmez |
+| Gözetmen çıkar | Gözetmen atama → "Hasta / çıkar" | boşalan/yeniden atanan/takas özeti, ihlal 0 |
+| İçe aktarma | Veri içe aktarma → hatalı CSV | satır numaralı hata tablosu |
+| Mazeret | öğrenci: mazeret gönder → öğrenci işleri: onayla | onaylanan sınavın kartı "mazeretiniz var" uyarısı verir |
+| Yoklama | gözetmen: görev seç → Geldi → Senkronla | "1 senkron bekliyor" → "kabul edildi"; çevrimdışıyken kuyruk kalır |
+| Mobil | 390 px genişlik | yatay taşma yok, alt menü |
+
+Otomatik duman testi (Playwright gerekir): `NODE_PATH=$(npm root -g) UI_URL=http://localhost:3000 node deploy/ui-smoke/pages.cjs` ve `flows.cjs`
+(5 rolün tüm ekranları hatasız açılır; giriş hatası, kart, koltuk haritası, içe aktarma, tablet senkronu). Son koşu: 16/16 ekran + 8/8 akış geçti
+(Vite geliştirme sunucusu üzerinden).
 
 ## Tekrarlanabilirlik ve sınırlar
 

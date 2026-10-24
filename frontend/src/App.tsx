@@ -1,129 +1,108 @@
-import { useCallback, useEffect, useState } from 'react'
-import { API_BASE_URL, fetchHealth, type Health } from './api'
+import { useEffect, useState, type ComponentType } from 'react'
+import { get } from './api'
+import { useAsync } from './ui'
+import { AuthProvider, useAuth } from './auth'
+import { Login } from './pages/Login'
+import { Dashboard } from './pages/Dashboard'
+import { Calendar } from './pages/Calendar'
+import { Rooms } from './pages/Rooms'
+import { Invigilators } from './pages/Invigilators'
+import { Conflicts } from './pages/Conflicts'
+import { Excuses } from './pages/Excuses'
+import { Imports } from './pages/Imports'
+import { Live } from './pages/Live'
+import { Tablet } from './pages/Tablet'
+import { MyExams } from './pages/MyExams'
+import type { Role } from './api'
 
-/**
- * FAZ 1 yer tutucusu.
- *
- * Gerçek ekranlar (giriş, takvim, salon/oturma planı, gözetmen listesi, canlı
- * yoklama, öğrenci programı + QR kartı) Faz 8.5'te yazılacak. Bu sayfa şu an
- * tek bir gerçek işi yapıyor: backend'in /health ucunu okuyup gösteriyor —
- * böylece compose zincirinin uçtan uca çalıştığı arayüzden de görülebiliyor.
- *
- * Yükleniyor / hata / sağlıksız durumları bilinçli olarak baştan ele alındı
- * (proje.md §5), çünkü bu desen sonraki ekranlara taşınacak.
- */
-export default function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+type Route = { path: string; label: string; roles: Role[]; page: ComponentType }
+const ALL: Role[] = ['secretary', 'lecturer', 'invigilator', 'student_affairs', 'student']
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true)
-    setError(null)
-    try {
-      setHealth(await fetchHealth(signal))
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return
-      setHealth(null)
-      setError(e instanceof Error ? e.message : 'bilinmeyen hata')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+const routes: Route[] = [
+  { path: 'programim', label: 'Sınav programım', roles: ['student'], page: MyExams },
+  { path: 'yoklama', label: 'Yoklama ve görevlerim', roles: ['invigilator'], page: Tablet },
+  { path: 'panel', label: 'Ana panel', roles: ['secretary'], page: Dashboard },
+  { path: 'takvim', label: 'Sınav takvimi', roles: ['secretary', 'student_affairs', 'lecturer'], page: Calendar },
+  { path: 'salonlar', label: 'Salon ve oturma planı', roles: ['secretary', 'lecturer', 'student_affairs', 'invigilator'], page: Rooms },
+  { path: 'gozetmenler', label: 'Gözetmen atama', roles: ['secretary', 'student_affairs'], page: Invigilators },
+  { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: Conflicts },
+  { path: 'mazeret', label: 'Mazeretler', roles: ['student_affairs', 'student', 'invigilator'], page: Excuses },
+  { path: 'ice-aktar', label: 'Veri içe aktarma', roles: ['secretary'], page: Imports },
+  { path: 'canli', label: 'Sınav günü izleme', roles: ['secretary', 'student_affairs'], page: Live },
+]
 
+const roleName: Record<Role, string> = { secretary: 'Bölüm sekreteri', lecturer: 'Öğretim üyesi', invigilator: 'Gözetmen', student_affairs: 'Öğrenci işleri', student: 'Öğrenci' }
+
+function useHash() {
+  const [h, setH] = useState(() => location.hash.replace(/^#\/?/, ''))
   useEffect(() => {
-    const ac = new AbortController()
-    void load(ac.signal)
-    return () => ac.abort()
-  }, [load])
+    const f = () => setH(location.hash.replace(/^#\/?/, ''))
+    addEventListener('hashchange', f)
+    return () => removeEventListener('hashchange', f)
+  }, [])
+  return h
+}
 
+function Shell() {
+  const { user, logout } = useAuth()
+  const hash = useHash()
+  const period = useAsync(async () => (user!.roles.includes('student') ? null : ((await get('/periods')).items?.[0]?.name as string | undefined) ?? null))
+  const roles = user!.roles.length ? user!.roles : ALL.slice(0, 0)
+  const mine = routes.filter((r) => r.roles.some((x) => roles.includes(x)))
+  const cur = mine.find((r) => r.path === hash) ?? mine[0]
+  useEffect(() => {
+    if (cur && cur.path !== hash) location.hash = `/${cur.path}`
+  }, [cur, hash])
+  if (!cur) return <main className="page"><div className="alert err">Bu hesaba tanımlı bir ekran yok.</div></main>
+  const Page = cur.page
+  const nav = mine.map((r) => (
+    <a key={r.path} href={`#/${r.path}`} aria-current={r.path === cur.path ? 'page' : undefined}>
+      {r.label}
+    </a>
+  ))
   return (
-    <div className="wrap">
-      <h1>SınavPlan</h1>
-      <p className="sub">
-        Üniversite sınav takvimi, salon ve gözetmen planlama sistemi
-      </p>
-
-      <div className="card">
-        <div className="row">
-          <strong>Backend durumu</strong>
-          <button onClick={() => void load()} disabled={loading}>
-            {loading ? 'Yükleniyor…' : 'Yenile'}
-          </button>
+    <div className="shell">
+      <aside className="side">
+        <div className="brand">
+          <div className="logo" aria-hidden>S</div>
+          <div>
+            <b>SınavPlan</b>
+            <span className="caps">Yönetim portalı</span>
+          </div>
         </div>
-
-        {loading && !health && !error && (
-          <p className="sub" style={{ margin: '12px 0 0' }}>
-            Sağlık durumu okunuyor…
-          </p>
-        )}
-
-        {error && (
-          <>
-            <p style={{ margin: '12px 0 0' }}>
-              <span className="pill err">ERİŞİLEMİYOR</span>
-            </p>
-            <p className="sub" style={{ margin: '8px 0 0' }}>
-              {API_BASE_URL} adresine ulaşılamadı: {error}
-            </p>
-          </>
-        )}
-
-        {health && (
-          <>
-            <p style={{ margin: '12px 0 0' }}>
-              <span className={health.status === 'healthy' ? 'pill ok' : 'pill err'}>
-                {health.status === 'healthy' ? 'SAĞLIKLI' : 'SAĞLIKSIZ'}
-              </span>
-            </p>
-            <dl>
-              <dt>Sürüm</dt>
-              <dd>{health.version}</dd>
-              {Object.entries(health.dependencies).map(([name, dep]) => (
-                <Dependency key={name} name={name} status={dep.status} message={dep.message} />
-              ))}
-            </dl>
-          </>
-        )}
+        <nav className="nav" aria-label="Ana menü">{nav}</nav>
+        <div className="foot small muted">
+          SınavPlan
+        </div>
+      </aside>
+      <div className="main">
+        <header className="top">
+          <span className="caps grow">{period.data ?? ''}</span>
+          <span className="pill info">{roles.map((r) => roleName[r]).join(', ')}</span>
+          <span className="small muted">Kullanıcı #{user!.id}</span>
+          <button className="btn sm" onClick={() => void logout()}>
+            Çıkış
+          </button>
+        </header>
+        <main className="page">
+          <Page key={cur.path} />
+        </main>
       </div>
-
-      <div className="card">
-        <strong>Bu sayfa bir yer tutucudur</strong>
-        <p className="sub" style={{ margin: '6px 0 0' }}>
-          Gerçek arayüz Faz 8.5'te yazılacak. Planlanan ekranlar:
-        </p>
-        <ul className="todo">
-          <li>Giriş (rol bazlı yönlendirme)</li>
-          <li>Sınav takvimi görünümü ve yayınlama</li>
-          <li>Salon ve oturma planı</li>
-          <li>Gözetmen atama listesi</li>
-          <li>Canlı yoklama</li>
-          <li>Öğrencinin kendi programı ve QR sınav kartı</li>
-        </ul>
-        <p className="sub" style={{ margin: '12px 0 0' }}>
-          API tabanı: <code>{API_BASE_URL}</code>
-        </p>
-      </div>
+      <nav className="bottomnav" aria-label="Mobil menü">{nav}</nav>
     </div>
   )
 }
 
-function Dependency({
-  name,
-  status,
-  message,
-}: {
-  name: string
-  status: string
-  message?: string
-}) {
+function Gate() {
+  const { user, ready } = useAuth()
+  if (!ready) return <div className="login"><div className="skel" style={{ width: 240 }} /></div>
+  return user ? <Shell /> : <Login />
+}
+
+export default function App() {
   return (
-    <>
-      <dt>{name}</dt>
-      <dd>
-        <span className={status === 'healthy' ? 'pill ok' : 'pill err'}>{status}</span>
-        {message ? <span className="sub"> — {message}</span> : null}
-      </dd>
-    </>
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   )
 }

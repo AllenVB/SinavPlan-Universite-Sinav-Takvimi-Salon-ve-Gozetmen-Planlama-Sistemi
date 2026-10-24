@@ -84,8 +84,7 @@ Güncelleme: 2026-10-24 19:20 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `requests.http`: 5 rol, tüm uçlar, değişken zincirleri (ADR-011)
 
 ## Sürmekte
-Faz 9 TAMAM (cmd/verify, TESTING.md, reset-demo). Faz 8.5 (frontend) **Stitch tasarımlarını bekliyor**: `Stitch-Tasarımlar` klasörü
-kullanıcının diskinde, henüz depoya push edilmedi.
+Faz 9, 10 ve 8.5 TAMAM. Kalan: P2 (iCal, plan karşılaştırma), CI'nın GitHub'da doğrulanması, teslim kontrol listesi.
 
 ## Bloke
 Yok.
@@ -132,3 +131,5 @@ Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Fa
 (`/schedules/{id}/conflicts` keyset imleci aynı öğrencinin ikinci gününü atlıyordu) ve düzeltildi (TESTING.md).
 
 **Faz 10 doğrulama:** `make load` 47.612 istek, hata %0, p95 63 ms; `make chaos` GEÇTİ (503, ~1 sn toparlanma); `make explain` 4 sorgu. Kaos, veri uçlarının 500 döndüğünü yakaladı → 503'e düzeltildi.
+
+**Faz 8.5 doğrulama:** 11 ekran, 5 rol; Playwright: 16/16 ekran hatasız + 8/8 akış PASS (Vite üzerinden); nginx /api vekili ayrı konteynerde doğrulandı; `docker compose build frontend` bu ortamda npm ci ağ erişimi yüzünden çalışmadı (kullanıcı makinesinde denenmeli).
