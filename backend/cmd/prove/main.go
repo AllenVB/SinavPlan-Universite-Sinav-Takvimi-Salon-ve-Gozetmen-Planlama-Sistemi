@@ -4,7 +4,8 @@
 //	prove t1 [--seed 42] [--iterations 1000000] [--time-limit 60s] [--days 15]
 //	prove t2     salon atama: T-1 çizelgesindeki her slot için, determinizm dahil
 //	prove t3     oturma düzeni: ihlal sayacı + bilerek bozulmuş planlar
-//	prove all    t1, t2, t3
+//	prove t4     gözetmen atama: kısıtlar, adalet, bir gözetmen çıkarılınca minimum değişiklik
+//	prove all    t1, t2, t3, t4
 //
 // Çıkış kodu: herhangi bir sert kısıt ihlali, yerleşmeyen sınav veya süre sınırının
 // aşılması durumunda 1.
@@ -13,11 +14,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"sort"
 	"time"
 
+	"github.com/AllenVB/sinavplan/backend/internal/domain/invigilation"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/rooms"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/scheduling"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/seating"
@@ -27,7 +30,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "kullanım: prove <t1|t2|t3|all> [bayraklar]")
+		fmt.Fprintln(os.Stderr, "kullanım: prove <t1|t2|t3|t4|all> [bayraklar]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -37,9 +40,11 @@ func main() {
 		os.Exit(proveT2(os.Args[2:]))
 	case "t3":
 		os.Exit(proveT3(os.Args[2:]))
+	case "t4":
+		os.Exit(proveT4(os.Args[2:]))
 	case "all":
 		code := 0
-		for _, f := range []func([]string) int{proveT1, proveT2, proveT3} {
+		for _, f := range []func([]string) int{proveT1, proveT2, proveT3, proveT4} {
 			if c := f(nil); c != 0 {
 				code = c
 			}
@@ -297,3 +302,130 @@ func proveT3(args []string) int {
 }
 
 func sortDesc(a []int) { sort.Sort(sort.Reverse(sort.IntSlice(a))) }
+
+func proveT4(args []string) int {
+	fs := flag.NewFlagSet("t4", flag.ExitOnError)
+	seed := fs.Int64("seed", 42, "tohum")
+	iters := fs.Int("iterations", 200_000, "T-1 iterasyon bütçesi")
+	_ = fs.Parse(args)
+
+	fmt.Println("== T-4 Adil gözetmen atama — kanıt ==")
+	ds, res, _, err := pipeline(*seed, *iters)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	// Mazeretleri deterministik simüle et: 10 gözetmen, her biri 3 slotta mazeretli.
+	in0 := planning.InvigilationInput(ds, res, nil)
+	r := rand.New(rand.NewPCG(uint64(*seed), 4))
+	excused := map[int64][]int{}
+	for _, k := range r.Perm(len(in0.Invigilators))[:10] {
+		id := in0.Invigilators[k].ID
+		for j := 0; j < 3; j++ {
+			excused[id] = append(excused[id], r.IntN(ds.Config.Days*ds.Config.SessionsPerDay))
+		}
+	}
+	in := planning.InvigilationInput(ds, res, excused)
+
+	start := time.Now()
+	p, err := invigilation.Assign(in)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	dur := time.Since(start)
+	v := invigilation.Validate(in, p)
+	m := invigilation.Fairness(in, p)
+	big, own := 0, 0
+	for _, d := range in.Duties {
+		if d.Required() == 2 {
+			big++
+		}
+	}
+	for _, iv := range in.Invigilators {
+		if len(iv.OwnExams) > 0 {
+			own++
+		}
+	}
+
+	row := func(k string, x any) { fmt.Printf("  %-46s %v\n", k, x) }
+	row("görev (slot x salon) / >50 öğrenci (2 gözetmen)", fmt.Sprintf("%d / %d", len(in.Duties), big))
+	row("gözetmen (kendi dersi olan) / mazeretli", fmt.Sprintf("%d (%d) / %d", len(in.Invigilators), own, len(excused)))
+	row("süre", dur.Round(time.Millisecond))
+	row("atama / doldurulamayan kontenjan", fmt.Sprintf("%d / %d", m.Assignments, len(p.Unfilled)))
+	row("DOĞRULAYICI İHLALİ", len(v))
+	row("görev yükü min / max / ortalama", fmt.Sprintf("%d / %d / %.2f", m.Min, m.Max, m.Mean))
+	row("adalet: max - min (ideal)", fmt.Sprintf("%d (%d)", m.Spread, m.IdealSpread))
+
+	// Bir gözetmen hastalanıp çıkarılıyor: en çok görevi olan.
+	load := map[int64]int{}
+	for _, a := range p.Assignments {
+		load[a.InvigilatorID]++
+	}
+	var removed int64
+	for _, iv := range in.Invigilators {
+		if load[iv.ID] > load[removed] || removed == 0 {
+			removed = iv.ID
+		}
+	}
+	rr, err := invigilation.Reassign(in, p, removed)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	rv := invigilation.Validate(in, rr.Plan)
+
+	// Kilit kanıtı: değişiklik listesi dışındaki her atama aynen duruyor mu?
+	type key struct{ d, v int64 }
+	after := map[key]bool{}
+	for _, a := range rr.Plan.Assignments {
+		after[key{a.DutyID, a.InvigilatorID}] = true
+	}
+	changedFrom := map[key]bool{}
+	for _, c := range rr.Changes {
+		changedFrom[key{c.DutyID, c.From}] = true
+	}
+	untouched, moved := 0, 0
+	for _, a := range p.Assignments {
+		k := key{a.DutyID, a.InvigilatorID}
+		switch {
+		case after[k]:
+			untouched++
+		case changedFrom[k]:
+			moved++
+		}
+	}
+	// Adalet: çıkarılan gözetmen hariç.
+	var rest invigilation.Input = in
+	rest.Invigilators = nil
+	for _, iv := range in.Invigilators {
+		if iv.ID != removed {
+			rest.Invigilators = append(rest.Invigilators, iv)
+		}
+	}
+	m2 := invigilation.Fairness(rest, rr.Plan)
+
+	fmt.Printf("\n  gözetmen %d çıkarıldı (%d görevi vardı):\n", removed, load[removed])
+	row("boşalan görev (alt sınır)", rr.Vacated)
+	row("değişen atama (= boşalan + takas)", fmt.Sprintf("%d (= %d + %d)", len(rr.Changes), rr.Vacated, rr.Swaps))
+	row("dokunulmayan atama / toplam", fmt.Sprintf("%d / %d", untouched, len(p.Assignments)))
+	row("yeniden atama sonrası İHLAL", len(rv))
+	row("sonrası adalet max - min", m2.Spread)
+	for i, c := range rr.Changes {
+		if i == 4 {
+			fmt.Printf("    ... %d değişiklik daha\n", len(rr.Changes)-4)
+			break
+		}
+		fmt.Printf("    görev %d: %d -> %d\n", c.DutyID, c.From, c.To)
+	}
+
+	ok := len(v) == 0 && len(p.Unfilled) == 0 && len(rv) == 0 &&
+		untouched+moved == len(p.Assignments) && len(rr.Changes) == rr.Vacated+rr.Swaps
+	if !ok {
+		fmt.Println("\nSONUÇ: BAŞARISIZ")
+		return 1
+	}
+	fmt.Println("\nSONUÇ: BAŞARILI")
+	return 0
+}

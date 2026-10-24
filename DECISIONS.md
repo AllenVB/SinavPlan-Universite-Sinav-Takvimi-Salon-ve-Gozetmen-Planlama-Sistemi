@@ -302,3 +302,45 @@ koltukta, 0 yan yana ihlali; aynı çizelge ikinci kez planlanınca birebir ayn�
 - `Single − başkalarının engellisi` kuralı **yeterlilik değil güvenli yaklaşım**: bazı yerleşebilir
   kombinasyonları reddedebilir (kapasite israfı), ama kabul ettiğini T-3 yerleştirir (tam ölçekte kanıtlandı).
 - Sıkı mod (`Strict`) birim testlerle sınanıyor ama tam ölçekte ayrıca doğrulanmadı.
+
+---
+
+## ADR-009 — T-4: görev = (slot, salon); açgözlü + artırma zinciri + takas; Reassign iteratif derinleştirme
+
+**Bağlam.** Gözetmen yükü adil olmalı (max − min en aza); kendi dersinde görev yok, aynı slotta iki
+görev yok, aynı gün ardışık oturumda görev yok, > 50 öğrencili salonda ≥ 2 gözetmen, mazeretli slot
+hariç. Bir gözetmen çıkarılınca plan **minimum değişiklikle** onarılmalı.
+
+**Karar.**
+- **Görev birimi** `(slot, salon)`; gereken sayı salonun toplam öğrencisine göre (paylaşılan salonda
+  sınavlar toplanır). "Kendi dersi" salon düzeyinde: salonda gözetmenin şube verdiği bir dersin sınavı
+  varsa o salona atanmaz. Gözetmen havuzu = `invigilator` rolünü taşıyan herkes (V-4).
+- **Atama:** en kısıtlı görev önce (uygun gözetmen / gereken oranı), en az yüklü uygun gözetmene.
+- **Onarım:** boş kalan kontenjanlara artırma zinciri (bkz. Reassign). Ölçülen neden: bir günde talep
+  45/50/31 iken akşam oturumu sabahkilerle paylaşılmalıydı (aynı gün ama ardışık değil); "en az yüklü"
+  kuralı farklı kişiler seçip orta oturumda 3 kontenjanı boş bırakıyordu. Talep `orta + max(kenar) =
+  95 ≤ 100` olduğu için çözülebilirdi → zayıflık algoritmadaydı, onarımla 0 eksik.
+- **İyileştirme:** yükü L olandan ≤ L−2 olana doğrudan devir; olmazsa ara kişi üzerinden iki adımlı takas
+  zinciri. Her hamle Σ yük² değerini kesin azaltır → sonlu. Tarama, farkı düşürebilecek çiftlerle
+  (en yüklüden giden / en az yüklüye gelen) sınırlı.
+- **Reassign:** çıkarılan kişinin görevleri boşaltılır, **diğer tüm atamalar kilitli**. Her boşalan görev için
+  iteratif derinleştirme: önce doğrudan doldurma (1 değişiklik), olmazsa uzunluğu artan takas zinciri
+  (v elindeki x'i bırakırsa görevi alabiliyorsa x'i başkası üstlenir; en fazla 3 hamle). Dönüş:
+  değişiklik listesi (diff), boşalan sayısı (alt sınır), takas sayısı.
+
+**Alternatifler.** Min-cost flow / ILP ile global adalet — ardışık oturum kısıtı akış modelini bozar
+(aynı kişinin iki komşu slotu), ILP bağımlılık getirir. Reassign'de baştan Assign — "minimum
+değişiklik" şartını çiğner.
+
+**Ölçümler** (`make prove-t4`, seed=42, 10 gözetmen × 3 mazeretli slot simüle): 674 görev (418'i 2 gözetmenli),
+100 gözetmen, 1.092 atama, 0 doldurulamayan, **0 ihlal**, yük 10–11 → fark **1 = ideal**; 6 ms.
+En yüklü gözetmen (11 görev) çıkarılınca: 11 boşalan, **11 değişiklik (0 takas)** = alt sınır, 1.081
+atama dokunulmadan, 0 ihlal. Birim testte doğrudan doldurmanın imkânsız olduğu kurgulanmış senaryoda
+tam 1 takasla (2 değişiklik) çözüldüğü ve başka hiçbir atamanın oynamadığı kanıtlanıyor.
+
+**Sınırlar.**
+- Reassign'in en kısalığı **görev başına**: boşalan görevler sırayla doldurulur; görevlerin birlikte
+  düşünüldüğü küresel optimum garanti değil (değişiklik = boşalan olduğunda zaten minimumdur).
+- Reassign adaleti yeniden dengelemez (kilit şartı gereği): örnekte fark 1'den 2'ye çıktı. İstenirse
+  ayrı bir "yeniden dengele" işlemi tam Assign ile yapılır.
+- Takas zinciri en fazla 3 hamle; daha uzun zincir gerektiren durumda kontenjan `Unfilled` döner.

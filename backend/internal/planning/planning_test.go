@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/AllenVB/sinavplan/backend/internal/domain/invigilation"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/rooms"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/scheduling"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/seating"
@@ -146,4 +147,38 @@ func TestSeatingCannotFitWhatTheRoomRuleForbids(t *testing.T) {
 	if len(p.Unseated) == 0 {
 		t.Fatal("bu kombinasyon fiziksel olarak sığmamalı; T-2 kuralı bu yüzden onu yasaklıyor")
 	}
+}
+
+// T-4 tam ölçek: tüm görevler doldurulur, sert kısıt ihlali yok; bir gözetmen
+// çıkarılınca yalnızca onun görevleri (ve gerekirse en az takas) değişir.
+func TestInvigilationAtScale(t *testing.T) {
+	if testing.Short() {
+		t.Skip("-short")
+	}
+	ds, _ := simdata.Generate(simdata.DefaultConfig(42))
+	res, err := Plan(ds, solve(t, ds, 150_000), rooms.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := InvigilationInput(ds, res, nil)
+	p, err := invigilation.Assign(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := invigilation.Validate(in, p); len(v) != 0 {
+		t.Fatalf("%d ihlal, ilki %+v", len(v), v[0])
+	}
+	m := invigilation.Fairness(in, p)
+	t.Logf("görev=%d gözetmen=%d fairness=%+v", len(in.Duties), len(in.Invigilators), m)
+	if m.Spread > 2 {
+		t.Fatalf("fark %d çok yüksek", m.Spread)
+	}
+	r, err := invigilation.Reassign(in, p, p.Assignments[0].InvigilatorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := invigilation.Validate(in, r.Plan); len(v) != 0 {
+		t.Fatalf("yeniden atama sonrası ihlal: %+v", v[0])
+	}
+	t.Logf("reassign: boşalan=%d değişen=%d takas=%d", r.Vacated, len(r.Changes), r.Swaps)
 }

@@ -119,6 +119,10 @@ prove-t2: ## T-2 kanıtı: salon atama (ihlal, salon sayısı, determinizm)
 prove-t3: ## T-3 kanıtı: oturma düzeni (ihlal sayacı, bozuk plan sınaması)
 	cd $(BACKEND_DIR) && go run ./cmd/prove t3
 
+.PHONY: prove-t4
+prove-t4: ## T-4 kanıtı: gözetmen atama, adalet, minimum değişiklikli yeniden atama
+	cd $(BACKEND_DIR) && go run ./cmd/prove t4
+
 .PHONY: prove-all
 prove-all: ## T-1..T-5 kanıt komutlarını sırayla çalıştır
 	cd $(BACKEND_DIR) && go run ./cmd/prove all

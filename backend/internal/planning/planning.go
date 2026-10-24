@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/AllenVB/sinavplan/backend/internal/domain/invigilation"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/rooms"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/scheduling"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/seating"
@@ -195,4 +196,71 @@ func Plan(ds *simdata.Dataset, assignment map[int64]int, cfg rooms.Config) (*Res
 		res.Slots = append(res.Slots, sres)
 	}
 	return res, nil
+}
+
+// InvigilationInput, salon planından gözetmen görevlerini ve veri kümesinden
+// gözetmenleri kurar. Görev kimliği: slot*100000 + salon kimliği (deterministik).
+// excused: gözetmen kullanıcı kimliği -> mazeretli slotlar.
+func InvigilationInput(ds *simdata.Dataset, res *Result, excused map[int64][]int) invigilation.Input {
+	in := invigilation.Input{SessionsPerDay: ds.Config.SessionsPerDay}
+	for _, s := range res.Slots {
+		type acc struct {
+			students int
+			exams    []int64
+		}
+		byRoom := map[int64]*acc{}
+		for _, p := range s.Rooms.Placements {
+			a := byRoom[p.RoomID]
+			if a == nil {
+				a = &acc{}
+				byRoom[p.RoomID] = a
+			}
+			a.students += p.Count
+			a.exams = append(a.exams, p.ExamID)
+		}
+		ids := make([]int64, 0, len(byRoom))
+		for id := range byRoom {
+			ids = append(ids, id)
+		}
+		sort.Slice(ids, func(a, b int) bool { return ids[a] < ids[b] })
+		for _, id := range ids {
+			a := byRoom[id]
+			in.Duties = append(in.Duties, invigilation.Duty{ID: int64(s.Slot)*100000 + id, Slot: s.Slot,
+				RoomID: id, Students: a.students, Exams: a.exams})
+		}
+	}
+
+	// Kendi dersi: öğretim üyesinin şube verdiği derslerin sınavları.
+	examOfCourse := map[int64]int64{}
+	for _, e := range ds.Exams {
+		examOfCourse[e.CourseID] = e.ID
+	}
+	lecturerUser := map[int64]int64{}
+	for _, l := range ds.Lecturers {
+		lecturerUser[l.ID] = l.UserID
+	}
+	own := map[int64]map[int64]bool{}
+	for _, sec := range ds.Sections {
+		u := lecturerUser[sec.LecturerID]
+		if own[u] == nil {
+			own[u] = map[int64]bool{}
+		}
+		own[u][examOfCourse[sec.CourseID]] = true
+	}
+	for _, u := range ds.Users {
+		isInv := false
+		for _, r := range u.Roles {
+			isInv = isInv || r == "invigilator"
+		}
+		if !isInv {
+			continue
+		}
+		iv := invigilation.Invigilator{ID: u.ID, Unavailable: excused[u.ID]}
+		for e := range own[u.ID] {
+			iv.OwnExams = append(iv.OwnExams, e)
+		}
+		sort.Slice(iv.OwnExams, func(a, b int) bool { return iv.OwnExams[a] < iv.OwnExams[b] })
+		in.Invigilators = append(in.Invigilators, iv)
+	}
+	return in
 }
