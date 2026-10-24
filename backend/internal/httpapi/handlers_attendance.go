@@ -99,14 +99,18 @@ func (s *Server) examCard(w http.ResponseWriter, r *http.Request) error {
 	} else if ex {
 		return &APIError{Status: http.StatusConflict, Code: "excused", Message: "bu sınav için onaylanmış mazeretiniz var; sınav kartı verilmez"}
 	}
-	// Kart, sınav bitiminden 1 saat sonrasına kadar geçerli.
-	expires := card.EndsAt.Add(time.Hour)
+	// Dinamik QR: jeton kısa ömürlüdür (QR_TTL) ve arayüz bitmeden yeniler; her yenileme eskisini
+	// iptal eder, böylece ekran görüntüsü paylaşımı işe yaramaz. Sınav bitiminden 1 saat sonrasını aşmaz.
+	expires := time.Now().Add(s.qrTTL)
+	if limit := card.EndsAt.Add(time.Hour); expires.After(limit) {
+		expires = limit
+	}
 	tok, err := s.qr.Issue(r.Context(), s.pool, examID, p.StudentID, expires)
 	if err != nil {
 		return err
 	}
 	WriteJSON(w, http.StatusCreated, map[string]any{"card": card, "student_id": p.StudentID,
-		"qr_token": tok, "expires_at": expires})
+		"qr_token": tok, "expires_at": expires, "ttl_seconds": int(time.Until(expires).Seconds())})
 	return nil
 }
 

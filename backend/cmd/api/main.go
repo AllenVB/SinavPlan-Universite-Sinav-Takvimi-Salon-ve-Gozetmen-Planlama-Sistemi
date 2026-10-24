@@ -89,6 +89,7 @@ func run() error {
 			Pool:           db.Pool,
 			Auth:           authSvc,
 			QR:             store.NewQR(cfg.QRHMACSecret),
+			QRTTL:          cfg.QRTTL,
 			Runner:         jobs.NewRunner(db.Pool, log),
 			SeatingStrict:  cfg.SeatingStrict,
 		}),

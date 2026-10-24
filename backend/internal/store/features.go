@@ -60,28 +60,6 @@ type Activity struct {
 	CreatedAt time.Time       `json:"created_at"`
 }
 
-// RecentActivity, en yeni denetim kayıtlarını (yeniden eskiye) döner. Gizli veri taşıyabilecek
-// import ve auth olayları dışarıda bırakılmaz ama ayrıntı (new_value) yalnızca küçük, alan-sınırlı
-// alanlardan oluşur; kimlik bilgisi denetim kaydına zaten yazılmaz.
-func RecentActivity(ctx context.Context, pool *pgxpool.Pool, limit int) ([]Activity, error) {
-	rows, err := pool.Query(ctx, `
-		SELECT a.id, a.action, a.entity, a.entity_id, u.full_name, coalesce(a.new_value, 'null'::jsonb), a.created_at
-		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
-		ORDER BY a.id DESC LIMIT $1`, limit)
-	if err != nil {
-		return nil, err
-	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Activity, error) {
-		var x Activity
-		var d []byte
-		err := r.Scan(&x.ID, &x.Action, &x.Entity, &x.EntityID, &x.Actor, &d, &x.CreatedAt)
-		if string(d) != "null" {
-			x.Detail = d
-		}
-		return x, err
-	})
-}
-
 // Moved, iki çizelge arasında slotu değişen sınav.
 type Moved struct {
 	ExamID     int64     `json:"exam_id"`

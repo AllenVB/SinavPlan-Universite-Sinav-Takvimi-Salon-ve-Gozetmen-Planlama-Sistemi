@@ -497,11 +497,56 @@ paths:
   /activity:
     get:
       tags: [Ek özellikler (Faz 11)]
-      summary: Etkinlik akışı (denetim kaydından, yeniden eskiye)
-      parameters: [{name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}]
+      summary: Etkinlik akışı / denetim kaydı (yeniden eskiye; süzülebilir, artımlı okunabilir)
+      description: |
+        `after_id` yalnız daha yeni kayıtları döner (canlı akış için artımlı yoklama); `before_id` daha eskileri (sayfalama,
+        yanıttaki `next_before`). İkisi birlikte verilemez. `latest_id` denetim kaydındaki en yeni kimliktir.
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 20}}
+        - {name: action, in: query, description: "Eylem ön eki, örn. excuse.", schema: {type: string, maxLength: 40}}
+        - {name: actor, in: query, schema: {type: integer, format: int64}}
+        - {name: after_id, in: query, schema: {type: integer, format: int64}}
+        - {name: before_id, in: query, schema: {type: integer, format: int64}}
       responses:
-        "200": {description: Etkinlikler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
+        "200": {description: Etkinlikler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}, latest_id: {type: integer}, next_before: {type: integer, nullable: true}}}}}}
         "422": {$ref: "#/components/responses/Validation"}
+  /schedules/{id}/live:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Canlı yoklama özeti (salon bazlı)
+      description: |
+        Bir oturumdaki her salon için oturan / gelen / gelmedi / işaretlenmemiş sayıları, son olay zamanı, cihaz sayısı,
+        sınav payları ve gözetmenler. `slot_id` verilmezse süren oturum, yoksa sıradaki, yoksa son biten seçilir
+        (`slot.mode`: active | upcoming | past). Yoklama, olaylardan türetilen son durumdan okunur.
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: slot_id, in: query, schema: {type: integer, format: int64}}
+      responses:
+        "200": {description: Canlı özet, content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /schedules/{id}/live/events:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Canlı yoklama olay akışı (yeniden eskiye, artımlı)
+      description: Oturumdaki ham yoklama olayları (QR/elle, cihaz, öğrenci, salon). `since` verilirse yalnız daha yeni `received_at`.
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: slot_id, in: query, schema: {type: integer, format: int64}}
+        - {name: since, in: query, description: RFC 3339, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 30}}
+      responses:
+        "200": {description: Olaylar, content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /me/exams/{examId}/seatmap:
+    get:
+      tags: [Öğrenci]
+      summary: Salon krokisi ve kendi koltuğum (başka öğrenci verisi yok)
+      parameters: [{name: examId, in: path, required: true, schema: {type: integer, format: int64}}]
+      responses:
+        "200": {description: Kroki, content: {application/json: {schema: {type: object}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
   /periods/{id}/slots:
     get:
       tags: [Ek özellikler (Faz 11)]

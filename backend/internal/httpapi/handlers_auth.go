@@ -18,6 +18,7 @@ type loginRequest struct {
 
 type userView struct {
 	ID         int64    `json:"id"`
+	FullName   string   `json:"full_name,omitempty"`
 	Roles      []string `json:"roles"`
 	StudentID  *int64   `json:"student_id,omitempty"`
 	LecturerID *int64   `json:"lecturer_id,omitempty"`
@@ -105,6 +106,10 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
-	WriteJSON(w, http.StatusOK, viewOf(mustPrincipal(r)))
+	v := viewOf(mustPrincipal(r))
+	if s.pool != nil { // ad yalnız görüntü içindir; okunamazsa /me yine de çalışır
+		_ = s.pool.QueryRow(r.Context(), `SELECT full_name FROM users WHERE id = $1`, v.ID).Scan(&v.FullName)
+	}
+	WriteJSON(w, http.StatusOK, v)
 	return nil
 }

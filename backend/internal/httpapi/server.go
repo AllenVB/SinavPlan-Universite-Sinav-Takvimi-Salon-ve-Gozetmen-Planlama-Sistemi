@@ -30,6 +30,7 @@ type Server struct {
 	issuer        *auth.Issuer
 	idem          *idempotency.Store
 	qr            *store.QR
+	qrTTL         time.Duration
 	runner        *jobs.Runner
 	seatingStrict bool
 	routeInfos    []RouteInfo
@@ -50,6 +51,8 @@ type Options struct {
 	Issuer *auth.Issuer
 	// QR, sınav kartı token'larını üretir/doğrular (QR_HMAC_SECRET).
 	QR *store.QR
+	// QRTTL, kart jetonunun ömrü (varsayılan 2 dk).
+	QRTTL time.Duration
 	// Runner, asenkron takvim işlerini çalıştırır.
 	Runner *jobs.Runner
 	// SeatingStrict, T-3'te ön/arka komşuluğu da uygular (SEATING_STRICT_MODE).
@@ -81,8 +84,12 @@ func NewServer(opts Options) *Server {
 		auth:           opts.Auth,
 		issuer:         opts.Issuer,
 		qr:             opts.QR,
+		qrTTL:          opts.QRTTL,
 		runner:         opts.Runner,
 		seatingStrict:  opts.SeatingStrict,
+	}
+	if s.qrTTL <= 0 {
+		s.qrTTL = 2 * time.Minute
 	}
 	if s.issuer == nil && s.auth != nil {
 		s.issuer = s.auth.Issuer()
@@ -173,6 +180,9 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodPost, "/schedules/simulate", Roles(auth.RoleSecretary), s.simulate, slow(45*time.Second))
 	s.handle(r, http.MethodGet, "/schedules/compare", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.compareSchedules)
 	s.handle(r, http.MethodGet, "/activity", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.activity)
+	s.handle(r, http.MethodGet, "/schedules/{id}/live", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.live)
+	s.handle(r, http.MethodGet, "/schedules/{id}/live/events", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.liveEvents)
+	s.handle(r, http.MethodGet, "/me/exams/{examId}/seatmap", Roles(auth.RoleStudent), s.mySeatMap)
 	s.handle(r, http.MethodGet, "/periods/{id}/slots", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.periodSlots)
 	s.handle(r, http.MethodGet, "/schedules/{id}/export", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.exportSchedule)
 	s.handle(r, http.MethodGet, "/schedules/{id}/calendar.ics", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleICS)

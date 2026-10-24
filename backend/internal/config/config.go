@@ -25,6 +25,8 @@ type Config struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 	QRHMACSecret    string
+	// QRTTL: sınav kartı QR jetonunun ömrü; arayüz bundan önce yeniler (dinamik QR).
+	QRTTL time.Duration
 
 	SeedValue int64
 
@@ -68,6 +70,11 @@ func Load() (Config, error) {
 	}
 	if cfg.AccessTokenTTL, err = durationOr("ACCESS_TOKEN_TTL", 15*time.Minute); err != nil {
 		problems = append(problems, err.Error())
+	}
+	if cfg.QRTTL, err = durationOr("QR_TTL", 2*time.Minute); err != nil {
+		problems = append(problems, err.Error())
+	} else if cfg.QRTTL < 15*time.Second || cfg.QRTTL > time.Hour {
+		problems = append(problems, "QR_TTL 15sn ile 1sa arasında olmalı")
 	}
 	if cfg.RefreshTokenTTL, err = durationOr("REFRESH_TOKEN_TTL", 7*24*time.Hour); err != nil {
 		problems = append(problems, err.Error())

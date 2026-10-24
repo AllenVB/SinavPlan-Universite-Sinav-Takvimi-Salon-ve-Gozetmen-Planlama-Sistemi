@@ -202,19 +202,125 @@ func (s *Server) myDutiesICS(w http.ResponseWriter, r *http.Request) error {
 // --- Etkinlik akışı (X-6) -------------------------------------------------------------
 
 func (s *Server) activity(w http.ResponseWriter, r *http.Request) error {
-	limit := 20
-	if v := r.URL.Query().Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 100 {
-			return Validation("limit 1..100 olmalı", map[string]string{"limit": "geçersiz"})
-		}
-		limit = n
+	q := r.URL.Query()
+	f := store.ActivityFilter{Limit: 20, ActionPrefix: q.Get("action")}
+	if len(f.ActionPrefix) > 40 {
+		return Validation("action en çok 40 karakter", map[string]string{"action": "çok uzun"})
 	}
-	rows, err := store.RecentActivity(r.Context(), s.pool, limit)
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 200 {
+			return Validation("limit 1..200 olmalı", map[string]string{"limit": "geçersiz"})
+		}
+		f.Limit = n
+	}
+	for name, dst := range map[string]*int64{"actor": &f.ActorID, "after_id": &f.After, "before_id": &f.Before} {
+		if v := q.Get(name); v != "" {
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || n < 0 {
+				return Validation(name+" pozitif tam sayı olmalı", map[string]string{name: "geçersiz"})
+			}
+			*dst = n
+		}
+	}
+	rows, latest, err := store.ActivityPage(r.Context(), s.pool, f)
+	if errors.Is(err, store.ErrBadFilter) {
+		return Validation(err.Error(), map[string]string{"after_id": "before_id ile birlikte verilemez"})
+	}
 	if err != nil {
 		return err
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"items": rows})
+	var next any
+	if len(rows) == f.Limit && f.After == 0 {
+		next = rows[len(rows)-1].ID // before_id olarak gönderilir
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"items": rows, "latest_id": latest, "next_before": next})
+	return nil
+}
+
+// live: GET /schedules/{id}/live?slot_id= — salon bazlı canlı yoklama özeti (sınav günü izleme).
+func (s *Server) live(w http.ResponseWriter, r *http.Request) error {
+	id, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	if _, err := s.visibleSchedule(r, id); err != nil {
+		return err
+	}
+	slotID, err := queryInt64(r, "slot_id")
+	if err != nil {
+		return err
+	}
+	slot, err := store.PickLiveSlot(r.Context(), s.pool, id, slotID, time.Now())
+	if err != nil {
+		return storeError(err)
+	}
+	out, err := store.Live(r.Context(), s.pool, id, slot)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+// liveEvents: GET /schedules/{id}/live/events?slot_id=&since=&limit= — canlı yoklama olay akışı (artımlı).
+func (s *Server) liveEvents(w http.ResponseWriter, r *http.Request) error {
+	id, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	if _, err := s.visibleSchedule(r, id); err != nil {
+		return err
+	}
+	slotID, err := queryInt64(r, "slot_id")
+	if err != nil {
+		return err
+	}
+	slot, err := store.PickLiveSlot(r.Context(), s.pool, id, slotID, time.Now())
+	if err != nil {
+		return storeError(err)
+	}
+	limit := 30
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 200 {
+			return Validation("limit 1..200 olmalı", map[string]string{"limit": "geçersiz"})
+		}
+		limit = n
+	}
+	var since *time.Time
+	if v := r.URL.Query().Get("since"); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			return Validation("since RFC 3339 zamanı olmalı", map[string]string{"since": "geçersiz"})
+		}
+		since = &t
+	}
+	rows, err := store.LiveEvents(r.Context(), s.pool, id, slot.ID, since, limit)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	WriteJSON(w, http.StatusOK, map[string]any{"slot": slot, "items": rows})
+	return nil
+}
+
+// mySeatMap: GET /me/exams/{examId}/seatmap — öğrencinin salon krokisi ve kendi koltuğu.
+func (s *Server) mySeatMap(w http.ResponseWriter, r *http.Request) error {
+	p := mustPrincipal(r)
+	if p.StudentID == 0 {
+		return Forbidden("bu hesap bir öğrenci kaydına bağlı değil")
+	}
+	examID, err := pathInt64(r, "examId")
+	if err != nil {
+		return err
+	}
+	m, err := store.StudentSeatMap(r.Context(), s.pool, p.StudentID, examID)
+	if err != nil {
+		return storeError(err)
+	}
+	WriteJSON(w, http.StatusOK, m)
 	return nil
 }
 
