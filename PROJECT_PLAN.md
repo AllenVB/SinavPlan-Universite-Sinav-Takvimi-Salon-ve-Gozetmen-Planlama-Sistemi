@@ -119,3 +119,27 @@ doğrulama sorusunun birebir metni · iki ek bonus (sürükle-bırak, plan karş
 | V-6 | Mazeret onayı telafi slotu üretmez; kayıt + muafiyet | `proje.md` telafi çizelgeleme istemiyor |
 | V-7 | Depo adı mevcut hâliyle kalır (`ddo-case-...` yalnız öneri) | §13.1 "öneri" diyor |
 | V-8 | İki DB rolü: `migrator` (sahip) + `app` (kısıtlı) | append-only audit için app'ten UPDATE/DELETE geri alınmalı |
+
+## 7. Model kullanımı (fiyat/performans, CLAUDE.md §3)
+
+Model, kullanıcı tarafından `/model` ile değiştirilir; ajan kendi modelini
+değiştiremez. Her faz başında aşağıdaki tabloya bakılır.
+
+| Faz | İş türü | Model | Effort |
+|---|---|---|---|
+| 1 iskelet (kalan), 2 şema+seed | rutin: Docker, SQL DDL, üretici | **Sonnet 5.5** | medium |
+| 3 auth/RBAC/idempotency | güvenlik + eşzamanlılık | **Opus 5.5** | high |
+| 4 T-1 çizelgeleme | algoritma + performans (60 sn) | **Opus 5.5** | high |
+| 5 T-2 + T-3 | algoritma, orta zorluk | Sonnet 5.5 → takılırsa Opus | medium |
+| 6 T-4 + Reassign | minimum-değişiklik garantisi | **Opus 5.5** | high |
+| 7 T-5 + yarış testleri | eşzamanlılık, FOR UPDATE, 50 goroutine | **Opus 5.5** | high |
+| 8 F-1..F-6, OpenAPI, requests.http | rutin CRUD | **Sonnet 5.5** | medium |
+| 8.5 frontend | rutin UI | **Sonnet 5.5** | medium |
+| 9 verify, TESTING.md | rutin senaryo yazımı | **Sonnet 5.5** | medium |
+| 10 k6, chaos, EXPLAIN, README, DECISIONS | rutin betik + doküman | **Sonnet 5.5** | low–medium |
+| Zor hata ayıklama (her fazda) | kök neden analizi | **Opus 5.5** | high |
+
+Kural: Opus yalnızca algoritma, eşzamanlılık, güvenlik ve zor hata ayıklama
+içindir. Haiku bu projede kod üretimi için önerilmez (kalite riski düzeltme
+maliyetini aşar). 7 günlük kullanım limiti uyarı durumunda olduğundan
+rutin fazlarda Sonnet'e geçmek limitin dolmasını geciktirir.

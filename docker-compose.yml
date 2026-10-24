@@ -1,0 +1,170 @@
+# SınavPlan — tek komutla ayağa kalkan yığın:
+#   cp .env.example .env && docker compose up --build
+#
+# Servis sırası depends_on koşullarıyla zorlanır:
+#   postgres(healthy) -> migrate(başarıyla bitti) -> seed(başarıyla bitti) -> api(healthy) -> simulator
+# Böylece elle adım gerekmiyor (proje.md §3).
+
+name: sinavplan
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Veri bütünlüğü için varsayılan ayarlar korunuyor; bu bir değerlendirme
+      # ortamı olduğundan fsync kapatma gibi hız kısayolları kullanılmadı.
+    # Bilinçli olarak "ports" YOK: veritabanı host'a açılmaz, yalnızca
+    # compose ağından erişilir (proje.md §3).
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready, bağlantı kabul edildiğini doğrular. -d ile veritabanı adını
+      # veriyoruz ki "başlatılıyor" durumunu sağlıklı saymayalım.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -q"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Şemayı kurar ve kısıtlı uygulama rolünü oluşturur. Tek seferlik çalışır.
+  migrate:
+    build:
+      context: ./backend
+      args:
+        TARGET: migrate
+        VERSION: ${APP_VERSION:-dev}
+    environment:
+      MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      LOG_LEVEL: ${LOG_LEVEL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Deterministik demo verisini yükler (300 sınav / 8.000 öğrenci / 60 salon).
+  seed:
+    build:
+      context: ./backend
+      args:
+        TARGET: simulator
+        VERSION: ${APP_VERSION:-dev}
+    command: ["seed", "--seed=${SEED}"]
+    environment:
+      DATABASE_URL: ${MIGRATE_DATABASE_URL}
+      LOG_LEVEL: ${LOG_LEVEL}
+      JWT_SECRET: ${JWT_SECRET}
+      QR_HMAC_SECRET: ${QR_HMAC_SECRET}
+      SEED: ${SEED}
+      SIM_EXAMS: ${SIM_EXAMS}
+      SIM_STUDENTS: ${SIM_STUDENTS}
+      SIM_ROOMS: ${SIM_ROOMS}
+      DEMO_PASSWORD: ${DEMO_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      args:
+        TARGET: api
+        VERSION: ${APP_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV}
+      LOG_LEVEL: ${LOG_LEVEL}
+      HTTP_ADDR: ${HTTP_ADDR}
+      DATABASE_URL: ${DATABASE_URL}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT}
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT}
+      JWT_SECRET: ${JWT_SECRET}
+      QR_HMAC_SECRET: ${QR_HMAC_SECRET}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL}
+      SCHEDULING_DAYS: ${SCHEDULING_DAYS}
+      SCHEDULING_SESSIONS_PER_DAY: ${SCHEDULING_SESSIONS_PER_DAY}
+      SCHEDULING_TIME_LIMIT: ${SCHEDULING_TIME_LIMIT}
+      SEATING_STRICT_MODE: ${SEATING_STRICT_MODE}
+    ports:
+      - "8080:8080"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      # İmaj alpine tabanlı olduğu için BusyBox wget kullanıyoruz; curl yok.
+      # /health DB ping içerir, yani bu kontrol veritabanını da kapsar.
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    # SIGTERM'den sonra düzgün kapanışa 15 sn + pay veriyoruz.
+    stop_grace_period: 20s
+
+  # Sınav günü yoklama olaylarını API üzerinden üretir; bazı cihazlar
+  # çevrimdışı kalıp olaylarını biriktirir, bazı olaylar bilerek çakışır.
+  simulator:
+    build:
+      context: ./backend
+      args:
+        TARGET: simulator
+        VERSION: ${APP_VERSION:-dev}
+    command: ["live", "--seed=${SEED}", "--duration=${SIM_LIVE_DURATION}"]
+    environment:
+      API_BASE_URL: http://api:8080
+      LOG_LEVEL: ${LOG_LEVEL}
+      SEED: ${SEED}
+      DEMO_PASSWORD: ${DEMO_PASSWORD}
+      SIM_LIVE_DURATION: ${SIM_LIVE_DURATION}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 3s
+
+  # Uçtan uca doğrulama. Varsayılan "up" ile başlamaz:
+  #   make verify  ==  docker compose --profile verify run --rm verify
+  verify:
+    profiles: ["verify"]
+    build:
+      context: ./backend
+      args:
+        TARGET: verify
+        VERSION: ${APP_VERSION:-dev}
+    environment:
+      API_BASE_URL: http://api:8080
+      DATABASE_URL: ${DATABASE_URL}
+      LOG_LEVEL: ${LOG_LEVEL}
+      DEMO_PASSWORD: ${DEMO_PASSWORD}
+      SEED: ${SEED}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pgdata:

@@ -1,0 +1,25 @@
+# golangci-lint yapılandırması.
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosimple
+    - bodyclose     # HTTP yanıt gövdesi kapatılmazsa bağlantı sızar
+    - rowserrcheck  # sql.Rows.Err() kontrol edilmezse sessiz veri kaybı olur
+    - sqlclosecheck
+    - misspell
+    - revive
+
+issues:
+  exclude-dirs:
+    - internal/store/sqlc   # üretilen kod
+  exclude-rules:
+    # Testlerde okunabilirlik için bazı kurallar gevşetilir.
+    - path: _test\.go
+      linters: [errcheck, revive]

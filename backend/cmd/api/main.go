@@ -2,6 +2,8 @@
 package main
 
 import (
+	_ "time/tzdata" // sınav saatlerini yerel saat diliminde yorumlamak için; imaja tzdata paketi kurmaya gerek kalmıyor
+
 	"context"
 	"errors"
 	"log/slog"

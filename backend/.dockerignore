@@ -1,0 +1,11 @@
+# Derleme bağlamını küçük tut. vendor/ BİLİNÇLİ olarak dışlanmıyor:
+# derleme ona ihtiyaç duyuyor (bkz. Dockerfile).
+.git
+.gitignore
+*.md
+bin/
+dist/
+coverage.out
+coverage.html
+*.test
+.golangci.yml

@@ -24,3 +24,4 @@ node_modules/
 *.swp
 .idea/
 .vscode/
+*.tsbuildinfo

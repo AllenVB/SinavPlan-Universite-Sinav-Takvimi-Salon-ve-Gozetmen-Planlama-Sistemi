@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Aynı dal için eski çalışmaları iptal et: boşa CI dakikası harcamayalım.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.24"
+  NODE_VERSION: "22"
+
+jobs:
+  lint:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+      - name: gofmt kontrolü
+        working-directory: backend
+        run: |
+          # sqlc üretimi biçimlendirme dışında tutulur.
+          unformatted=$(gofmt -l $(find . -name '*.go' -not -path './internal/store/sqlc/*'))
+          if [ -n "$unformatted" ]; then
+            echo "gofmt uygulanmamış dosyalar:"; echo "$unformatted"; exit 1
+          fi
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61
+          working-directory: backend
+
+  test:
+    name: Test (-race, kapsam)
+    runs-on: ubuntu-latest
+    services:
+      # Yarış testleri gerçek Postgres'e karşı çalışır. Test kodu
+      # TEST_DATABASE_URL varsa bu servise bağlanır; yoksa yerelde
+      # testcontainers ile kendi örneğini kaldırır.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sinavplan_test
+          POSTGRES_USER: sinavplan
+          POSTGRES_PASSWORD: test_pw
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sinavplan -d sinavplan_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://sinavplan:test_pw@localhost:5432/sinavplan_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Testler (-race, kapsam)
+        working-directory: backend
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Kapsam özeti
+        working-directory: backend
+        run: |
+          echo "### Test kapsamı" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Domain kapsam eşiği (>= %70)
+        working-directory: backend
+        run: |
+          # Şart yalnızca saf domain paketleri için geçerli (proje.md §9).
+          # Paket henüz yoksa adım atlanır; var olduğunda eşik zorunlu olur.
+          if ! ls internal/domain/*/*.go >/dev/null 2>&1; then
+            echo "domain paketleri henüz yok, eşik kontrolü atlandı"; exit 0
+          fi
+          go test -covermode=atomic -coverprofile=domain.out ./internal/domain/... >/dev/null
+          pct=$(go tool cover -func=domain.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "domain kapsamı: ${pct}%"
+          awk -v p="$pct" 'BEGIN { exit (p+0 >= 70) ? 0 : 1 }' || {
+            echo "::error::domain kapsamı %70'in altında (${pct}%)"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: backend/coverage.out
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker imajları
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Dört Go ikilisi aynı Dockerfile'dan TARGET argümanıyla derlenir.
+      - name: Backend imajları (api, migrate, simulator, verify)
+        run: |
+          for target in api migrate simulator verify; do
+            echo "::group::$target"
+            docker buildx build \
+              --build-arg TARGET=$target \
+              --build-arg VERSION=ci-${GITHUB_SHA::7} \
+              --cache-from type=gha,scope=backend \
+              --cache-to type=gha,scope=backend,mode=max \
+              --load -t sinavplan-$target:ci ./backend
+            echo "::endgroup::"
+          done
+
+      - name: Frontend imajı
+        run: |
+          docker buildx build \
+            --cache-from type=gha,scope=frontend \
+            --cache-to type=gha,scope=frontend,mode=max \
+            --load -t sinavplan-frontend:ci ./frontend
+
+      - name: İmaj boyutları
+        run: |
+          echo "### İmaj boyutları" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}' \
+            | grep -E '^sinavplan-' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compose dosyası geçerli mi
+        run: |
+          cp .env.example .env
+          docker compose config -q
+          echo "compose yapılandırması geçerli"
+
+  frontend:
+    name: Frontend derleme
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Bağımlılıklar
+        working-directory: frontend
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Tip kontrolü
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Derleme
+        working-directory: frontend
+        run: npm run build

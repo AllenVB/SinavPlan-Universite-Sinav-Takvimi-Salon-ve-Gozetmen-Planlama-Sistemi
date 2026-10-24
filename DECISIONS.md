@@ -56,3 +56,43 @@ gereksinimde istenmiyor.
 **Sonuçlar.** Şemada `money`/`numeric` para kolonu yok. Ceza skoru `float64`;
 karşılaştırmalar deterministik olsun diye eşitlik bozma her zaman tam sayı
 kimlik (ID) üzerinden yapılıyor, kayan nokta eşitliğine güvenilmiyor.
+
+---
+
+## ADR-002 — Go bağımlılıkları depoda vendor'lanır; çalışma imajında paket kurulmaz
+
+**Bağlam.** `proje.md` §3 soğuk makinede (boş Docker önbelleği) 5 dk içinde
+hazır olmayı istiyor. İlk Dockerfile derleme aşamasında `go mod download`,
+çalışma aşamasında `apk add ca-certificates tzdata` yapıyordu; ikisi de ağ
+gerektiriyor ve kısıtlı ağlı bir ortamda (bu geliştirme ortamı dahil)
+derleme DNS hatasıyla düştü.
+
+**Karar.**
+- `backend/vendor/` depoya eklenir, derleme `-mod=vendor` ile yapılır →
+  derleme aşaması ağ istemez.
+- Çalışma aşamasında `apk add` yok: CA sertifikaları derleme aşamasından
+  kopyalanır, saat dilimi verisi ikiliye gömülür (`import _ "time/tzdata"`),
+  kullanıcı `adduser` yerine sayısal `USER 10001:10001` ile verilir
+  (statik Go ikilisi `/etc/passwd` kaydı istemiyor).
+- `go.mod`, `go 1.24` yönergesiyle ve Go 1.24 ile uyumlu sabit sürümlerle
+  tutulur (chi v5.1.0, pgx v5.7.1, prometheus v1.20.5).
+
+**Alternatifler.**
+*(a) Derlemede modül indir* — ağ ve modül proxy'sinin durumuna bağımlı;
+reddedildi. *(b) distroless taban imaj* — paket kurmaya hiç gerek
+bırakmazdı ama `wget` içermediği için compose healthcheck'i ayrı bir ikili
+gerektirirdi; alpine + BusyBox `wget` daha az parça. *(c) Bağımlılıkları
+güncel tut* — `go mod tidy` en yeni sürümleri çekince (`pgx v5.11`,
+`prometheus v1.25`) `go.mod` Go 1.26'ya yükseldi ve Go 1.24 imajında derleme
+kırıldı; sürümler bu yüzden sabitlendi.
+
+**Sonuçlar.**
+- Ölçülen soğuk süre (önbellek ve imajlar silinmiş hâlde): frontend 11 sn,
+  5 backend imajı 34 sn, başlatmadan api+frontend healthy'ye 21 sn —
+  **toplam 66 sn**. Base imajların indirme süresi ağa bağlıdır ve
+  bu ölçüme dahildir, ama bağlantı hızı makineden makineye değişir.
+- İmaj boyutları 15–28 MB (backend), 74 MB (frontend, nginx tabanı).
+- Bedel: depo ~21 MB büyür; bağımlılık güncellemesi `go mod vendor`
+  adımı gerektirir.
+- Frontend `npm ci` hâlâ ağ istiyor (npm paketleri vendor'lanmadı);
+  `package-lock.json` depoda olduğu için derleme tekrarlanabilir.
