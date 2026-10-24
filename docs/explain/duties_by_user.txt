@@ -1,0 +1,22 @@
+-- SELECT * FROM invigilator_assignments WHERE user_id = 3 AND schedule_id = 4
+== DİZİNSİZ (invigilator_assignments_user_idx düşürüldü) ==
+Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on invigilator_assignments (actual rows=11 loops=1)
+  Index Cond: ((schedule_id = 4) AND (user_id = 3))
+  Buffers: shared hit=14 read=14 dirtied=4
+Planning:
+  Buffers: shared hit=146
+Planning Time: 1.100 ms
+Execution Time: 0.281 ms
+
+== DİZİNLİ ==
+Bitmap Heap Scan on invigilator_assignments (actual rows=11 loops=1)
+  Recheck Cond: ((user_id = 3) AND (schedule_id = 4))
+  Heap Blocks: exact=17
+  Buffers: shared hit=22
+  ->  Bitmap Index Scan on invigilator_assignments_user_idx (actual rows=20 loops=1)
+        Index Cond: ((user_id = 3) AND (schedule_id = 4))
+        Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=159
+Planning Time: 1.184 ms
+Execution Time: 0.165 ms

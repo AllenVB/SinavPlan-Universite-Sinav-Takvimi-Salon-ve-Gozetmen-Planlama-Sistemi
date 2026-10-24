@@ -126,7 +126,9 @@ OpenAPI                           44 uç belgelenmiş = 44 kayıtlı; uç silini
 haline döndü (üretilmiş demo çizelgesi silindi, yeniden üretilebilir). Kaynak dosyalar etkilenmedi.
 
 ## Sıradaki eylem
-Faz 10 (metrics tablosu, k6, chaos, EXPLAIN, README). Tasarımlar push edilince Faz 8.5 (frontend entegrasyonu).
+Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Faz 8.5 (frontend entegrasyonu).
 
 **Faz 9 doğrulama:** `make verify` iki ardışık koşuda 16/16 PASS; `go test ./...` hepsi ok. Verify gerçek bir hata yakaladı
 (`/schedules/{id}/conflicts` keyset imleci aynı öğrencinin ikinci gününü atlıyordu) ve düzeltildi (TESTING.md).
+
+**Faz 10 doğrulama:** `make load` 47.612 istek, hata %0, p95 63 ms; `make chaos` GEÇTİ (503, ~1 sn toparlanma); `make explain` 4 sorgu. Kaos, veri uçlarının 500 döndüğünü yakaladı → 503'e düzeltildi.
