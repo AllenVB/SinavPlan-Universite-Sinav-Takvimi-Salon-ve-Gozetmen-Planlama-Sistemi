@@ -84,14 +84,14 @@ Güncelleme: 2026-10-24 19:20 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `requests.http`: 5 rol, tüm uçlar, değişken zincirleri (ADR-011)
 
 ## Sürmekte
-Faz 9: `cmd/verify`, `TESTING.md`. Faz 8.5 (frontend) **Stitch tasarımlarını bekliyor**: `Stitch-Tasarımlar` klasörü
+Faz 9 TAMAM (cmd/verify, TESTING.md, reset-demo). Faz 8.5 (frontend) **Stitch tasarımlarını bekliyor**: `Stitch-Tasarımlar` klasörü
 kullanıcının diskinde, henüz depoya push edilmedi.
 
 ## Bloke
 Yok.
 
 ## Yer tutucular (çalışıyormuş gibi gösterilmiyor)
-- `cmd/verify`: yalnızca HEALTH gerçek; 15 kimlik `YAPILMADI`, exit 1 (Faz 9)
+- `cmd/verify`: 16 kimlik gerçek, `make verify` ~30 sn, hepsi PASS (iki ardışık koşu); `TESTING.md` yazıldı
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
@@ -126,5 +126,7 @@ OpenAPI                           44 uç belgelenmiş = 44 kayıtlı; uç silini
 haline döndü (üretilmiş demo çizelgesi silindi, yeniden üretilebilir). Kaynak dosyalar etkilenmedi.
 
 ## Sıradaki eylem
-Faz 9: `cmd/verify` (F-1..F-7, T-1..T-5, health, 401/403, sahiplik), `TESTING.md`, `make reset-demo` doğrulaması.
-Tasarımlar push edilince Faz 8.5 (frontend entegrasyonu).
+Faz 10 (metrics tablosu, k6, chaos, EXPLAIN, README). Tasarımlar push edilince Faz 8.5 (frontend entegrasyonu).
+
+**Faz 9 doğrulama:** `make verify` iki ardışık koşuda 16/16 PASS; `go test ./...` hepsi ok. Verify gerçek bir hata yakaladı
+(`/schedules/{id}/conflicts` keyset imleci aynı öğrencinin ikinci gününü atlıyordu) ve düzeltildi (TESTING.md).

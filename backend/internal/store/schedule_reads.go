@@ -89,6 +89,7 @@ type CalendarExam struct {
 	DurationMinutes int16     `json:"duration_minutes"`
 	Students        int       `json:"students"`
 	Rooms           int       `json:"rooms"`
+	RequiresLab     bool      `json:"requires_lab"`
 }
 
 // ScheduleExams, çizelgedeki sınavları (sınav kimliğiyle keyset) döner.
@@ -96,7 +97,8 @@ func ScheduleExams(ctx context.Context, pool *pgxpool.Pool, scheduleID, after in
 	rows, err := pool.Query(ctx, `
 		SELECT e.id, c.code, c.name, sl.id, sl.day_index, sl.session_index, sl.starts_at, sl.ends_at, e.duration_minutes,
 		       coalesce((SELECT sum(seat_count) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id), 0)::int,
-		       (SELECT count(*) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id)::int
+		       (SELECT count(*) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id)::int,
+		       e.requires_lab
 		FROM schedule_exams se JOIN exams e ON e.id = se.exam_id JOIN courses c ON c.id = e.course_id JOIN slots sl ON sl.id = se.slot_id
 		WHERE se.schedule_id = $1 AND e.id > $2 ORDER BY e.id LIMIT $3`, scheduleID, after, limit)
 	if err != nil {
@@ -104,7 +106,7 @@ func ScheduleExams(ctx context.Context, pool *pgxpool.Pool, scheduleID, after in
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (CalendarExam, error) {
 		var x CalendarExam
-		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms)
+		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms, &x.RequiresLab)
 		return x, err
 	})
 }
@@ -145,12 +147,13 @@ type SeatRow struct {
 	RoomID     int64  `json:"room_id"`
 	SeatRow    int16  `json:"seat_row"`
 	SeatCol    int16  `json:"seat_col"`
-	Accessible bool   `json:"accessible"`
+	Accessible bool   `json:"accessible"`       // koltuk erişilebilir mi
+	Disabled   bool   `json:"disabled_student"` // öğrenci erişilebilir koltuk gerektiriyor mu
 }
 
 // Seating, bir sınavın (ve isteğe bağlı salonun) oturma planını keyset sayfalı döner.
 func Seating(ctx context.Context, pool *pgxpool.Pool, scheduleID, examID, roomID, after int64, limit int) ([]SeatRow, error) {
-	rows, err := pool.Query(ctx, `SELECT sa.id, sa.student_id, st.student_no, st.full_name, sa.exam_id, sa.room_id, rs.row_no, rs.col_no, rs.is_accessible
+	rows, err := pool.Query(ctx, `SELECT sa.id, sa.student_id, st.student_no, st.full_name, sa.exam_id, sa.room_id, rs.row_no, rs.col_no, rs.is_accessible, st.disability_flag
 		FROM seat_assignments sa JOIN students st ON st.id = sa.student_id JOIN room_seats rs ON rs.id = sa.seat_id
 		WHERE sa.schedule_id = $1 AND sa.exam_id = $2 AND ($3 = 0 OR sa.room_id = $3) AND sa.id > $4 ORDER BY sa.id LIMIT $5`,
 		scheduleID, examID, roomID, after, limit)
@@ -159,7 +162,7 @@ func Seating(ctx context.Context, pool *pgxpool.Pool, scheduleID, examID, roomID
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (SeatRow, error) {
 		var x SeatRow
-		err := r.Scan(&x.ID, &x.StudentID, &x.StudentNo, &x.FullName, &x.ExamID, &x.RoomID, &x.SeatRow, &x.SeatCol, &x.Accessible)
+		err := r.Scan(&x.ID, &x.StudentID, &x.StudentNo, &x.FullName, &x.ExamID, &x.RoomID, &x.SeatRow, &x.SeatCol, &x.Accessible, &x.Disabled)
 		return x, err
 	})
 }
@@ -219,13 +222,17 @@ type StudentConflict struct {
 // ScheduleConflicts, aynı gün 2 (veya daha çok) sınavı olan öğrencileri keyset sayfalı döner
 // (T-1 yumuşak hedefinin ihlalleri; sert kısıt ihlali olmadığı için "uyarı" niteliğinde).
 func ScheduleConflicts(ctx context.Context, pool *pgxpool.Pool, scheduleID, after int64, limit int) ([]StudentConflict, error) {
+	// İmleç (öğrenci, gün) çiftini tek sayıya kodlar: yalnız öğrenci kimliği imleç olsaydı
+	// aynı öğrencinin sayfa sınırına denk gelen ikinci günü atlanırdı.
 	rows, err := pool.Query(ctx, `
-		SELECT en.student_id, st.student_no, sl.day_index, array_agg(DISTINCT e.id ORDER BY e.id)
-		FROM schedule_exams se JOIN exams e ON e.id = se.exam_id JOIN slots sl ON sl.id = se.slot_id
-		JOIN sections s ON s.course_id = e.course_id JOIN enrollments en ON en.section_id = s.id JOIN students st ON st.id = en.student_id
-		WHERE se.schedule_id = $1 AND en.student_id > $2
-		GROUP BY en.student_id, st.student_no, sl.day_index HAVING count(DISTINCT e.id) >= 2
-		ORDER BY en.student_id, sl.day_index LIMIT $3`, scheduleID, after, limit)
+		SELECT student_id, student_no, day_index, exam_ids FROM (
+			SELECT en.student_id, st.student_no, sl.day_index, array_agg(DISTINCT e.id ORDER BY e.id) AS exam_ids
+			FROM schedule_exams se JOIN exams e ON e.id = se.exam_id JOIN slots sl ON sl.id = se.slot_id
+			JOIN sections s ON s.course_id = e.course_id JOIN enrollments en ON en.section_id = s.id JOIN students st ON st.id = en.student_id
+			WHERE se.schedule_id = $1 AND en.student_id >= $2::bigint / $4::bigint
+			GROUP BY en.student_id, st.student_no, sl.day_index HAVING count(DISTINCT e.id) >= 2) c
+		WHERE student_id * $4::bigint + day_index > $2::bigint
+		ORDER BY student_id, day_index LIMIT $3`, scheduleID, after, limit, ConflictCursorBase)
 	if err != nil {
 		return nil, err
 	}
@@ -235,3 +242,9 @@ func ScheduleConflicts(ctx context.Context, pool *pgxpool.Pool, scheduleID, afte
 		return x, err
 	})
 }
+
+// ConflictCursorBase: ScheduleConflicts imlecinin gün çarpanı (gün sayısı bunun altındadır).
+const ConflictCursorBase int64 = 1000
+
+// ConflictCursor, bir çakışma satırının keyset imleci.
+func ConflictCursor(c StudentConflict) int64 { return c.StudentID*ConflictCursorBase + int64(c.Day) }

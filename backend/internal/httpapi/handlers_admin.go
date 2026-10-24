@@ -398,7 +398,7 @@ func (s *Server) scheduleConflicts(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	// Sayfalama öğrenci kimliğiyle; aynı öğrencinin birden çok günü sayfa sınırında bölünmesin.
-	WriteJSON(w, http.StatusOK, paginate(rows, page.Limit, func(x store.StudentConflict) int64 { return x.StudentID }))
+	WriteJSON(w, http.StatusOK, paginate(rows, page.Limit, store.ConflictCursor))
 	return nil
 }
 
