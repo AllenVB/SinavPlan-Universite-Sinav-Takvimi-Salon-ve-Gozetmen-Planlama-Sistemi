@@ -1,0 +1,26 @@
+.env
+*.env
+!.env.example
+
+# Derleme çıktıları
+/backend/bin/
+/backend/dist/
+*.exe
+*.out
+*.test
+
+# Kapsam raporları
+coverage.out
+coverage.html
+*.cover
+
+# Bağımlılıklar
+/frontend/node_modules/
+/frontend/dist/
+node_modules/
+
+# Yerel araç önbellekleri
+.DS_Store
+*.swp
+.idea/
+.vscode/
