@@ -27,6 +27,9 @@ type Config struct {
 	QRHMACSecret    string
 
 	SeedValue int64
+
+	// SeatingStrict: T-3'te ön/arka koltuklar da komşu sayılır (varsayılan kapalı).
+	SeatingStrict bool
 }
 
 // Load, ortam değişkenlerini okuyup doğrular. Eksik veya geçersiz tüm alanları
@@ -75,6 +78,14 @@ func Load() (Config, error) {
 		if err != nil {
 			problems = append(problems, "SEED tam sayı olmalı")
 		}
+	}
+
+	switch v := strings.ToLower(os.Getenv("SEATING_STRICT_MODE")); v {
+	case "", "false", "0", "no":
+	case "true", "1", "yes":
+		cfg.SeatingStrict = true
+	default:
+		problems = append(problems, "SEATING_STRICT_MODE true veya false olmalı")
 	}
 
 	if len(problems) > 0 {

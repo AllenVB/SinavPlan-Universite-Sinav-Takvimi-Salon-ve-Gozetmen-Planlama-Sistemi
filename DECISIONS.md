@@ -344,3 +344,56 @@ tam 1 takasla (2 değişiklik) çözüldüğü ve başka hiçbir atamanın oynam
 - Reassign adaleti yeniden dengelemez (kilit şartı gereği): örnekte fark 1'den 2'ye çıktı. İstenirse
   ayrı bir "yeniden dengele" işlemi tam Assign ile yapılır.
 - Takas zinciri en fazla 3 hamle; daha uzun zincir gerektiren durumda kontenjan `Unfilled` döner.
+
+---
+
+## ADR-010 — T-5: HLC + sıradan bağımsız çakışma kuralı, olaylardan yeniden hesaplanan durum, koşullu UPDATE ile tek kullanımlık QR
+
+**Bağlam.** Gözetmen tabletleri ağ yokken yoklama alıp sonra senkronize eder; aynı öğrenciyi iki cihaz
+farklı işaretleyebilir; kart QR'ı tek kullanımlık olmalı; tahliyede bir salonun tüm öğrencileri tek
+seferde başka salona taşınmalı. Hepsi eşzamanlı isteklerde doğru kalmalı.
+
+**Karar.**
+- **Olay kimliği** istemcide üretilen UUIDv7 (sürüm denetlenir); `attendance_events.event_id` birincil
+  anahtar → tekrar gönderim `ON CONFLICT DO NOTHING` ile yok sayılır. Olaylar eklemeli-yalnız (ADR-005).
+- **HLC** (Kulkarni vd.): fiziksel ms + sayaç; cihaz saati geri kaysa da damga monoton, gözlenen uzak
+  damgadan sonraki olay her zaman büyük.
+- **Çakışma kuralı** (`attendance.Beats`, tam bir sıra): (1) QR kaynaklı `present` kazanır, (2) büyük HLC,
+  (3) büyük `device_id`, (4) büyük `event_id`. Antisimetri ve geçişlilik testle doğrulanır; kazanan bu
+  sıranın en büyüğü olduğundan sonuç olayların gelme sırasından bağımsızdır (permütasyon testi: 50 karıştırma).
+  Çakışma = kazanandan **farklı durum** bildiren **farklı cihaz** olayı.
+- **Durum, olaylardan yeniden hesaplanır:** etkilenen her (sınav, öğrenci) için o çiftin tüm olayları
+  okunup `Resolve` uygulanır, `attendance_state` upsert edilir. Eşzamanlı senkronlar çift başına
+  `pg_advisory_xact_lock` ile sıraya girer; kilit olaylar okunmadan önce alınır (ikinci işlem birincinin
+  olaylarını da görür), kilitler sabit sırayla alınır.
+- **QR:** token = base64url(exam_id | student_id | nonce | HMAC-SHA256). Uydurma token veritabanına
+  gitmeden reddedilir; DB'de yalnız SHA-256 özeti. Kullanım `UPDATE … WHERE token_hash=$h AND used_at IS NULL
+  AND revoked_at IS NULL AND expires_at > now() RETURNING`; aynı transaction'da `qr/present` olayı. Kart yeniden
+  istenirse eski kullanılmamış token iptal edilir. Kart üretimi yan etkili olduğu için `POST`.
+- **Tahliye:** iki salon satırı kimlik sırasıyla `FOR UPDATE`, kaynak ve hedef oturma atamaları `FOR UPDATE`;
+  hedef kapasitesi, mevcut öğrenciler yerinde kalarak `seating.ArrangeInto` ile komşuluk kuralına göre denetlenir;
+  koltuklar, salon payları ve gözetmenler güncellenir; `room_change_events` ve `audit_log` aynı transaction'da.
+
+**Alternatifler.** Son-yazan-kazanır — çevrimdışı cihazın eski verisi yeniyi ezer. Vektör saatler — cihaz
+sayısı kadar büyür, HLC yeterli. Durumu artımlı güncellemek — olay sırasına bağımlı hale gelir. QR'ı
+`SERIALIZABLE` + yeniden deneme ile korumak — koşullu UPDATE daha basit ve satır kilidiyle yeterli.
+
+**Kanıtlar** (gerçek PostgreSQL 16, `make prove-t5`): 50 goroutine aynı QR → **tam 1 başarı + 49 `ErrQRUsed`**
+(store) ve **1×200 + 49×409** (HTTP); hedef salona kaynaklardan yalnızca birinin sığdığı (seating ile kuru
+çalıştırılarak seçilen) iki eşzamanlı tahliye → **tam 1 başarı + 1 kapasite hatası**, çift rezerve koltuk 0;
+6 cihazın eşzamanlı senkronu → son durum `Resolve(tüm olaylar)` ile birebir aynı. Mutasyon: `used_at IS NULL`
+kaldırılınca 50/50 başarı (test düşer); salon kilidi kaldırılınca `UNIQUE` kısıtı çift rezervasyonu yine
+engeller ama istemci 409 yerine 500 alır (test düşer) — kısıt ikinci savunma hattıdır.
+Simülatör `live` (20 sn): 2 çevrimdışı tablet 64+88 olay biriktirip toplu gönderdi, 32 tekrar yok sayıldı,
+59 çakışma (19 qr_present, 40 hlc), 0 ret.
+
+**Sapma (bilerek).** Görev tanımı yarış testleri için **testcontainers-go** diyor. Kullanmadım: testler
+`TEST_DATABASE_URL` ile gerçek bir PostgreSQL 16'ya bağlanır — CI'da GitHub Actions service container,
+yerelde `make test-integration`/`make prove-t5` (compose ağındaki postgres). Gerekçe: testcontainers-go
+geniş bir Docker istemci bağımlılık ağacı getirir (vendor'lı depoya ~onlarca MB) ve CI'da zaten servis
+konteyneri var; test edilen şey (gerçek Postgres'e karşı yarış) aynı. İstenirse `TEST_DATABASE_URL` boşken
+testcontainers ile örnek kaldıran bir yardımcı `internal/testdb`'ye eklenebilir.
+
+**Sınırlar.** Idempotency kaydı iş transaction'ının dışında (ADR-006); QR ve senkron zaten doğal olarak
+idempotent olduğu için bu pencere burada zararsız. Tahliyede laboratuvar/klasik tip uyumu denetlenmiyor
+(acil durumda bilinçli). Strict komşuluk tahliyede `SEATING_STRICT_MODE` ile uygulanır.

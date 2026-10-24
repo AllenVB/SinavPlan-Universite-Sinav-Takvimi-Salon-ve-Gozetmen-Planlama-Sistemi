@@ -12,6 +12,7 @@ import (
 	"github.com/AllenVB/sinavplan/backend/internal/domain/scheduling"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/seating"
 	"github.com/AllenVB/sinavplan/backend/internal/simdata"
+	"github.com/AllenVB/sinavplan/backend/internal/store"
 )
 
 // examStudents: sınav kimliği -> öğrenci kimlikleri.
@@ -263,4 +264,77 @@ func InvigilationInput(ds *simdata.Dataset, res *Result, excused map[int64][]int
 		in.Invigilators = append(in.Invigilators, iv)
 	}
 	return in
+}
+
+// ToStorePlan, zincir çıktılarını kalıcılaştırılacak biçime çevirir. slotID, slot
+// indeksinden veritabanı slot kimliğine eşler.
+func ToStorePlan(assignment map[int64]int, res *Result, invIn invigilation.Input, inv invigilation.Plan,
+	slotID func(int) int64) store.SchedulePlan {
+	var p store.SchedulePlan
+	exIDs := make([]int64, 0, len(assignment))
+	for id := range assignment {
+		exIDs = append(exIDs, id)
+	}
+	sort.Slice(exIDs, func(a, b int) bool { return exIDs[a] < exIDs[b] })
+	for _, id := range exIDs {
+		p.Exams = append(p.Exams, store.PlanExam{ExamID: id, SlotID: slotID(assignment[id])})
+	}
+	anchor := map[[2]int64]int64{} // (slot, salon) -> salondaki en küçük sınav kimliği
+	for _, s := range res.Slots {
+		sid := slotID(s.Slot)
+		for _, pl := range s.Rooms.Placements {
+			p.Rooms = append(p.Rooms, store.PlanRoom{ExamID: pl.ExamID, SlotID: sid, RoomID: pl.RoomID, SeatCount: pl.Count})
+			k := [2]int64{int64(s.Slot), pl.RoomID}
+			if a, ok := anchor[k]; !ok || pl.ExamID < a {
+				anchor[k] = pl.ExamID
+			}
+		}
+		rooms := make([]int64, 0, len(s.Seating))
+		for id := range s.Seating {
+			rooms = append(rooms, id)
+		}
+		sort.Slice(rooms, func(a, b int) bool { return rooms[a] < rooms[b] })
+		for _, rid := range rooms {
+			for _, a := range s.Seating[rid].Assignments {
+				p.Seats = append(p.Seats, store.PlanSeat{ExamID: a.ExamID, SlotID: sid, StudentID: a.StudentID, RoomID: rid, SeatID: a.SeatID})
+			}
+		}
+	}
+	duty := map[int64]invigilation.Duty{}
+	for _, d := range invIn.Duties {
+		duty[d.ID] = d
+	}
+	for _, a := range inv.Assignments {
+		d := duty[a.DutyID]
+		p.Invigilators = append(p.Invigilators, store.PlanInvigilator{
+			ExamID: anchor[[2]int64{int64(d.Slot), d.RoomID}], SlotID: slotID(d.Slot), RoomID: d.RoomID, UserID: a.InvigilatorID})
+	}
+	return p
+}
+
+// BuildAll, veri kümesi için T-1..T-4'ü çalıştırıp kalıcılaştırılabilir plan döner
+// (test fikstürü ve simülatör için; servis katmanı aynı adımları DB'den kurar).
+func BuildAll(ds *simdata.Dataset, seed int64, iterations int) (store.SchedulePlan, error) {
+	in := SchedulingInput(ds, seed)
+	in.MaxIterations = iterations
+	r, err := scheduling.Solve(in)
+	if err != nil {
+		return store.SchedulePlan{}, err
+	}
+	if len(r.Unplaced) > 0 {
+		return store.SchedulePlan{}, fmt.Errorf("T-1: %d sınav yerleşemedi", len(r.Unplaced))
+	}
+	res, err := Plan(ds, r.Assignment, rooms.Config{})
+	if err != nil {
+		return store.SchedulePlan{}, err
+	}
+	invIn := InvigilationInput(ds, res, nil)
+	inv, err := invigilation.Assign(invIn)
+	if err != nil {
+		return store.SchedulePlan{}, err
+	}
+	sp := ToStorePlan(r.Assignment, res, invIn, inv, func(i int) int64 { return ds.Slots[i].ID })
+	sp.PeriodID, sp.Seed = ds.Period.ID, seed
+	sp.Metrics = map[string]any{"penalty": r.Penalty, "unfilled_invigilation": len(inv.Unfilled)}
+	return sp, nil
 }

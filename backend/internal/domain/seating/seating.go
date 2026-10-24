@@ -107,10 +107,22 @@ func (l *layout) neighbors(c cell) []cell {
 // Yerleşemeyen öğrenciler Plan.Unseated'da nedeniyle listelenir; yanlış koltuğa
 // konmaz.
 func Arrange(room Room, groups []Group, strict bool) Plan {
+	return ArrangeInto(room, nil, groups, strict)
+}
+
+// ArrangeInto, salonda zaten oturan öğrencileri (occupied) YERİNDEN OYNATMADAN yeni
+// grupları boş koltuklara yerleştirir (toplu salon değişikliği / tahliye için).
+// Dönen plan yalnızca yeni yerleşimleri içerir; komşuluk kuralı mevcut öğrencilere
+// karşı da uygulanır.
+func ArrangeInto(room Room, occupied []Assignment, groups []Group, strict bool) Plan {
 	l := newLayout(room, strict)
 	plan := Plan{RoomID: room.ID}
 	occ := map[cell]int64{}
 	taken := map[int64]bool{} // koltuk kimliği
+	for _, a := range occupied {
+		occ[cell{a.Row, a.Col}] = a.ExamID
+		taken[a.SeatID] = true
+	}
 
 	type queue struct {
 		exam  int64

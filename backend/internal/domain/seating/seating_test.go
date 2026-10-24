@@ -256,3 +256,25 @@ func TestArrangeAlwaysViolationFreeAndComplete(t *testing.T) {
 		}
 	}
 }
+
+// Tahliye: hedef salondaki mevcut öğrenciler yerinde kalır; gelenler boş koltuklara,
+// mevcutlara karşı da komşuluk kuralına uyarak oturur.
+func TestArrangeIntoKeepsExistingAndRespectsTheirNeighbours(t *testing.T) {
+	room := grid(2, 6)
+	existing := Arrange(room, []Group{{ExamID: 1, Students: students(100, 4)}}, false)
+	moved := ArrangeInto(room, existing.Assignments, []Group{{ExamID: 1, Students: students(200, 3)}, {ExamID: 2, Students: students(300, 5)}}, false)
+	all := Plan{RoomID: room.ID, Assignments: append(append([]Assignment(nil), existing.Assignments...), moved.Assignments...)}
+	if v := CountViolations(room, all, false); v.Total() != 0 {
+		t.Fatalf("birleşik planda ihlal: %+v", v)
+	}
+	for _, m := range moved.Assignments {
+		for _, e := range existing.Assignments {
+			if m.SeatID == e.SeatID {
+				t.Fatalf("mevcut öğrencinin koltuğu verildi: %+v", m)
+			}
+		}
+	}
+	if len(moved.Assignments)+len(moved.Unseated) != 8 {
+		t.Fatalf("8 öğrencinin hepsi hesaba katılmalı: %+v", moved)
+	}
+}

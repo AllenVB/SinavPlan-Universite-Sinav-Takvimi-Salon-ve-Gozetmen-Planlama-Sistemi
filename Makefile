@@ -123,6 +123,15 @@ prove-t3: ## T-3 kanıtı: oturma düzeni (ihlal sayacı, bozuk plan sınaması)
 prove-t4: ## T-4 kanıtı: gözetmen atama, adalet, minimum değişiklikli yeniden atama
 	cd $(BACKEND_DIR) && go run ./cmd/prove t4
 
+.PHONY: prove-t5
+prove-t5: .env ## T-5 kanıtı (gerçek Postgres): 50 eşzamanlı QR, eşzamanlı tahliye, senkron, permütasyon
+	$(COMPOSE) up -d postgres
+	docker run --rm --network sinavplan_default -v "$(CURDIR)/backend:/src" -w /src \
+	  -e TEST_DATABASE_URL="postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/postgres?sslmode=disable&connect_timeout=5" \
+	  golang:1.24 go test -mod=vendor -race -count=1 -v \
+	  -run 'Resolution|TotalOrder|HLC|FiftyConcurrent|Evacuation|ConcurrentSync|Idempotent|Conflict|QRRetry|ExamCardFlow' \
+	  ./internal/domain/attendance/ ./internal/store/ ./internal/httpapi/
+
 .PHONY: prove-all
 prove-all: ## T-1..T-5 kanıt komutlarını sırayla çalıştır
 	cd $(BACKEND_DIR) && go run ./cmd/prove all

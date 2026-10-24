@@ -5,8 +5,7 @@
 //
 // Veritabanını ilk haline döndürmek için `make reset-demo` (migrate reset + seed).
 //
-// DURUM: seed gerçek. live modu HENÜZ UYGULANMADI (yoklama uçları Faz 7'de gelecek);
-// çağrıldığında bunu söyleyip çıkar, çalışıyormuş gibi davranmaz.
+// live, sınav günü yoklama olaylarını API üzerinden üretir (bkz. live.go).
 package main
 
 import (
@@ -45,8 +44,15 @@ func main() {
 			os.Exit(1)
 		}
 	case "live":
-		log.Warn("live modu HENÜZ UYGULANMADI — yoklama uçları Faz 7'de yazılacak",
-			slog.Int64("seed", *seed), slog.String("duration", *duration))
+		d, err := time.ParseDuration(*duration)
+		if err != nil || d <= 0 {
+			log.Error("geçersiz --duration", slog.String("value", *duration))
+			os.Exit(2)
+		}
+		if err := runLive(log, *seed, d); err != nil {
+			log.Error("live başarısız", slog.String("err", err.Error()))
+			os.Exit(1)
+		}
 	default:
 		log.Error("bilinmeyen mod", slog.String("mode", mode))
 		os.Exit(2)

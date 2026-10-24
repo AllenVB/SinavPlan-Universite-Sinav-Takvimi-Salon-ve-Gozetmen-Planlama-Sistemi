@@ -106,8 +106,13 @@ func SmallDataset(t testing.TB, seed int64) *simdata.Dataset {
 // Seeded, küçük veri kümesi yüklenmiş bir veritabanı kurar.
 func Seeded(t testing.TB) (*Env, *simdata.Dataset) {
 	t.Helper()
+	return SeededWith(t, SmallDataset(t, 7))
+}
+
+// SeededWith, verilen veri kümesini yükler.
+func SeededWith(t testing.TB, ds *simdata.Dataset) (*Env, *simdata.Dataset) {
+	t.Helper()
 	env := New(t)
-	ds := SmallDataset(t, 7)
 	conn, err := pgx.Connect(context.Background(), env.OwnerDSN)
 	if err != nil {
 		t.Fatal(err)

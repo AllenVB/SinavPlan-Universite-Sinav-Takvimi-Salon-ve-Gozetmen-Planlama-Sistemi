@@ -7,6 +7,7 @@ import (
 
 	"github.com/AllenVB/sinavplan/backend/internal/auth"
 	"github.com/AllenVB/sinavplan/backend/internal/idempotency"
+	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,11 +23,13 @@ type Server struct {
 	metrics        *Metrics
 	router         chi.Router
 
-	pool       *pgxpool.Pool
-	auth       *auth.Service
-	issuer     *auth.Issuer
-	idem       *idempotency.Store
-	routeInfos []RouteInfo
+	pool          *pgxpool.Pool
+	auth          *auth.Service
+	issuer        *auth.Issuer
+	idem          *idempotency.Store
+	qr            *store.QR
+	seatingStrict bool
+	routeInfos    []RouteInfo
 }
 
 // Options, Server kurulumunda gereken dışsal bağımlılıklar.
@@ -42,6 +45,10 @@ type Options struct {
 	Auth *auth.Service
 	// Issuer verilmezse Auth'unki kullanılır; testler yalnızca Issuer verebilir.
 	Issuer *auth.Issuer
+	// QR, sınav kartı token'larını üretir/doğrular (QR_HMAC_SECRET).
+	QR *store.QR
+	// SeatingStrict, T-3'te ön/arka komşuluğu da uygular (SEATING_STRICT_MODE).
+	SeatingStrict bool
 }
 
 // NewServer, verilen bağımlılıklarla router'ı kurar.
@@ -68,6 +75,8 @@ func NewServer(opts Options) *Server {
 		pool:           opts.Pool,
 		auth:           opts.Auth,
 		issuer:         opts.Issuer,
+		qr:             opts.QR,
+		seatingStrict:  opts.SeatingStrict,
 	}
 	if s.issuer == nil && s.auth != nil {
 		s.issuer = s.auth.Issuer()
@@ -117,6 +126,17 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodGet, "/students/{id}/exams",
 		Roles(auth.RoleSecretary, auth.RoleStudentAffairs, auth.RoleStudent), s.studentExams)
 	s.handle(r, http.MethodGet, "/me/exams", Roles(auth.RoleStudent), s.myExams)
+
+	// Yoklama, sınav kartı, tahliye (F-7, T-5)
+	s.handle(r, http.MethodPost, "/me/exams/{examId}/card", Roles(auth.RoleStudent), s.examCard)
+	s.handle(r, http.MethodPost, "/attendance/sync", Roles(auth.RoleInvigilator, auth.RoleSecretary), s.attendanceSync, idempotent())
+	s.handle(r, http.MethodPost, "/attendance/qr", Roles(auth.RoleInvigilator), s.attendanceQR, idempotent())
+	s.handle(r, http.MethodGet, "/exams/{id}/attendance",
+		Roles(auth.RoleInvigilator, auth.RoleSecretary, auth.RoleStudentAffairs, auth.RoleLecturer), s.examAttendance)
+	s.handle(r, http.MethodGet, "/attendance/conflicts",
+		Roles(auth.RoleInvigilator, auth.RoleSecretary, auth.RoleStudentAffairs), s.attendanceConflicts)
+	s.handle(r, http.MethodPost, "/schedules/{id}/room-change",
+		Roles(auth.RoleSecretary, auth.RoleInvigilator), s.roomChange, idempotent())
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, NotFound("istenen uç bulunamadı"))

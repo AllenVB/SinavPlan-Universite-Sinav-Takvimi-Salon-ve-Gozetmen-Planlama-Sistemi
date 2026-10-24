@@ -80,6 +80,8 @@ func run() error {
 			Registry:       prometheus.NewRegistry(),
 			Pool:           db.Pool,
 			Auth:           authSvc,
+			QR:             store.NewQR(cfg.QRHMACSecret),
+			SeatingStrict:  cfg.SeatingStrict,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,

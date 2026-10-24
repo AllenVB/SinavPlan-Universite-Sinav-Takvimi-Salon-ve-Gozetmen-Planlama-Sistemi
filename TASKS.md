@@ -1,6 +1,6 @@
 # Görev Durumu
 
-Güncelleme: 2026-10-24 16:50 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
+Güncelleme: 2026-10-24 17:40 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13)
 
 ## Tamamlanan
 **Faz 0 — planlama:** gereksinim incelemesi · `docs/proje.md` ile görev tanımı farkı ·
@@ -63,24 +63,33 @@ Güncelleme: 2026-10-24 16:50 · Son teslim: 26 Ekim 2026 23.59 (`proje.md` §13
 - `planning.InvigilationInput`; `make prove-t4`
 - **Bulunan zayıflık:** açgözlü atama çözülebilir bir günde 3 kontenjanı boş bırakıyordu → onarım eklendi
 
+**Faz 7 — T-5 yoklama + F-7 (P0-10, P0-11 karşılandı):**
+- `internal/domain/attendance`: HLC saati, tam sıra çakışma kuralı, `Resolve` (permütasyondan bağımsız) — kapsam %100
+- `internal/store`: `SyncAttendance` (UUIDv7, idempotent, advisory lock, olaylardan yeniden hesaplanan durum),
+  `QR` (HMAC, yalnız özet, koşullu UPDATE, yeniden üretimde iptal), `RoomChange` (FOR UPDATE, ArrangeInto, audit),
+  `CreateSchedule`/`PublishSchedule` (sürümlü, COPY, audit)
+- Uçlar: `POST /me/exams/{examId}/card`, `POST /attendance/sync` (idempotent), `POST /attendance/qr` (idempotent),
+  `GET /exams/{id}/attendance`, `GET /attendance/conflicts`, `POST /schedules/{id}/room-change` (idempotent)
+- `cmd/simulator live`: çevrimdışı tabletler, toplu gönderim, bilerek tekrar ve çakışma
+- `make prove-t5` — ADR-010 (testcontainers-go yerine TEST_DATABASE_URL: bilinçli sapma)
+
 ## Sürmekte
-Faz 7 — T-5 yoklama/çevrimdışı senkron + F-7 + Postgres yarış testleri. Model: **Opus 5.5** (eşzamanlılık).
+Faz 8 — F-1..F-6 uçları, OpenAPI, requests.http. Model: **Sonnet 5.5** (rutin CRUD).
 
 ## Bloke
 Yok.
 
 ## Yer tutucular (çalışıyormuş gibi gösterilmiyor)
-- `cmd/simulator live`: "HENÜZ UYGULANMADI" der (yoklama uçları Faz 7)
 - `cmd/verify`: yalnızca HEALTH gerçek; 15 kimlik `YAPILMADI`, exit 1 (Faz 9)
 - `frontend`: tek ekran (/health) (Faz 8.5)
 
 ## Kalan P0
 P0-10..P0-11 T-5 ·
-P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (122/40 test ✓; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97) · P0-15 frontend
+P0-12 F-1..F-7 · P0-13 `make verify` · P0-14 test/CI (145/40 test ✓; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100) · P0-15 frontend
 
 ## Kalan P1
 OpenAPI+`/docs` · k6 · chaos betiği ·
-EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-demo · simülatör `--live`
+EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-demo
 
 ## Bilinen kusurlar / sınırlar
 - **Soğuk süre bu ortamda ölçüldü** (66 sn); base imaj indirme süresi senin ağına bağlı, orada doğrulanmadı.
@@ -91,16 +100,19 @@ EXPLAIN · DECISIONS (6 ADR: ≥5 sağlandı) · README · TESTING.md · reset-d
 - API açılışta DB'ye ulaşamazsa log'a pgx hatası yazılıyor (kullanıcı adı + iç IP içerir, **parola içermez**).
   İstemciye sızmıyor (test ediliyor). Yalnızca operatör log'u; kabul edilebilir.
 
-## Son doğrulama sonuçları (Faz 6)
+## Son doğrulama sonuçları (Faz 7)
 ```
-make prove-t4   674 görev · 1.092 atama · 0 eksik · 0 ihlal · yük 10–11 (fark 1 = ideal) · 6 ms
-                gözetmen çıkarma: 11 boşalan -> 11 değişiklik (alt sınır) · 1.081 atama dokunulmadı · 0 ihlal
-birim testler   imkânsız-doğrudan senaryoda tam 1 takas (2 değişiklik), kilitli atamalar değişmedi
-go test -race   invigilation geçti, kapsam %97
+QR yarışı (store)        50 goroutine -> tam 1 başarı + 49 ErrQRUsed
+QR yarışı (HTTP)         50 istek -> tam 1×200 + 49×409; Idempotency-Key ile tekrar -> aynı 200
+eşzamanlı tahliye        2 kaynak, 1 hedef (yalnız biri sığar) -> 1 başarı + 1 kapasite hatası, çift rezerve 0
+eşzamanlı senkron        6 cihaz -> son durum = Resolve(tüm olaylar)
+permütasyon              50 karıştırma, aynı sonuç; Beats antisimetrik ve geçişli
+mutasyon                 used_at IS NULL kaldırılınca 50/50 başarı (test düştü); salon kilidi kaldırılınca 500 (test düştü)
+simulator live (20 sn)   1.039 kabul, 32 tekrar yok sayıldı, 59 çakışma, 0 ret; 2 çevrimdışı tablet toplu gönderdi
 ```
-**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows'ta denenmedi.
+**Doğrulanmadı:** CI GitHub'da çalıştırılmadı; Windows'ta denenmedi; testcontainers-go kullanılmadı (ADR-010).
 
 ## Sıradaki eylem
-Faz 7: `internal/domain/attendance` (HLC, çakışma kuralı, permutasyon testi), store'da senkron (event_id UNIQUE),
-tek kullanımlık QR (HMAC, hash, koşullu UPDATE, 50 goroutine yarış testi), toplu salon değişikliği (FOR UPDATE,
-audit, idempotency, eşzamanlı tahliye testi), F-7 uçları.
+Faz 8: F-1 CSV içe aktarma (COPY, satır bazlı hata, upsert), F-2 salon CRUD + koltuk düzeni, F-3 takvim oluştur
+(asenkron iş) / yayınla / sürümler, F-4 salon ve oturma planı sorguları, F-5 gözetmen atama/çıkarma, F-6 mazeret
+başvuru/karar + çakışma listesi; `api/openapi.yaml`, `/docs`, `requests.http`.
