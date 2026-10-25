@@ -3,6 +3,7 @@ import { all, fmtDateTime, get } from '../api'
 import { LiveBadge, useLive } from '../live'
 import { Async, Banner, Card, Dot, Empty, Pill, StackedBars, StatCard, type Tone } from '../ui'
 import { useAsync } from '../ui'
+import { openTour } from '../tour'
 import { ScheduleSelect, useExams, useFaculties, useRooms, useSchedules } from './common'
 
 type Act = { id: number; action: string; entity: string; entity_id: string; actor?: string; created_at: string }
@@ -78,7 +79,7 @@ export function Dashboard() {
       {m && hard > 0 && <Banner tone="err" icon="alert" title={`${hard} sert kısıt ihlali`} actions={<a className="btn sm" href="#/takvim">Takvime git</a>}>Bu sürümde salon/oturma planı eksik; yayınlamadan önce yeniden üretin.</Banner>}
       {sch.current?.status === 'draft' && <Banner tone="warn" icon="clock" title="Seçili sürüm taslak" actions={<a className="btn sm" href="#/takvim">Yayınla</a>}>Öğrenciler, gözetmenler ve öğretim üyeleri yalnızca yayınlanmış sürümü görür.</Banner>}
 
-      <Card title="Başlangıç rehberi" aside={<span className="small muted">{guide.filter((g) => g.done).length} / {guide.length} adım tamam</span>}>
+      <Card title="Başlangıç rehberi" aside={<div className="row"><span className="small muted">{guide.filter((g) => g.done).length} / {guide.length} adım tamam</span><button className="btn sm" onClick={openTour}>Rehberli turu başlat</button></div>}>
         <ol className="guide">
           {guide.map((g, i) => (
             <li key={g.title} className={g.done ? 'done' : ''}>

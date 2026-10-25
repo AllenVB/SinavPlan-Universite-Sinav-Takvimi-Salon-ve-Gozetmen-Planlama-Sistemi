@@ -16,6 +16,12 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
   // Sekmeler yalnız sekretere: Takvim / Üret / Prova / Karşılaştır / Düzenle. Diğer roller yalnız takvimi görür.
   const [tab, setTab] = useState<Tab>(() => (secretary ? initialTab ?? TAB_FROM_HASH[new URLSearchParams(location.hash.split('?')[1] ?? '').get('tab') ?? ''] ?? 'takvim' : 'takvim'))
   const exams = useExams(sch.sel)
+  // Tur veya bağlantı #/takvim?tab=… ile gelirse (sayfa yeniden kurulmadan) sekmeyi izle
+  useEffect(() => {
+    const f = () => { const t = TAB_FROM_HASH[new URLSearchParams(location.hash.split('?')[1] ?? '').get('tab') ?? '']; if (secretary && location.hash.startsWith('#/takvim')) setTab(t ?? 'takvim') }
+    addEventListener('hashchange', f)
+    return () => removeEventListener('hashchange', f)
+  }, [secretary])
   const [q, setQ] = useState('')
   const filt = useExamFilter()
   const [day, setDay] = useState('')

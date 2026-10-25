@@ -246,3 +246,13 @@ details.adv[open] > summary { margin-bottom: 10px; }
 .guide .d { font-size: .8125rem; color: var(--on-var); margin-top: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .tabs { max-width: 100%; flex-wrap: wrap; }
+
+/* Rehberli tur (Faz 22 A1): sayfayı kilitlemeyen yüzen panel */
+.tourpanel { position: fixed; right: 20px; bottom: 20px; width: 360px; max-width: calc(100vw - 32px); z-index: 30; background: var(--card); border: 1px solid var(--outline-var); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 16px; display: grid; gap: 8px; }
+.tourpanel h2 { font-size: 1.125rem; margin: 2px 0 0; outline: none; }
+.tourpanel p { margin: 0; }
+.tourdots { display: flex; gap: 4px; }
+.tourdots i { flex: 1; height: 4px; border-radius: 2px; background: var(--outline-var); }
+.tourdots i.done { background: var(--ok-solid); }
+.tourdots i.on { background: var(--primary); }
+@media (max-width: 860px) { .tourpanel { left: 16px; right: 16px; bottom: 64px; width: auto; } }

@@ -41,6 +41,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | UI-SADE | menü ≤7 öğe + gruplar, başlangıç rehberi, takvim sekmeleri, Gelişmiş ayarlar kapalı, Öğretim üyesi sütunu/arama | 18 kontrol PASS | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/simple.cjs` |
 | A11Y | axe-core WCAG 2.1 A/AA, 5 rolün 20 ekranı + klavyeyle giriş + odak halkası | serious/critical bulgu 0 (son koşu: hiç bulgu yok), 23 kontrol PASS | `NODE_PATH=$(npm root -g) AXE_PATH=…/axe.min.js node deploy/ui-smoke/a11y.cjs` |
 | CHK-RL | 8 hatalı koddan sonra 429; ikinci API örneği de engelli; 5 dk sonra engel kalkar | `TestCheckinCodeGuessingIsRateLimited`, `TestCheckinRateLimitIsSharedAcrossInstances` | `go test ./internal/httpapi -run Checkin` |
+| TUR | üst çubuk → "Tur": 8 adım gerçek ekranları açar; başka rolün adımında "Bu hesapla devam et" | adım 2 `#/takvim?tab=uret`, adım 6'da gözetmene geçip 6/8'den sürer, Esc kapatır, mobilde taşmaz, açıkken a11y 0 | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/tour.cjs` |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
 | UI-CHK | tarayıcıda yoklama: gözetmen "Yeni QR oluştur" → öğrenci kodu girer | gözetmen sayacı artar; yanlış kod hata verir | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/checkin.cjs` (demo verisi ve süren oturum gerekir) |
 

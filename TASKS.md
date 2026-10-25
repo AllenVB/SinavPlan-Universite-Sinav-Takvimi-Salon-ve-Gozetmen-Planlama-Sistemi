@@ -250,3 +250,8 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 - Yeni uç noktalar RBAC testlerini bozabilir → her uç `Roles(...)` ile açılır, 403 testi eklenir.
 - `make verify` 15 dk sınırı → yeni kontroller salt-okunur/dry-run, çizelge değiştirmez.
 - Sadelik → hepsi mevcut menü altında (≤7 öğe korunur): Kanıtlar "Yönetim"e, tur ve arama üst çubuğa.
+
+**Karar (25 Ekim, gece):** Faz 22 tamamı onaylandı; sıra A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3. Her özellik bitince test + verify + duman + a11y çalıştırılır, GitHub'a (main + charming-archimedes-pszch2) commit atılır. Kesme noktası: 26 Ekim 15:00.
+| Özellik | Durum |
+|---|---|
+| A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
