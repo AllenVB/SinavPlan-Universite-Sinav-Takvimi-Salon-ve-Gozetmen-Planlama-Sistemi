@@ -13,8 +13,9 @@ linters:
     - bodyclose     # HTTP yanıt gövdesi kapatılmazsa bağlantı sızar
     - rowserrcheck  # sql.Rows.Err() kontrol edilmezse sessiz veri kaybı olur
     - sqlclosecheck
-    - misspell
     - revive
+    # misspell bilerek kapalı: kod ve yorumlar Türkçe; İngilizce sözlükle yanlış alarm veriyor
+    # ("sığmamalı" -> "mamal", "Performans" -> "Performances").
 
 issues:
   exclude-dirs:
