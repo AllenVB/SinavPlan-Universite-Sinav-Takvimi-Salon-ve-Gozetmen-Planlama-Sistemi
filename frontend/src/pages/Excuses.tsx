@@ -4,13 +4,13 @@ import { useAuth } from '../auth'
 import { Async, Card, Empty, ErrorBox, Field, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 import { hasRole } from './common'
 
-type Excuse = { id: number; kind: string; exam_id?: number; slot_id?: number; reason: string; status: 'pending' | 'approved' | 'rejected'; decision_note?: string; created_at: string }
+type Excuse = { id: number; kind: string; exam_id?: number; slot_id?: number; reason: string; status: 'pending' | 'approved' | 'rejected'; decision_note?: string; created_at: string; person?: string; target?: string }
 const ST = { pending: ['warn', 'Bekliyor'], approved: ['ok', 'Onaylandı'], rejected: ['err', 'Reddedildi'] } as const
 const KIND_TR: Record<string, string> = { student: 'Öğrenci', invigilator: 'Gözetmen' }
 
 export function Excuses() {
   const { user } = useAuth()
-  return hasRole(user!.roles, 'student_affairs') ? <Desk /> : <Mine student={hasRole(user!.roles, 'student')} />
+  return hasRole(user!.roles, 'student_affairs') || hasRole(user!.roles, 'secretary') ? <Desk /> : <Mine student={hasRole(user!.roles, 'student')} />
 }
 
 function Desk() {
@@ -25,7 +25,7 @@ function Desk() {
   })
   return (
     <>
-      <div className="head"><div><div className="caps">Öğrenci işleri</div><h1>Mazeret masası</h1></div><Tabs value={status} onChange={setStatus} items={[['pending', 'Bekleyen'], ['approved', 'Onaylanan'], ['rejected', 'Reddedilen']]} /></div>
+      <div className="head"><div><div className="caps">Karar yetkilisi</div><h1>Mazeret masası</h1></div><Tabs value={status} onChange={setStatus} items={[['pending', 'Bekleyen'], ['approved', 'Onaylanan'], ['rejected', 'Reddedilen']]} /></div>
       <div className="grid g4">
         <StatCard icon="clock" tone="warn" label="Bekleyen" value={counts.data?.pending ?? '—'} note="karar bekliyor" />
         <StatCard icon="checkCircle" tone="ok" label="Onaylanan" value={counts.data?.approved ?? '—'} note="sınav kartı verilmez / görev dışı" />
@@ -36,11 +36,12 @@ function Desk() {
         <Async s={list} empty={(d) => d.length === 0}>
           {(d) => (
             <div className="tablewrap"><table>
-              <thead><tr><th>Tür</th><th>Hedef</th><th>Gerekçe</th><th>Tarih</th><th>{status === 'pending' ? 'Karar' : 'Not'}</th></tr></thead>
+              <thead><tr><th>Tür</th><th>Kim</th><th>Hedef</th><th>Gerekçe</th><th>Tarih</th><th>{status === 'pending' ? 'Karar' : 'Not'}</th></tr></thead>
               <tbody>{d.map((e) => (
                 <tr key={e.id}>
                   <td><Status tone={e.kind === 'student' ? 'info' : 'warn'}>{KIND_TR[e.kind] ?? e.kind}</Status></td>
-                  <td>{e.exam_id ? `Sınav #${e.exam_id}` : `Slot #${e.slot_id}`}</td>
+                  <td>{e.person || '—'}</td>
+                  <td>{e.target || (e.exam_id ? `Sınav #${e.exam_id}` : `Slot #${e.slot_id}`)}</td>
                   <td>{e.reason}</td><td>{fmtDateTime(e.created_at)}</td>
                   <td>{status === 'pending' ? (
                     <div className="row" style={{ flexWrap: 'nowrap' }}>
@@ -83,7 +84,7 @@ function Mine({ student }: { student: boolean }) {
       </Card>
       <Card title="Mazeretlerim">
         <Async s={mine} empty={(d) => d.length === 0}>
-          {(d) => d.length === 0 ? <Empty title="Mazeret yok" /> : <div className="tablewrap"><table><thead><tr><th>Hedef</th><th>Gerekçe</th><th>Durum</th><th>Not</th></tr></thead><tbody>{d.map((e) => <tr key={e.id}><td>{e.exam_id ? `Sınav #${e.exam_id}` : `Slot #${e.slot_id}`}</td><td>{e.reason}</td><td><Status tone={ST[e.status][0]}>{ST[e.status][1]}</Status></td><td>{e.decision_note ?? '—'}</td></tr>)}</tbody></table></div>}
+          {(d) => d.length === 0 ? <Empty title="Mazeret yok" /> : <div className="tablewrap"><table><thead><tr><th>Hedef</th><th>Gerekçe</th><th>Durum</th><th>Not</th></tr></thead><tbody>{d.map((e) => <tr key={e.id}><td>{e.target || (e.exam_id ? `Sınav #${e.exam_id}` : `Slot #${e.slot_id}`)}</td><td>{e.reason}</td><td><Status tone={ST[e.status][0]}>{ST[e.status][1]}</Status></td><td>{e.decision_note ?? '—'}</td></tr>)}</tbody></table></div>}
         </Async>
         {!mine.data?.length && !mine.loading && <Empty title="Henüz mazeret bildirmediniz" />}
       </Card>

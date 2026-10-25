@@ -30,7 +30,7 @@ const routes: Route[] = [
   { path: 'salonlar', label: 'Salon ve oturma planı', roles: ['secretary', 'lecturer', 'student_affairs', 'invigilator'], page: Rooms, icon: 'seat' },
   { path: 'gozetmenler', label: 'Gözetmen atama', roles: ['secretary', 'student_affairs'], page: Invigilators, icon: 'users' },
   { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: Conflicts, icon: 'alert' },
-  { path: 'mazeret', label: 'Mazeretler', roles: ['student_affairs', 'student', 'invigilator'], page: Excuses, icon: 'mail' },
+  { path: 'mazeret', label: 'Mazeretler', roles: ['secretary', 'student_affairs', 'student', 'invigilator'], page: Excuses, icon: 'mail' },
   { path: 'ice-aktar', label: 'Veri içe aktarma', roles: ['secretary'], page: Imports, icon: 'upload' },
   { path: 'canli', label: 'Sınav günü izleme', roles: ['secretary', 'student_affairs'], page: Live, icon: 'zap' },
 ]

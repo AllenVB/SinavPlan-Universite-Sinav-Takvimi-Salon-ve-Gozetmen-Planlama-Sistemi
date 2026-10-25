@@ -26,55 +26,65 @@ func TestSeedDemoExamBuildsTheDescribedScenario(t *testing.T) {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	var period int64
-	var exams int
-	one(&period, `SELECT id FROM exam_periods WHERE name = $1`, planning.DemoPeriodName)
-	one(&exams, `SELECT count(*) FROM exams WHERE period_id = $1`, period)
-	if exams != 1 {
-		t.Fatalf("demo döneminde tek sınav olmalı: %d", exams)
+	code := planning.DemoCourseCode
+	var period, demoExam int64
+	var exams, total int
+	one(&period, `SELECT id FROM exam_periods ORDER BY id LIMIT 1`)
+	one(&total, `SELECT count(*) FROM exams WHERE period_id = $1`, period)
+	one(&exams, `SELECT count(*) FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.period_id = $1 AND c.code = $2`, period, code)
+	one(&demoExam, `SELECT e.id FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.period_id = $1 AND c.code = $2`, period, code)
+	if exams != 1 || total < 20 {
+		t.Fatalf("ana dönemde demo dersi 1 kez ve diğer dersler de olmalı: demo=%d toplam=%d", exams, total)
+	}
+	var periods int
+	one(&periods, `SELECT count(*) FROM exam_periods`)
+	if periods != 1 {
+		t.Fatalf("ayrı demo dönemi açılmamalı, tek dönem olmalı: %d", periods)
 	}
 
 	// ders: Prompt Mühendisliği, Yazılım Mühendisliği 4. sınıf, öğretim üyesi Fahrettin Burak DEMİR
-	var code, name, dept, lecturer string
+	var name, dept, lecturer string
 	var year int
-	one(&code, `SELECT c.code FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.period_id = $1`, period)
-	one(&name, `SELECT c.name FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.period_id = $1`, period)
-	one(&year, `SELECT c.year FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.period_id = $1`, period)
-	one(&dept, `SELECT d.name FROM exams e JOIN courses c ON c.id = e.course_id JOIN departments d ON d.id = c.department_id WHERE e.period_id = $1`, period)
-	one(&lecturer, `SELECT u.full_name FROM exams e JOIN sections s ON s.course_id = e.course_id JOIN lecturers l ON l.id = s.lecturer_id JOIN users u ON u.id = l.user_id WHERE e.period_id = $1`, period)
-	if code != planning.DemoCourseCode || name != "Prompt Mühendisliği" || year != 4 || dept != "Yazılım Mühendisliği" || lecturer != "Fahrettin Burak DEMİR" {
-		t.Fatalf("ders: %s %q %d. sınıf %q hoca %q", code, name, year, dept, lecturer)
+	one(&name, `SELECT c.name FROM courses c WHERE c.code = $1`, code)
+	one(&year, `SELECT c.year FROM courses c WHERE c.code = $1`, code)
+	one(&dept, `SELECT d.name FROM courses c JOIN departments d ON d.id = c.department_id WHERE c.code = $1`, code)
+	one(&lecturer, `SELECT u.full_name FROM courses c JOIN sections s ON s.course_id = c.id JOIN lecturers l ON l.id = s.lecturer_id JOIN users u ON u.id = l.user_id WHERE c.code = $1`, code)
+	if name != "Prompt Mühendisliği" || year != 4 || dept != "Yazılım Mühendisliği" || lecturer != "Fahrettin Burak DEMİR" {
+		t.Fatalf("ders: %q %d. sınıf %q hoca %q", name, year, dept, lecturer)
 	}
 
 	// öğrenciler: yalnızca Yazılım Mühendisliği
 	var enrolled, nonYZM int
-	one(&enrolled, `SELECT count(*) FROM exams e JOIN sections s ON s.course_id = e.course_id JOIN enrollments en ON en.section_id = s.id WHERE e.period_id = $1`, period)
-	one(&nonYZM, `SELECT count(*) FROM exams e JOIN sections s ON s.course_id = e.course_id JOIN enrollments en ON en.section_id = s.id
-		JOIN students st ON st.id = en.student_id JOIN departments d ON d.id = st.department_id WHERE e.period_id = $1 AND d.code <> 'YZM'`, period)
+	one(&enrolled, `SELECT count(*) FROM courses c JOIN sections s ON s.course_id = c.id JOIN enrollments en ON en.section_id = s.id WHERE c.code = $1`, code)
+	one(&nonYZM, `SELECT count(*) FROM courses c JOIN sections s ON s.course_id = c.id JOIN enrollments en ON en.section_id = s.id
+		JOIN students st ON st.id = en.student_id JOIN departments d ON d.id = st.department_id WHERE c.code = $1 AND d.code <> 'YZM'`, code)
 	if enrolled < 6 || nonYZM != 0 {
 		t.Fatalf("kayıtlı %d öğrenci, YZM dışı %d (0 olmalı)", enrolled, nonYZM)
 	}
 
-	// çizelge yayınlandı; tek salon; tek gözetmen = Ömer ASLAN
+	// TÜM sınavlar çizelgelendi ve yayınlandı; demo sınavın salonunda gözetmen Ömer ASLAN
 	var sched int64
-	var rooms, duties int
-	var inv string
+	var planned int
 	one(&sched, `SELECT id FROM schedules WHERE period_id = $1 AND status = 'published'`, period)
-	one(&rooms, `SELECT count(*) FROM room_assignments WHERE schedule_id = $1`, sched)
-	one(&duties, `SELECT count(*) FROM invigilator_assignments WHERE schedule_id = $1`, sched)
-	one(&inv, `SELECT u.full_name FROM invigilator_assignments ia JOIN users u ON u.id = ia.user_id WHERE ia.schedule_id = $1`, sched)
-	if rooms != 1 || duties != 1 || inv != "Ömer ASLAN" {
-		t.Fatalf("%d salon, %d görev, gözetmen %q", rooms, duties, inv)
+	one(&planned, `SELECT count(*) FROM schedule_exams WHERE schedule_id = $1`, sched)
+	if planned != total {
+		t.Fatalf("çizelgede %d sınav var, dönemde %d", planned, total)
+	}
+	var inv string
+	one(&inv, `SELECT u.full_name FROM invigilator_assignments ia JOIN room_assignments ra ON ra.schedule_id = ia.schedule_id AND ra.exam_id = $2 AND ra.room_id = ia.room_id AND ra.slot_id = ia.slot_id
+		JOIN users u ON u.id = ia.user_id WHERE ia.schedule_id = $1`, sched, demoExam)
+	if inv != "Ömer ASLAN" {
+		t.Fatalf("demo salonunun gözetmeni %q", inv)
 	}
 	var seated int
-	one(&seated, `SELECT count(*) FROM seat_assignments WHERE schedule_id = $1`, sched)
+	one(&seated, `SELECT count(*) FROM seat_assignments WHERE schedule_id = $1 AND exam_id = $2`, sched, demoExam)
 	if seated != enrolled {
 		t.Fatalf("oturan %d ≠ kayıtlı %d", seated, enrolled)
 	}
 
-	// oturum şimdi sürüyor; yoklama kısmen girilmiş; bekleyen mazeret var
+	// demo oturumu şimdi sürüyor; yoklama kısmen girilmiş; bekleyen mazeret var
 	var active bool
-	one(&active, `SELECT sl.starts_at <= now() AND now() < sl.ends_at FROM slots sl WHERE sl.period_id = $1`, period)
+	one(&active, `SELECT sl.starts_at <= now() AND now() < sl.ends_at FROM schedule_exams se JOIN slots sl ON sl.id = se.slot_id WHERE se.schedule_id = $1 AND se.exam_id = $2`, sched, demoExam)
 	if !active {
 		t.Fatal("demo oturumu şu an sürüyor olmalı")
 	}
@@ -86,18 +96,13 @@ func TestSeedDemoExamBuildsTheDescribedScenario(t *testing.T) {
 		t.Fatalf("yoklama: %d geldi, %d gelmedi (kayıtlı %d), bekleyen mazeret %d", present, absent, enrolled, pending)
 	}
 
-	// tam dönemin çizelgesi YOK (demo onu etkilemez) ve ikinci çağrı idempotent
-	var other int
-	one(&other, `SELECT count(*) FROM schedules WHERE period_id <> $1`, period)
-	if other != 0 {
-		t.Fatalf("demo diğer dönemlere çizelge eklememeli: %d", other)
-	}
+	// ikinci çağrı idempotent
 	if err := planning.SeedDemoExam(ctx, pool, now.Add(time.Hour), log); err != nil {
 		t.Fatal(err)
 	}
-	var periods int
-	one(&periods, `SELECT count(*) FROM exam_periods WHERE name = $1`, planning.DemoPeriodName)
-	if periods != 1 {
-		t.Fatalf("ikinci çağrı yeni dönem açmamalı: %d", periods)
+	var schedules int
+	one(&schedules, `SELECT count(*) FROM schedules`)
+	if schedules != 1 {
+		t.Fatalf("ikinci çağrı yeni çizelge açmamalı: %d", schedules)
 	}
 }

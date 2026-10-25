@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { all, download, fmtDateTime, fmtTime, get, idemKey, post } from '../api'
 import { Icon } from '../icons'
 import { LiveBadge, useLive, useNow } from '../live'
+import { CheckinPanel } from './CheckinPanel'
 import { Async, Banner, Card, Empty, ErrorBox, Field, Pill, Ring, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 
 type Duty = { id: number; slot_id: number; room_id: number; room_code: string; building: string; starts_at: string; exam_id: number; course_code: string }
@@ -150,6 +151,8 @@ export function Tablet() {
             <StatCard icon="clock" tone="mute" label="İşaretlenmemiş" value={none} progress={rows.length ? (none / rows.length) * 100 : 0} />
           </div>
 
+          <CheckinPanel duty={duty} onAttendance={() => void att.reload()} />
+
           <Scanner onToken={(t) => void scan.run(t)} busy={scan.busy} online={online} />
           {scan.result && <Banner tone="ok" icon="checkCircle" title={`Öğrenci #${scan.result.student_id} geldi olarak kaydedildi`}>Kart tek kullanımlıktı ve artık geçersiz.</Banner>}
           {scan.error && (scan.error.code === 'qr_already_used' ? <Banner tone="err" icon="alert" title="Bu kart daha önce okutuldu">Öğrenciden yeni kart almasını isteyin.</Banner> : scan.error.code === 'qr_expired' ? <Banner tone="warn" icon="clock" title="Kartın süresi dolmuş veya yenilenmiş">Öğrencinin ekranındaki güncel kodu okutun (kod kısa sürede yenilenir).</Banner> : <ErrorBox error={scan.error} />)}
@@ -232,7 +235,7 @@ function Scanner({ onToken, busy, online }: { onToken: (t: string) => void; busy
   }, [on, onToken, stop])
 
   return (
-    <Card title="Öğrenci kartı tara (QR)" aside={<button className={`btn ${on ? 'danger' : 'primary'}`} disabled={!online && !on} onClick={() => (setCamErr(null), setOn(!on))}><Icon name="camera" size={16} /> {on ? 'Kamerayı kapat' : 'Kamerayı aç'}</button>}>
+    <Card title="Öğrenci kartı tara (eski yöntem: kart QR'ı)" aside={<button className={`btn ${on ? 'danger' : 'primary'}`} disabled={!online && !on} onClick={() => (setCamErr(null), setOn(!on))}><Icon name="camera" size={16} /> {on ? 'Kamerayı kapat' : 'Kamerayı aç'}</button>}>
       {camErr && <Banner tone="err" icon="camera" title="Kamera kullanılamıyor">{camErr}</Banner>}
       <div style={{ display: on ? 'block' : 'none', maxWidth: 420, margin: '0 auto 12px', position: 'relative' }}>
         <video ref={video} playsInline muted style={{ width: '100%', borderRadius: 12, background: '#000' }} data-testid="scanner-video" />

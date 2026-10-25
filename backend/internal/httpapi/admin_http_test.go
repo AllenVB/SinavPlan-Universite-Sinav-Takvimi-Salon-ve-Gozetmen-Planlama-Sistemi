@@ -515,9 +515,12 @@ func TestExcuseWorkflow(t *testing.T) {
 		t.Fatalf("geçersiz süzgeç 422: %d", code)
 	}
 
-	// Karar: yalnız öğrenci işleri; sekreter veremez.
-	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", sec, "application/json", `{"decision":"approved"}`); code != http.StatusForbidden {
-		t.Fatalf("sekreter karar veremez: %d", code)
+	// Karar: öğrenci işleri ve sekreter verebilir; öğrenci/öğretim üyesi veremez.
+	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", stu, "application/json", `{"decision":"approved"}`); code != http.StatusForbidden {
+		t.Fatalf("öğrenci karar veremez: %d", code)
+	}
+	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", lec, "application/json", `{"decision":"approved"}`); code != http.StatusForbidden {
+		t.Fatalf("öğretim üyesi karar veremez: %d", code)
 	}
 	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", aff, "application/json", `{"decision":"belki"}`); code != http.StatusUnprocessableEntity {
 		t.Fatalf("geçersiz karar 422: %d", code)
@@ -530,6 +533,19 @@ func TestExcuseWorkflow(t *testing.T) {
 	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", aff, "application/json", `{"decision":"rejected"}`); code != http.StatusConflict {
 		t.Fatalf("karara bağlanmış mazeret 409: %d", code)
 	}
+	// Sekreter de karar verebilir (rol kabul edilir; karara bağlanmış olduğu için 409).
+	if code, _ := do(t, s, http.MethodPost, "/excuses/"+id+"/decision", sec, "application/json", `{"decision":"rejected"}`); code != http.StatusConflict {
+		t.Fatalf("sekreter için de rol kabul edilmeli, durum 409: %d", code)
+	}
+	// Bekleyen diğer mazereti sekreter onaylar.
+	if _, pend := do(t, s, http.MethodGet, "/excuses?status=pending", sec, "", ""); len(pend["items"].([]any)) == 1 {
+		pid := itoa(int64(pend["items"].([]any)[0].(map[string]any)["id"].(float64)))
+		if code, out := do(t, s, http.MethodPost, "/excuses/"+pid+"/decision", sec, "application/json", `{"decision":"rejected","note":"Belge yetersiz"}`); code != http.StatusOK || out["status"] != "rejected" {
+			t.Fatalf("sekreter mazereti reddedebilmeli: %d %v", code, out)
+		}
+	} else {
+		t.Fatalf("1 bekleyen mazeret bekleniyordu: %v", pend)
+	}
 	if code, _ := do(t, s, http.MethodPost, "/excuses/99999/decision", aff, "application/json", `{"decision":"approved"}`); code != http.StatusNotFound {
 		t.Fatalf("olmayan mazeret 404: %d", code)
 	}
@@ -540,8 +556,8 @@ func TestExcuseWorkflow(t *testing.T) {
 	}
 	var n int
 	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action IN ('excuse.create','excuse.decide')`).Scan(&n)
-	if n != 3 { // 2 başvuru + 1 karar
-		t.Fatalf("3 denetim kaydı bekleniyordu: %d", n)
+	if n != 4 { // 2 başvuru + 2 karar (öğrenci işleri + sekreter)
+		t.Fatalf("4 denetim kaydı bekleniyordu: %d", n)
 	}
 }
 

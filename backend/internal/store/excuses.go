@@ -25,6 +25,9 @@ type Excuse struct {
 	DecidedAt    *time.Time `json:"decided_at,omitempty"`
 	DecisionNote *string    `json:"decision_note,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
+	// Okunabilir etiketler (yalnız liste uçlarında dolar): kim ve neyle ilgili.
+	Person string `json:"person,omitempty"`
+	Target string `json:"target,omitempty"`
 }
 
 const excuseCols = `id, kind, student_id, user_id, exam_id, slot_id, reason, status, decided_by, decided_at, decision_note, created_at`
@@ -124,14 +127,25 @@ func CreateInvigilatorExcuse(ctx context.Context, pool *pgxpool.Pool, userID, sl
 // ListExcuses: durum ve tür süzgeçli, keyset sayfalı liste. ownerStudent/ownerUser sıfırdan
 // farklıysa yalnız o kişinin mazeretleri (öğrenci/gözetmen kendi kayıtlarını görür).
 func ListExcuses(ctx context.Context, pool *pgxpool.Pool, status, kind string, ownerStudent, ownerUser, after int64, limit int) ([]Excuse, error) {
-	rows, err := pool.Query(ctx, `SELECT `+excuseCols+` FROM excuses
-		WHERE id > $1 AND ($2 = '' OR status = $2) AND ($3 = '' OR kind = $3)
-		  AND ($4 = 0 OR student_id = $4) AND ($5 = 0 OR user_id = $5)
-		ORDER BY id LIMIT $6`, after, status, kind, ownerStudent, ownerUser, limit)
+	rows, err := pool.Query(ctx, `SELECT x.id, x.kind, x.student_id, x.user_id, x.exam_id, x.slot_id, x.reason, x.status, x.decided_by, x.decided_at, x.decision_note, x.created_at,
+		       coalesce(CASE WHEN x.kind = 'student'
+		         THEN (SELECT st.full_name || ' (' || st.student_no || ')' FROM students st WHERE st.id = x.student_id)
+		         ELSE (SELECT u.full_name FROM users u WHERE u.id = x.user_id) END, ''),
+		       coalesce(CASE WHEN x.kind = 'student'
+		         THEN (SELECT c.code || ' — ' || c.name FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = x.exam_id)
+		         ELSE (SELECT to_char(sl.starts_at AT TIME ZONE 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') || ' oturumu' FROM slots sl WHERE sl.id = x.slot_id) END, '')
+		FROM excuses x
+		WHERE x.id > $1 AND ($2 = '' OR x.status = $2) AND ($3 = '' OR x.kind = $3)
+		  AND ($4 = 0 OR x.student_id = $4) AND ($5 = 0 OR x.user_id = $5)
+		ORDER BY x.id LIMIT $6`, after, status, kind, ownerStudent, ownerUser, limit)
 	if err != nil {
 		return nil, err
 	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Excuse, error) { return scanExcuse(r) })
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Excuse, error) {
+		var e Excuse
+		err := r.Scan(&e.ID, &e.Kind, &e.StudentID, &e.UserID, &e.ExamID, &e.SlotID, &e.Reason, &e.Status, &e.DecidedBy, &e.DecidedAt, &e.DecisionNote, &e.CreatedAt, &e.Person, &e.Target)
+		return e, err
+	})
 }
 
 // DecideExcuse: bekleyen mazereti onaylar/reddeder. Satır FOR UPDATE ile kilitlenir;

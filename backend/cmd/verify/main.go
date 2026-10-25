@@ -40,6 +40,8 @@ func main() {
 	checks := []check{
 		{"HEALTH", checkHealth},
 		{"AUTH-401", checkAuth401},
+		// CHK-1 ilk sırada: F-3 yeni bir çizelge yayınlayınca ilk kurulumdaki "şimdi süren sınav" artık görev olmaz
+		{"CHK-1", checkCheckin1},
 		{"AUTH-403", checkAuth403},
 		{"F-1", checkF1},
 		{"F-2", checkF2},

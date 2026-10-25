@@ -366,9 +366,69 @@ func checkFak1(ctx context.Context, e *env, f *failures) string {
 	_, fac := run(M{"faculty_id": num(f1, "id")})
 	_, dep := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{num(d1, "id")}})
 	one, y1 := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{num(d1, "id")}, "years": []int{1}})
-	f.check(all == 300 && fac == 60 && dep == 20 && y1 == 5, "kapsam sınav sayıları %d/%d/%d/%d (300/60/20/5 bekleniyordu)", all, fac, dep, y1)
+	// ilk kurulumdaki demo dersi (YZM406, Yazılım Müh. 4. sınıf) ilk fakülte/bölümde +1 sınav ekler
+	extra := int64(0)
+	for _, ex := range e.sn.exams {
+		if str(ex, "course_code") == "YZM406" {
+			extra = 1
+		}
+	}
+	f.check(all == 300+extra && fac == 60+extra && dep == 20+extra && y1 == 5, "kapsam sınav sayıları %d/%d/%d/%d (%d/%d/%d/5 bekleniyordu)", all, fac, dep, y1, 300+extra, 60+extra, 20+extra)
 	f.check(num(obj(one.body, "result"), "violations") == 0, "kapsamlı prova ihlalli")
 	bad, _ := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{9999}})
 	f.check(bad.code == 422, "olmayan bölüm: HTTP %d (422)", bad.code)
 	return fmt.Sprintf("4 fakülte, 15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi; prova kapsamı 300→60→20→5 sınav, ihlal 0")
+}
+
+// CHK-1: gözetmen "Yeni QR oluştur" → öğrenci QR/6 haneli kodla kendini yoklamaya yazar.
+func checkCheckin1(ctx context.Context, e *env, f *failures) string {
+	d, err := e.a.get(ctx, "/me/duties?limit=200", e.tok["invigilator"])
+	if !f.expectCode("görevler", d, err, 200) {
+		return ""
+	}
+	var duty M
+	for _, x := range arr(d.body, "items") {
+		m := x.(M)
+		if t, err := time.Parse(time.RFC3339, str(m, "starts_at")); err == nil && !t.After(time.Now()) && time.Since(t) < 90*time.Minute {
+			duty = m
+			break
+		}
+	}
+	if duty == nil {
+		return "atlandı: şu an süren gözetmen görevi yok (DEMO_EXAM=off); go test ./internal/httpapi -run Checkin kapsıyor"
+	}
+	body := M{"slot_id": num(duty, "slot_id"), "room_id": num(duty, "room_id")}
+	r, _ := e.a.post(ctx, "/checkin-sessions", e.tok["student"], body)
+	f.check(r.code == 403, "öğrenci oturum açamaz: HTTP %d (403)", r.code)
+	s, err := e.a.post(ctx, "/checkin-sessions", e.tok["invigilator"], body)
+	if !f.expectCode("oturum aç", s, err, 201) {
+		return ""
+	}
+	id, token, code := num(s.body, "id"), str(s.body, "token"), str(s.body, "code")
+	f.check(len(code) == 6 && strings.HasPrefix(token, "SP1."), "kod/jeton biçimi: %q %q", code, token)
+	bad := "000000"
+	if code == bad {
+		bad = "000001"
+	}
+	r, _ = e.a.post(ctx, "/me/checkin", e.tok["student"], M{"code": bad})
+	f.check(r.code == 422 && errCode(r) == "checkin_bad_code", "yanlış kod: HTTP %d %s (422 checkin_bad_code)", r.code, errCode(r))
+	r, _ = e.a.post(ctx, "/me/checkin", e.tok["student"], M{"token": token})
+	f.check(r.code == 200 && num(r.body, "exam_id") > 0, "QR ile yoklama: HTTP %d (200) %s", r.code, errCode(r))
+	exam := num(r.body, "exam_id")
+	rot, _ := e.a.post(ctx, fmt.Sprintf("/checkin-sessions/%d/code", id), e.tok["invigilator"], nil)
+	newCode := str(rot.body, "code")
+	f.check(rot.code == 200 && len(newCode) == 6, "kod yenileme: HTTP %d", rot.code)
+	if newCode != code {
+		r, _ = e.a.post(ctx, "/me/checkin", e.tok["student"], M{"code": code})
+		f.check(r.code == 422, "eski kod geçersiz: HTTP %d (422)", r.code)
+	}
+	r, _ = e.a.post(ctx, "/me/checkin", e.tok["student"], M{"code": newCode})
+	f.check(r.code == 200 && str(r.body, "method") == "code", "kodla yoklama: HTTP %d (200)", r.code)
+	att, _ := e.attendanceOf(ctx, exam, e.studentID)
+	f.check(str(att, "status") == "present", "yoklamada öğrenci: %q (present bekleniyordu)", str(att, "status"))
+	c, _ := e.a.post(ctx, fmt.Sprintf("/checkin-sessions/%d/close", id), e.tok["invigilator"], nil)
+	f.check(c.code == 204, "oturum kapatma: HTTP %d (204)", c.code)
+	r, _ = e.a.post(ctx, "/me/checkin", e.tok["student"], M{"token": token})
+	f.check(r.code == 409 && errCode(r) == "checkin_closed", "kapalı oturum: HTTP %d %s (409 checkin_closed)", r.code, errCode(r))
+	return fmt.Sprintf("oturum %d: QR + 6 haneli kod → yoklamada 'geldi'; yanlış kod 422, eski kod 422, kapalı oturum 409, öğrenci oturum açamaz 403", id)
 }

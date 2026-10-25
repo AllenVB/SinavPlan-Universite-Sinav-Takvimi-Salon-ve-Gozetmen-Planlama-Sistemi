@@ -3,6 +3,7 @@ import { ApiError, download, fmtDate, fmtTime, get, post } from '../api'
 import { Icon } from '../icons'
 import { useNow } from '../live'
 import { QR } from '../qr'
+import { CheckIn } from './CheckIn'
 import { Async, Banner, Card, Dot, Empty, ErrorBox, Ring, Skeleton, Status, useAction, useAsync } from '../ui'
 
 type Exam = { exam_id: number; course_code: string; course_name: string; starts_at: string; ends_at: string; duration_minutes: number; room_code: string | null; building: string | null; seat_row: number | null; seat_col: number | null }
@@ -32,6 +33,7 @@ export function MyExams() {
       <Async s={list} empty={(d) => d.length === 0}>
         {(items) => items.length === 0 ? <Card><Empty title="Kayıtlı sınav bulunamadı" hint="Takvim yayınlandığında sınavlarınız burada görünür." /></Card> : (
           <>
+            <div className="noprint"><CheckIn /></div>
             {next ? (
               <div className="hero">
                 <div>

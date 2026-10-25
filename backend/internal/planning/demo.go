@@ -13,26 +13,38 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Demo sınavı: sistem boş görünmesin diye ilk kurulumda hazır gelen küçük, anlaşılır bir örnek.
+// Demo: sistem boş görünmesin diye ilk kurulumda TÜM dönem için bir çizelge hazır gelir.
 const (
-	DemoPeriodName = "Demo: Prompt Mühendisliği Sınavı"
 	DemoCourseCode = "YZM406"
 	DemoCourseName = "Prompt Mühendisliği"
-	demoStudents   = 36 // tek salona ve tek gözetmene sığar (≤ 50 öğrenci)
+	demoStudents   = 36 // tek şube; ders yalnızca Yazılım Mühendisliği 4. sınıf öğrencilerine açık
+	demoIterations = 200_000
 )
 
-// SeedDemoExam, ayrı bir "demo dönemi" kurar: Yazılım Mühendisliği 4. sınıf seçmeli dersi "Prompt
-// Mühendisliği" (Fahrettin Burak DEMİR), yalnızca Yazılım Mühendisliği 4. sınıf öğrencilerinden 36 kişi,
-// tek salon, gözetmen Ömer ASLAN. Sınav oturumu ŞİMDİ başlamış kabul edilir (başlangıç = now−20 dk), çizelge
-// üretilip yayınlanır, yoklamanın bir kısmı girilmiş ve bir mazeret bekliyor — böylece Canlı izleme, takvim, tablet,
-// öğrenci ve mazeret ekranları ilk açılışta doludur. Tam dönem (300 sınav) etkilenmez. İdempotenttir.
+// SeedDemoExam, ilk kurulumda ana dönemi (tüm fakülteler, bölümler ve sınıflar) doldurur:
+//
+//  1. Yazılım Mühendisliği 4. sınıf seçmeli dersi "Prompt Mühendisliği" (Fahrettin Burak DEMİR) ve yalnızca
+//     Yazılım Mühendisliği 4. sınıf öğrencilerinden 36 kişilik şubesi dönemin sınavlarına eklenir.
+//  2. Dönemin TÜM sınavları için çizelge üretilir (T-1..T-4) ve yayınlanır. Prompt Mühendisliği, öğrencileriyle
+//     çakışmayan en erken oturuma konur; gözetmeni Ömer ASLAN'dır.
+//  3. Tüm oturumlar, Prompt Mühendisliği sınavı "şimdi başlamış" olacak biçimde (başlangıç = şimdi−20 dk) ileri/geri
+//     kaydırılır; böylece Canlı izleme, tablet, öğrenci ve mazeret ekranları ilk açılışta doludur. Yoklamanın bir
+//     kısmı girilmiş, bir mazeret de bekliyor.
+//
+// Diğer sınavlar planlanmış (yaklaşan) durumdadır; "Sınav provası" ve takvim üretimi tüm fakülteler için çalışır.
+// İdempotenttir (dönemde zaten çizelge varsa dokunmaz).
 func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *slog.Logger) error {
+	var period int64
+	if err := pool.QueryRow(ctx, `SELECT id FROM exam_periods ORDER BY id LIMIT 1`).Scan(&period); err != nil {
+		return fmt.Errorf("dönem: %w", err)
+	}
 	var exists bool
-	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM exam_periods WHERE name = $1)`, DemoPeriodName).Scan(&exists); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schedules WHERE period_id = $1) OR EXISTS (SELECT 1 FROM courses WHERE code = $2)`,
+		period, DemoCourseCode).Scan(&exists); err != nil {
 		return err
 	}
 	if exists {
-		log.Info("demo sınavı zaten var, atlanıyor")
+		log.Info("demo çizelgesi zaten var, atlanıyor")
 		return nil
 	}
 	one := func(q string, args ...any) (int64, error) {
@@ -76,18 +88,12 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 		return fmt.Errorf("demo sınavı için yeterli Yazılım Mühendisliği 4. sınıf öğrencisi yok (%d)", len(students))
 	}
 
-	istanbul, err := time.LoadLocation("Europe/Istanbul")
-	if err != nil {
-		istanbul = time.FixedZone("UTC+3", 3*3600)
-	}
-	start := now.Add(-20 * time.Minute).Truncate(time.Minute).UTC()
-	var period, exam int64
+	var course, section, exam int64
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var course, section int64
 	if err := tx.QueryRow(ctx, `INSERT INTO courses (department_id, code, name, year, requires_lab) VALUES ($1,$2,$3,4,false) RETURNING id`,
 		yzm, DemoCourseCode, DemoCourseName).Scan(&course); err != nil {
 		return fmt.Errorf("demo dersi: %w", err)
@@ -100,14 +106,6 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 			return err
 		}
 	}
-	if err := tx.QueryRow(ctx, `INSERT INTO exam_periods (name, kind, start_date, days, sessions_per_day) VALUES ($1,'final',$2,1,1) RETURNING id`,
-		DemoPeriodName, now.In(istanbul).Format("2006-01-02")).Scan(&period); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO slots (period_id, day_index, session_index, starts_at, ends_at) VALUES ($1,0,0,$2,$3)`,
-		period, start, start.Add(120*time.Minute)); err != nil {
-		return err
-	}
 	if err := tx.QueryRow(ctx, `INSERT INTO exams (period_id, course_id, duration_minutes, requires_lab) VALUES ($1,$2,90,false) RETURNING id`, period, course).Scan(&exam); err != nil {
 		return err
 	}
@@ -115,19 +113,67 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 		return err
 	}
 
-	// çizelge: tek sınav → tek oturum, tek salon; gözetmen Ömer ASLAN
+	// 1) tüm dönem için çizelge
 	ds, err := store.LoadDataset(ctx, pool, period, 1)
 	if err != nil {
 		return err
 	}
-	sp, _, err := BuildFrom(ds, 1, 2000, nil)
+	const seed = 42
+	sp, _, err := BuildFrom(ds, seed, demoIterations, nil)
 	if err != nil {
 		return fmt.Errorf("demo çizelgesi: %w", err)
 	}
-	if len(sp.Rooms) != 1 || len(sp.Invigilators) != 1 {
-		return fmt.Errorf("demo sınavı tek salonda ve tek gözetmenle kurulamadı (%d salon, %d gözetmen)", len(sp.Rooms), len(sp.Invigilators))
+	// 2) Prompt Mühendisliği: öğrencileriyle çakışmayan en erken oturum
+	idx := SlotIndex(ds)
+	assign := make(map[int64]int, len(sp.Exams))
+	for _, e := range sp.Exams {
+		assign[e.ExamID] = idx[e.SlotID]
 	}
-	sp.Invigilators[0].UserID = omer
+	demoSlot := -1
+	for i := range ds.Slots {
+		trial := make(map[int64]int, len(assign))
+		for k, v := range assign {
+			trial[k] = v
+		}
+		trial[exam] = i
+		if len(CheckAssignment(ds, seed, trial).Violations) == 0 {
+			if _, _, err := BuildFromAssignment(ds, seed, trial, nil); err == nil {
+				assign, demoSlot = trial, i
+				break
+			}
+		}
+	}
+	if demoSlot < 0 {
+		return fmt.Errorf("Prompt Mühendisliği için uygun oturum bulunamadı")
+	}
+	sp, _, err = BuildFromAssignment(ds, seed, assign, nil)
+	if err != nil {
+		return fmt.Errorf("demo çizelgesi (sabitlenmiş): %w", err)
+	}
+	// 3) gözetmen Ömer ASLAN: Prompt Mühendisliği salonunun gözetmeniyle yer değiştirir
+	demoSlotID := ds.Slots[demoSlot].ID
+	var roomID int64
+	for _, r := range sp.Rooms {
+		if r.ExamID == exam {
+			roomID = r.RoomID
+		}
+	}
+	di, oi := -1, -1
+	for i, iv := range sp.Invigilators {
+		if iv.SlotID == demoSlotID && iv.RoomID == roomID {
+			di = i
+		}
+		if iv.SlotID == demoSlotID && iv.UserID == omer {
+			oi = i
+		}
+	}
+	if di < 0 {
+		return fmt.Errorf("demo salonu için gözetmen görevi yok")
+	}
+	if oi >= 0 && oi != di {
+		sp.Invigilators[oi].UserID = sp.Invigilators[di].UserID
+	}
+	sp.Invigilators[di].UserID = omer
 	sp.CreatedBy = secretary
 	sid, _, err := store.CreateSchedule(ctx, pool, sp)
 	if err != nil {
@@ -137,11 +183,39 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 		return err
 	}
 
-	// yoklama bir kısmı girilmiş: 36 öğrencide 24 geldi, 3 gelmedi, kalanı işaretsiz (orantılı)
+	// 4) dönemi kaydır: Prompt Mühendisliği oturumu şimdi başlamış olsun
+	var startsAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT starts_at FROM slots WHERE id = $1`, demoSlotID).Scan(&startsAt); err != nil {
+		return err
+	}
+	delta := now.Add(-20 * time.Minute).Truncate(time.Minute).Sub(startsAt)
+	if _, err := pool.Exec(ctx, `UPDATE slots SET starts_at = starts_at + $2::interval, ends_at = ends_at + $2::interval WHERE period_id = $1`,
+		period, fmt.Sprintf("%d seconds", int64(delta.Seconds()))); err != nil {
+		return err
+	}
+	istanbul, lerr := time.LoadLocation("Europe/Istanbul")
+	if lerr != nil {
+		istanbul = time.FixedZone("UTC+3", 3*3600)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE exam_periods SET start_date = (SELECT min(starts_at) FROM slots WHERE period_id = $1) AT TIME ZONE $2 WHERE id = $1`,
+		period, istanbul.String()); err != nil {
+		return err
+	}
+
+	// 5) yoklama bir kısmı girilmiş: 36 öğrencide 24 geldi, 3 gelmedi, kalanı işaretsiz (orantılı)
+	// Demo öğrenci hesabı (ogrenci@) işaretsiz bırakılır: QR/kod ile kendini yoklamaya yazmayı deneyebilsin.
+	var demoStudent int64
+	_ = pool.QueryRow(ctx, `SELECT st.id FROM students st JOIN users u ON u.id = st.user_id WHERE u.email = $1`, simdata.EmailStudent).Scan(&demoStudent)
+	others := make([]int64, 0, len(students))
+	for _, st := range students {
+		if st != demoStudent {
+			others = append(others, st)
+		}
+	}
 	nPresent, nAbsent := len(students)*2/3, max(1, len(students)/12)
 	clock := attendance.Clock{Physical: func() int64 { return now.UnixMilli() }}
 	var events []attendance.Event
-	for i, st := range students {
+	for i, st := range others {
 		status := ""
 		switch {
 		case i < nPresent:
@@ -157,10 +231,11 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 	if _, err := store.SyncAttendance(ctx, pool, events, omer); err != nil {
 		return err
 	}
-	// bekleyen bir mazeret (öğrenci işleri ekranı boş kalmasın)
-	if _, err := store.CreateStudentExcuse(ctx, pool, students[len(students)-1], exam, "Hastane raporum var (demo kaydı)"); err != nil {
+	// bekleyen bir mazeret (mazeret ekranı boş kalmasın)
+	if _, err := store.CreateStudentExcuse(ctx, pool, others[len(others)-1], exam, "Hastane raporum var (demo kaydı)"); err != nil {
 		return err
 	}
-	log.Info("demo sınavı hazır", slog.String("ders", DemoCourseCode+" "+DemoCourseName), slog.Int("öğrenci", len(students)), slog.Int64("çizelge", sid))
+	log.Info("demo çizelgesi hazır", slog.String("ders", DemoCourseCode+" "+DemoCourseName), slog.Int("sınav", len(sp.Exams)),
+		slog.Int("öğrenci", len(students)), slog.Int64("çizelge", sid), slog.Int("demo_oturum", demoSlot))
 	return nil
 }

@@ -52,7 +52,7 @@ func checkAuth403(ctx context.Context, e *env, f *failures) string {
 		{"student", "POST", "/schedules", M{"period_id": 1}},
 		{"invigilator", "POST", "/imports/students", nil},
 		{"lecturer", "POST", "/rooms", M{"code": "X"}},
-		{"secretary", "POST", "/excuses/1/decision", M{"decision": "approved"}},
+		{"student", "POST", "/excuses/1/decision", M{"decision": "approved"}},
 		{"lecturer", "POST", "/schedules/1/invigilators/1/remove", nil},
 		{"student", "POST", "/attendance/qr", M{"token": "x", "device_id": "y"}},
 	}

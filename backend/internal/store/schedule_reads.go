@@ -96,6 +96,8 @@ type CalendarExam struct {
 	DepartmentName string `json:"department_name"`
 	FacultyName    string `json:"faculty_name"`
 	Year           int16  `json:"year"`
+	// Dersi veren öğretim üyesi (şubeler birden çoksa virgülle).
+	LecturerName string `json:"lecturer_name"`
 }
 
 // ScheduleExams, çizelgedeki sınavları (sınav kimliğiyle keyset) döner.
@@ -104,7 +106,8 @@ func ScheduleExams(ctx context.Context, pool *pgxpool.Pool, scheduleID, after in
 		SELECT e.id, c.code, c.name, sl.id, sl.day_index, sl.session_index, sl.starts_at, sl.ends_at, e.duration_minutes,
 		       coalesce((SELECT sum(seat_count) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id), 0)::int,
 		       (SELECT count(*) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id)::int,
-		       e.requires_lab, d.id, d.code, d.name, coalesce(f.name, ''), c.year
+		       e.requires_lab, d.id, d.code, d.name, coalesce(f.name, ''), c.year,
+		       coalesce((SELECT string_agg(DISTINCT u.full_name, ', ') FROM sections sc JOIN lecturers l ON l.id = sc.lecturer_id JOIN users u ON u.id = l.user_id WHERE sc.course_id = c.id), '')
 		FROM schedule_exams se JOIN exams e ON e.id = se.exam_id JOIN courses c ON c.id = e.course_id JOIN slots sl ON sl.id = se.slot_id
 		JOIN departments d ON d.id = c.department_id LEFT JOIN faculties f ON f.id = d.faculty_id
 		WHERE se.schedule_id = $1 AND e.id > $2 ORDER BY e.id LIMIT $3`, scheduleID, after, limit)
@@ -113,7 +116,7 @@ func ScheduleExams(ctx context.Context, pool *pgxpool.Pool, scheduleID, after in
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (CalendarExam, error) {
 		var x CalendarExam
-		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms, &x.RequiresLab, &x.DepartmentID, &x.DepartmentCode, &x.DepartmentName, &x.FacultyName, &x.Year)
+		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms, &x.RequiresLab, &x.DepartmentID, &x.DepartmentCode, &x.DepartmentName, &x.FacultyName, &x.Year, &x.LecturerName)
 		return x, err
 	})
 }

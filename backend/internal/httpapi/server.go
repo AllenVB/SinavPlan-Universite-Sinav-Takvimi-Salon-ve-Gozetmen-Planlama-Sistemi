@@ -30,6 +30,7 @@ type Server struct {
 	issuer        *auth.Issuer
 	idem          *idempotency.Store
 	qr            *store.QR
+	checkins      checkinGuard
 	qrTTL         time.Duration
 	runner        *jobs.Runner
 	seatingStrict bool
@@ -159,6 +160,11 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	// Yoklama, sınav kartı, tahliye (F-7, T-5)
 	s.handle(r, http.MethodPost, "/me/exams/{examId}/card", Roles(auth.RoleStudent), s.examCard)
 	s.handle(r, http.MethodPost, "/attendance/sync", Roles(auth.RoleInvigilator, auth.RoleSecretary), s.attendanceSync, idempotent())
+	s.handle(r, http.MethodPost, "/checkin-sessions", Roles(auth.RoleInvigilator), s.startCheckin)
+	s.handle(r, http.MethodGet, "/checkin-sessions/{id}", Roles(auth.RoleInvigilator), s.checkinState)
+	s.handle(r, http.MethodPost, "/checkin-sessions/{id}/code", Roles(auth.RoleInvigilator), s.rotateCheckinCode)
+	s.handle(r, http.MethodPost, "/checkin-sessions/{id}/close", Roles(auth.RoleInvigilator), s.closeCheckin)
+	s.handle(r, http.MethodPost, "/me/checkin", Roles(auth.RoleStudent), s.selfCheckIn)
 	s.handle(r, http.MethodPost, "/attendance/qr", Roles(auth.RoleInvigilator), s.attendanceQR, idempotent())
 	s.handle(r, http.MethodGet, "/exams/{id}/attendance",
 		Roles(auth.RoleInvigilator, auth.RoleSecretary, auth.RoleStudentAffairs, auth.RoleLecturer), s.examAttendance)
@@ -206,7 +212,7 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodPost, "/excuses", Roles(auth.RoleStudent, auth.RoleInvigilator), s.createExcuse)
 	s.handle(r, http.MethodGet, "/excuses", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.listExcuses)
 	s.handle(r, http.MethodGet, "/me/excuses", Roles(auth.RoleStudent, auth.RoleInvigilator), s.myExcuses)
-	s.handle(r, http.MethodPost, "/excuses/{id}/decision", Roles(auth.RoleStudentAffairs), s.decideExcuse, idempotent())
+	s.handle(r, http.MethodPost, "/excuses/{id}/decision", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.decideExcuse, idempotent())
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, NotFound("istenen uç bulunamadı"))

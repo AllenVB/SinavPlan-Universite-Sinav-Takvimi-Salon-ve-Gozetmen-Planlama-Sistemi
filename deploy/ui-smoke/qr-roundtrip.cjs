@@ -5,7 +5,7 @@ const nm = path.join(__dirname, '../../frontend/node_modules');
 const qrcode = require(path.join(nm, 'qrcode-generator'));
 const jsQR = require(path.join(nm, 'jsqr'));
 let fail = 0;
-for (const len of [40, 120, 200, 260]) {
+for (const len of [40, 68, 120, 200, 260]) {
   const value = Array.from({ length: len }, (_, i) => 'abcdefghijklmnopqrstuvwxyz0123456789-_.'[(i * 7 + len) % 39]).join('');
   const q = qrcode(0, 'M'); q.addData(value); q.make();
   const n = q.getModuleCount(), scale = 6, margin = 4, size = (n + margin * 2) * scale;

@@ -414,7 +414,7 @@ paths:
   /excuses/{id}/decision:
     post:
       tags: [Mazeret (F-6)]
-      summary: Mazeret kararı (student_affairs; Idempotency-Key destekli)
+      summary: Mazeret kararı (secretary, student_affairs; Idempotency-Key destekli)
       description: Onaylı gözetmen mazereti sonraki çizelge üretimlerinde T-4 kısıtı olur; onaylı öğrenci mazereti o sınav için kart verilmesini engeller.
       parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/IdempotencyKey"}]
       requestBody:
@@ -454,6 +454,63 @@ paths:
         "200": {description: Okutuldu, content: {application/json: {schema: {type: object, properties: {exam_id: {type: integer}, student_id: {type: integer}, event_id: {type: string}}}}}}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/Validation"}
+  /checkin-sessions:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Yoklama oturumu aç — "Yeni QR oluştur" (invigilator)
+      description: |
+        Gözetmenin kendi (slot, salon) görevi için dönen QR + yedek 6 haneli kod üretir; önceki açık oturum kapanır.
+        Oturum sınavdan 30 dk önce ile bitişinden 15 dk sonrası arasında açılabilir (`checkin_window`).
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [slot_id, room_id], properties: {slot_id: {type: integer}, room_id: {type: integer}}}}}
+      responses:
+        "201": {description: Oturum, content: {application/json: {schema: {$ref: "#/components/schemas/CheckinSession"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+  /checkin-sessions/{id}:
+    get:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Oturum durumu + taze QR jetonu (invigilator; ekran birkaç saniyede bir çağırır)
+      description: QR jetonu 30 sn'lik pencereyle değişir (HMAC); sayaçlar o salondaki gelen/beklenen öğrenci sayısıdır.
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: Oturum, content: {application/json: {schema: {$ref: "#/components/schemas/CheckinSession"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /checkin-sessions/{id}/code:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Yedek 6 haneli kodu yenile (eski kod geçersiz olur)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: Oturum, content: {application/json: {schema: {$ref: "#/components/schemas/CheckinSession"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /checkin-sessions/{id}/close:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Oturumu kapat (QR ve kod çalışmaz)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Kapatıldı}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /me/checkin:
+    post:
+      tags: [Yoklama ve sınav kartı (F-7, T-5)]
+      summary: Öğrenci QR veya 6 haneli kodla kendini yoklamaya yazar (student)
+      description: |
+        `token` (QR'dan) ya da `code` (6 hane) — yalnız biri. Öğrencinin o salon+slotta koltuğu olmalı.
+        Onaylı mazereti varsa 409 (`excused`). Hatalı kod denemesi kullanıcı başına 5 dk'da 8 ile sınırlıdır (429).
+        Tekrar okutma zararsızdır (`already_present: true`).
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, properties: {token: {type: string}, code: {type: string, pattern: '^[0-9]{6}$'}}}}}
+      responses:
+        "200": {description: Yoklamaya yazıldı, content: {application/json: {schema: {$ref: "#/components/schemas/CheckinResult"}}}}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Validation"}
+        "429": {description: Çok fazla hatalı deneme}
   /exams/{id}/attendance:
     get:
       tags: [Yoklama ve sınav kartı (F-7, T-5)]
@@ -629,6 +686,29 @@ components:
     Conflict: {description: Durum çakışması, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
     Validation: {description: Girdi doğrulaması başarısız, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   schemas:
+    CheckinSession:
+      type: object
+      properties:
+        id: {type: integer}
+        slot_id: {type: integer}
+        room_id: {type: integer}
+        room_code: {type: string}
+        code: {type: string, description: Yedek 6 haneli kod}
+        code_expires_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        present: {type: integer}
+        expected: {type: integer}
+        token: {type: string, description: Dönen QR'ın içeriği}
+        token_expires_at: {type: string, format: date-time}
+    CheckinResult:
+      type: object
+      properties:
+        exam_id: {type: integer}
+        course_code: {type: string}
+        course_name: {type: string}
+        room_code: {type: string}
+        already_present: {type: boolean}
+        method: {type: string, enum: [qr, code]}
     Error:
       type: object
       required: [error]
