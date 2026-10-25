@@ -165,30 +165,41 @@ func (s *Server) myExamsICS(w http.ResponseWriter, r *http.Request) error {
 	return export.WriteICS(w, "Sınavlarım", ev, time.Now())
 }
 
-// myDutiesICS: GET /me/duties.ics — gözetmenin görevleri.
+// myDutiesICS: GET /me/duties.ics — gözetmenin görevleri (her dönemin yayınlanmış çizelgesinden).
 func (s *Server) myDutiesICS(w http.ResponseWriter, r *http.Request) error {
-	sid, err := store.PublishedScheduleID(r.Context(), s.pool)
 	var duties []store.Duty
-	if err == nil {
-		duties, err = allDuties(r, s, sid, mustPrincipal(r).UserID)
+	var after int64
+	for {
+		rows, err := store.PublishedDuties(r.Context(), s.pool, mustPrincipal(r).UserID, after, 501)
+		if err != nil {
+			return err
+		}
+		n := min(len(rows), 500)
+		duties = append(duties, rows[:n]...)
+		if len(rows) <= 500 {
+			break
+		}
+		after = rows[n-1].ID
 	}
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return err
-	}
-	// görev bitişi için sınav süresini takvimden alırız
-	end := map[int64]time.Time{}
-	if sid != 0 {
-		exams, err := allExams(r, s, sid)
+	// görev bitişi için sınav süresini çizelge takviminden alırız
+	end := map[[2]int64]time.Time{}
+	seen := map[int64]bool{}
+	for _, d := range duties {
+		if seen[d.ScheduleID] {
+			continue
+		}
+		seen[d.ScheduleID] = true
+		exams, err := allExams(r, s, d.ScheduleID)
 		if err != nil {
 			return err
 		}
 		for _, e := range exams {
-			end[e.ExamID] = e.EndsAt
+			end[[2]int64{d.ScheduleID, e.ExamID}] = e.EndsAt
 		}
 	}
 	ev := make([]export.Event, 0, len(duties))
 	for _, d := range duties {
-		e := end[d.ExamID]
+		e := end[[2]int64{d.ScheduleID, d.ExamID}]
 		if e.IsZero() {
 			e = d.StartsAt.Add(2 * time.Hour)
 		}
@@ -387,7 +398,7 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) error {
 	out := map[string]any{"result": res, "saved": false, "scope": info}
 	full := req.Scope.FacultyID == 0 && len(req.Scope.DepartmentIDs) == 0 && len(req.Scope.Years) == 0
 	// Yayındaki sürümle kıyas yalnızca tam kapsamda anlamlıdır (kısmi kapsamın cezası daha düşüktür).
-	if sid, err := store.PublishedScheduleID(r.Context(), s.pool); full && err == nil {
+	if sid, err := store.PublishedScheduleOfPeriod(r.Context(), s.pool, req.PeriodID); full && err == nil {
 		if sc, err := store.GetSchedule(r.Context(), s.pool, sid); err == nil && sc.PeriodID == req.PeriodID {
 			out["published"] = map[string]any{"schedule_id": sc.ID, "version": sc.Version, "metrics": sc.Metrics}
 		}

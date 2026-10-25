@@ -25,7 +25,7 @@ func TestDifferentSeedProducesDifferentData(t *testing.T) {
 // değiştirildiğinde bu sabit güncellenir; commit mesajında belirtilmelidir.
 func TestGoldenHashForSeed42(t *testing.T) {
 	d, _ := Generate(DefaultConfig(42))
-	const golden = "42be509ae360e45bb8389ed80efc51ce8166fd15f2020e1eb88412c7b8ffacbf"
+	const golden = "de91b19eb05147b47dc5d1743cccafe5471108aa8eb9e4b8011f75e2f123ebb6"
 	if d.Hash() != golden {
 		t.Fatalf("seed=42 özeti değişti: %s", d.Hash())
 	}
@@ -274,5 +274,50 @@ func TestEnrollmentsStayInOwnDepartmentAndYear(t *testing.T) {
 	}
 	if len(maxYear) != len(d.Students) {
 		t.Fatalf("dersi olmayan öğrenci var: %d/%d", len(maxYear), len(d.Students))
+	}
+}
+
+// Demo hesapları anlamlıdır: öğretim üyesi = Fahrettin Burak DEMİR, gözetmen = Ömer ASLAN (aynı zamanda
+// öğretim üyesi), öğrenci = Yazılım Mühendisliği 4. sınıf (demo "Prompt Mühendisliği" sınavının öğrencisi).
+func TestDemoAccountsAreMeaningful(t *testing.T) {
+	d, _ := Generate(DefaultConfig(42))
+	byEmail := map[string]User{}
+	for _, u := range d.Users {
+		byEmail[u.Email] = u
+	}
+	if byEmail[EmailLecturer].FullName != "Fahrettin Burak DEMİR" || byEmail[EmailInvigilator].FullName != "Ömer ASLAN" {
+		t.Fatalf("demo adları: %q / %q", byEmail[EmailLecturer].FullName, byEmail[EmailInvigilator].FullName)
+	}
+	inv := byEmail[EmailInvigilator]
+	if len(inv.Roles) != 2 || inv.Roles[0] != "invigilator" || inv.Roles[1] != "lecturer" {
+		t.Fatalf("Ömer ASLAN rolleri: %v", inv.Roles)
+	}
+	isLecturer := false
+	for _, l := range d.Lecturers {
+		isLecturer = isLecturer || l.UserID == inv.ID
+	}
+	if !isLecturer {
+		t.Fatal("Ömer ASLAN öğretim üyesi kaydı da olmalı")
+	}
+	s1 := d.Students[0]
+	if s1.DepartmentID != 1 || d.Departments[0].Code != "YZM" {
+		t.Fatalf("demo öğrenci Yazılım Mühendisliği öğrencisi olmalı: dept %d", s1.DepartmentID)
+	}
+	secCourse := map[int64]int64{}
+	for _, sec := range d.Sections {
+		secCourse[sec.ID] = sec.CourseID
+	}
+	year := map[int64]int{}
+	for _, c := range d.Courses {
+		year[c.ID] = c.Year
+	}
+	maxY := 0
+	for _, e := range d.Enrollments {
+		if e.StudentID == 1 {
+			maxY = max(maxY, year[secCourse[e.SectionID]])
+		}
+	}
+	if maxY != 4 {
+		t.Fatalf("demo öğrenci 4. sınıf dersleri almalı (en yüksek sınıf %d)", maxY)
 	}
 }

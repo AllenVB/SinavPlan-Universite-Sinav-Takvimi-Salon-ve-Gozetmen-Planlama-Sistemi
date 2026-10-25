@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { download, get, post, fmtDateTime } from '../api'
-import { Card, ErrorBox, Field, Pill, useAction, useAsync, Async } from '../ui'
+import { Card, ErrorBox, Pill, TuneFields, useAction, useAsync, Async } from '../ui'
 import { useFaculties, type Exam, type Schedule } from './common'
 
 /** Dışa aktarma: Excel, CSV, iCal ve tarayıcıdan PDF (yazdırma stili). */
@@ -30,14 +30,14 @@ export function Simulator({ periodId, exams }: { periodId: number | undefined; e
   const [depts, setDepts] = useState<Set<number>>(new Set())
   const [years, setYears] = useState<Set<number>>(new Set([1, 2, 3, 4]))
   const [seed, setSeed] = useState('7')
-  const [iter, setIter] = useState('50000')
+  const [iter, setIter] = useState(50_000)
   const faculty = fac.data?.find((f) => f.id === facId)
   const chosenDepts = faculty ? faculty.departments.filter((d) => depts.has(d.id)) : []
   const scope = { faculty_id: facId || undefined, department_ids: faculty ? chosenDepts.map((d) => d.id) : undefined, years: years.size === 4 ? undefined : [...years].sort() }
   // seçimin önizlemesi: mevcut takvimden (gerçek veri) kaç sınav kapsama giriyor
   const inScope = (e: Exam) => (!facId || e.faculty_name === faculty?.name) && (!faculty || chosenDepts.length === 0 || chosenDepts.some((d) => d.id === e.department_id)) && years.has(e.year)
   const preview = exams?.filter(inScope).length ?? null
-  const sim = useAction(() => post<Sim>('/schedules/simulate', { period_id: periodId, seed: Number(seed), iterations: Number(iter), scope }))
+  const sim = useAction(() => post<Sim>('/schedules/simulate', { period_id: periodId, seed: Number(seed), iterations: iter, scope }))
   const r = sim.result
   const better = r?.published ? r.result.penalty - r.published.metrics.penalty : null
   const pickFaculty = (id: number) => { setFacId(id); setDepts(new Set(fac.data?.find((f) => f.id === id)?.departments.map((d) => d.id) ?? [])); sim.reset() }
@@ -77,21 +77,20 @@ export function Simulator({ periodId, exams }: { periodId: number | undefined; e
       </div>
 
       <div className="row" style={{ alignItems: 'flex-end' }}>
-        <Field label="Tohum" id="ss"><input id="ss" className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 90 }} /></Field>
-        <Field label="İterasyon (≤300.000)" id="si"><input id="si" className="input" inputMode="numeric" value={iter} onChange={(e) => setIter(e.target.value)} style={{ width: 140 }} /></Field>
-        <button className="btn primary" disabled={sim.busy || !periodId || !Number(iter) || preview === 0 || (!!faculty && chosenDepts.length === 0) || years.size === 0} onClick={() => void sim.run()}>{sim.busy ? 'Hesaplanıyor…' : 'Provayı çalıştır'}</button>
+        <TuneFields idPrefix="sim" seed={seed} setSeed={setSeed} quality={iter} setQuality={setIter} presets={[{ label: 'Hızlı (yaklaşık 1 sn)', iterations: 20_000 }, { label: 'Dengeli — önerilen', iterations: 50_000 }, { label: 'Detaylı (birkaç sn)', iterations: 200_000 }]} />
+        <button className="btn primary" disabled={sim.busy || !periodId || preview === 0 || (!!faculty && chosenDepts.length === 0) || years.size === 0} onClick={() => void sim.run()}>{sim.busy ? 'Hesaplanıyor…' : 'Provayı çalıştır'}</button>
       </div>
       {sim.error && <div style={{ marginTop: 12 }}><ErrorBox error={sim.error} /></div>}
       {r && (
         <div style={{ marginTop: 12 }}>
           <div className="row">
             <Pill kind={r.result.violations === 0 && r.result.unplaced === 0 ? 'ok' : 'err'}>{r.result.violations === 0 && r.result.unplaced === 0 ? 'Sert ihlal yok' : `${r.result.violations} ihlal, ${r.result.unplaced} yerleşemeyen`}</Pill>
-            <span><b>{r.scope.exams}</b> sınav · <b>{r.scope.students.toLocaleString('tr-TR')}</b> öğrenci · ceza <b>{r.result.penalty.toLocaleString('tr-TR')}</b> · {r.result.metrics.used_slots} oturum · aynı gün 2 sınav {r.result.metrics.student_days_with_two_exams.toLocaleString('tr-TR')} · {(r.result.duration_ms / 1000).toFixed(1)} sn</span>
+            <span><b>{r.scope.exams}</b> sınav · <b>{r.scope.students.toLocaleString('tr-TR')}</b> öğrenci · rahatsızlık puanı <b>{r.result.penalty.toLocaleString('tr-TR')}</b> · {r.result.metrics.used_slots} oturum · aynı gün 2 sınav {r.result.metrics.student_days_with_two_exams.toLocaleString('tr-TR')} · {(r.result.duration_ms / 1000).toFixed(1)} sn</span>
           </div>
           <p className="small muted" style={{ marginTop: 6 }}>{r.scope.faculty ?? 'Tüm fakülteler'} · {r.scope.departments.join(', ')} · {yearLabel(r.scope.years)}</p>
           {r.published && better !== null && (
             <p className="small" style={{ marginTop: 8 }}>
-              Yayındaki sürüm {r.published.version}: ceza {r.published.metrics.penalty.toLocaleString('tr-TR')} →{' '}
+              Yayındaki sürüm {r.published.version}: rahatsızlık puanı {r.published.metrics.penalty.toLocaleString('tr-TR')} →{' '}
               <b style={{ color: better < 0 ? 'var(--ok)' : better > 0 ? 'var(--error)' : undefined }}>{better === 0 ? 'aynı' : better < 0 ? `${Math.abs(better).toLocaleString('tr-TR')} daha iyi` : `${better.toLocaleString('tr-TR')} daha kötü`}</b>
             </p>
           )}
@@ -104,7 +103,7 @@ export function Simulator({ periodId, exams }: { periodId: number | undefined; e
 type Cmp = { a: Schedule; b: Schedule; moved_count: number; moved: { exam_id: number; course_code: string; course_name: string; from_starts_at: string; to_starts_at: string }[] }
 
 const metricRows: [string, (m: any) => number | undefined][] = [
-  ['Ceza', (m) => m.penalty],
+  ['Rahatsızlık puanı (düşük = iyi)', (m) => m.penalty],
   ['Aynı gün 2 sınav (öğrenci-gün)', (m) => m.scheduling?.student_days_with_two_exams],
   ['Ardışık günü olan öğrenci', (m) => m.scheduling?.students_with_consecutive_day],
   ['Kullanılan slot', (m) => m.scheduling?.used_slots],

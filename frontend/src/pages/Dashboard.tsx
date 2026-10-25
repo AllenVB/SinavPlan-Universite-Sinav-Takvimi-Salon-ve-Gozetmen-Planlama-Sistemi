@@ -105,7 +105,7 @@ export function Dashboard() {
             m ? (
               <div className="steps">
                 <Step ok label="1. Veri ve salonlar" note={`${rooms.data?.length ?? 0} salon, ${periods.data?.[0]?.exams ?? 0} sınav`} />
-                <Step ok label="2. Takvim" note={`ceza ${m.penalty.toLocaleString('tr-TR')} · ${m.scheduling.used_slots} slot`} />
+                <Step ok label="2. Takvim" note={`rahatsızlık puanı ${m.penalty.toLocaleString('tr-TR')} · ${m.scheduling.used_slots} slot`} />
                 <Step ok={m.unseated === 0 && hard === 0} label="3. Salon ve oturma" note={`${m.rooms_used} salon kullanımı · oturtulamayan ${m.unseated}`} />
                 <Step ok={m.invigilation_unfilled === 0} label="4. Gözetmen" note={`${m.invigilation.assignments} görev · yük ${m.invigilation.min}–${m.invigilation.max}`} />
                 <Step ok={sch.current?.status === 'published'} label="5. Yayın" note={sch.current?.status === 'published' ? 'öğrencilere açık' : 'taslak, yayınlanmadı'} />

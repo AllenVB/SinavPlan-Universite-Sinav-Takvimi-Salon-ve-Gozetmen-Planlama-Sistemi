@@ -177,6 +177,7 @@ func Seating(ctx context.Context, pool *pgxpool.Pool, scheduleID, examID, roomID
 // Duty, gözetmen görevi.
 type Duty struct {
 	ID         int64     `json:"id"`
+	ScheduleID int64     `json:"schedule_id"`
 	UserID     int64     `json:"user_id"`
 	FullName   string    `json:"full_name"`
 	SlotID     int64     `json:"slot_id"`
@@ -192,7 +193,7 @@ type Duty struct {
 
 // Duties, gözetmen görevlerini keyset sayfalı döner; userID/slotID 0 ise süzgeç yok.
 func Duties(ctx context.Context, pool *pgxpool.Pool, scheduleID, userID, slotID, after int64, limit int) ([]Duty, error) {
-	rows, err := pool.Query(ctx, `SELECT ia.id, ia.user_id, u.full_name, ia.slot_id, sl.day_index, sl.session_index, sl.starts_at,
+	rows, err := pool.Query(ctx, `SELECT ia.id, ia.schedule_id, ia.user_id, u.full_name, ia.slot_id, sl.day_index, sl.session_index, sl.starts_at,
 		ia.room_id, r.code, r.building, ia.exam_id, c.code
 		FROM invigilator_assignments ia JOIN users u ON u.id = ia.user_id JOIN slots sl ON sl.id = ia.slot_id
 		JOIN rooms r ON r.id = ia.room_id JOIN exams e ON e.id = ia.exam_id JOIN courses c ON c.id = e.course_id
@@ -203,9 +204,37 @@ func Duties(ctx context.Context, pool *pgxpool.Pool, scheduleID, userID, slotID,
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Duty, error) {
 		var x Duty
-		err := r.Scan(&x.ID, &x.UserID, &x.FullName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.RoomID, &x.RoomCode, &x.Building, &x.ExamID, &x.CourseCode)
+		err := r.Scan(&x.ID, &x.ScheduleID, &x.UserID, &x.FullName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.RoomID, &x.RoomCode, &x.Building, &x.ExamID, &x.CourseCode)
 		return x, err
 	})
+}
+
+// PublishedDuties, kullanıcının TÜM yayınlanmış çizelgelerdeki (her dönemin yayınlananı) görevleri.
+func PublishedDuties(ctx context.Context, pool *pgxpool.Pool, userID, after int64, limit int) ([]Duty, error) {
+	rows, err := pool.Query(ctx, `SELECT ia.id, ia.schedule_id, ia.user_id, u.full_name, ia.slot_id, sl.day_index, sl.session_index, sl.starts_at,
+		ia.room_id, r.code, r.building, ia.exam_id, c.code
+		FROM invigilator_assignments ia JOIN schedules sch ON sch.id = ia.schedule_id AND sch.status = 'published'
+		JOIN users u ON u.id = ia.user_id JOIN slots sl ON sl.id = ia.slot_id
+		JOIN rooms r ON r.id = ia.room_id JOIN exams e ON e.id = ia.exam_id JOIN courses c ON c.id = e.course_id
+		WHERE ia.user_id = $1 AND ia.id > $2 ORDER BY ia.id LIMIT $3`, userID, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (Duty, error) {
+		var x Duty
+		err := r.Scan(&x.ID, &x.ScheduleID, &x.UserID, &x.FullName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.RoomID, &x.RoomCode, &x.Building, &x.ExamID, &x.CourseCode)
+		return x, err
+	})
+}
+
+// PublishedScheduleOfPeriod, belirli dönemin yayınlanmış çizelgesi (yoksa ErrNotFound).
+func PublishedScheduleOfPeriod(ctx context.Context, pool *pgxpool.Pool, periodID int64) (int64, error) {
+	var id int64
+	err := pool.QueryRow(ctx, `SELECT id FROM schedules WHERE status = 'published' AND period_id = $1 ORDER BY id DESC LIMIT 1`, periodID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return id, err
 }
 
 // PublishedScheduleID, dönemin yayınlanmış çizelgesinin kimliği (yoksa ErrNotFound).

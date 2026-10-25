@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { get, idemKey, post, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../auth'
-import { Async, Card, ErrorBox, Empty, Field, Pill, useAction, useAsync } from '../ui'
+import { Async, Card, ErrorBox, Empty, Pill, TuneFields, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useExamFilter, useExams, useSchedules, type Exam } from './common'
 import { Compare, ExportButtons, Simulator } from './Tools'
 
@@ -12,7 +12,30 @@ export function Calendar() {
   const exams = useExams(sch.sel)
   const [q, setQ] = useState('')
   const filt = useExamFilter()
-  const filtered = useMemo(() => (exams.data ?? []).filter((e) => filt.match(e) && `${e.course_code} ${e.course_name} ${e.department_name}`.toLowerCase().includes(q.toLowerCase())), [exams.data, q, filt.match])
+  const [day, setDay] = useState('')
+  const [hour, setHour] = useState('')
+  const [kind, setKind] = useState('')
+  const dayKey = (e: Exam) => String(e.day)
+  const days = useMemo(() => {
+    const m = new Map<number, string>()
+    ;(exams.data ?? []).forEach((e) => m.set(e.day, e.starts_at))
+    return [...m.entries()].sort((a, b) => a[0] - b[0])
+  }, [exams.data])
+  const hours = useMemo(() => [...new Set((exams.data ?? []).map((e) => fmtTime(e.starts_at)))].sort(), [exams.data])
+  const filtered = useMemo(
+    () =>
+      (exams.data ?? []).filter(
+        (e) =>
+          filt.match(e) &&
+          (!day || dayKey(e) === day) &&
+          (!hour || fmtTime(e.starts_at) === hour) &&
+          (!kind || (kind === 'lab') === e.requires_lab) &&
+          `${e.course_code} ${e.course_name} ${e.department_name}`.toLowerCase().includes(q.toLowerCase()),
+      ),
+    [exams.data, q, filt.match, day, hour, kind],
+  )
+  const anyFilter = filt.active || !!(day || hour || kind || q)
+  const clearAll = () => { setDay(''); setHour(''); setKind(''); setQ('') }
   const byDay = useMemo(() => {
     const m = new Map<number, Exam[]>()
     filtered.forEach((e) => m.set(e.day, [...(m.get(e.day) ?? []), e]))
@@ -49,10 +72,10 @@ export function Calendar() {
 
       {m && (
         <div className="grid g4">
-          <Card title="Kalite"><div className="small">Ceza <b>{m.penalty.toLocaleString('tr-TR')}</b> · iterasyon {m.iterations.toLocaleString('tr-TR')}</div><div className="small muted">Ardışık gün: {m.scheduling.students_with_consecutive_day} öğrenci · aynı gün 2 sınav: {m.scheduling.students_with_two_exams_a_day}</div></Card>
+          <Card title="Kalite"><div className="small">Rahatsızlık puanı <b>{m.penalty.toLocaleString('tr-TR')}</b> <span className="muted">(düşük = iyi)</span></div><div className="small muted">Ardışık gün: {m.scheduling.students_with_consecutive_day} öğrenci · aynı gün 2 sınav: {m.scheduling.students_with_two_exams_a_day}</div></Card>
           <Card title="Salon"><div className="small"><b>{m.rooms_used}</b> salon kullanımı</div><div className="small muted">Oturtulamayan: {m.unseated} · ihlal: {m.room_violations + m.seat_violations}</div></Card>
           <Card title="Gözetmen"><div className="small"><b>{m.invigilation.assignments}</b> görev · {m.invigilation.invigilators} gözetmen</div><div className="small muted">Yük {m.invigilation.min}–{m.invigilation.max} (fark {m.invigilation.spread})</div></Card>
-          <Card title="Durum">{sch.current && <Pill kind={sch.current.status === 'published' ? 'ok' : 'warn'}>{sch.current.status === 'published' ? 'Yayında' : 'Taslak'}</Pill>}<div className="small muted" style={{ marginTop: 6 }}>Sürüm {sch.current?.version} · tohum {sch.current?.seed}</div></Card>
+          <Card title="Durum">{sch.current && <Pill kind={sch.current.status === 'published' ? 'ok' : 'warn'}>{sch.current.status === 'published' ? 'Yayında' : 'Taslak'}</Pill>}<div className="small muted" style={{ marginTop: 6 }}>Sürüm {sch.current?.version} · varyasyon no {sch.current?.seed}</div></Card>
         </div>
       )}
 
@@ -60,7 +83,20 @@ export function Calendar() {
         <div className="row noprint" style={{ marginBottom: 12 }}>
           {filt.element}
           <input className="input" style={{ width: 220 }} placeholder="Ders ara…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} />
-          {q && <button className="btn sm" onClick={() => setQ('')}>Aramayı temizle</button>}
+          <select aria-label="Gün" value={day} onChange={(e) => setDay(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Tüm günler</option>
+            {days.map(([d, at]) => <option key={d} value={String(d)}>{fmtDate(at)}</option>)}
+          </select>
+          <select aria-label="Saat dilimi" value={hour} onChange={(e) => setHour(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Tüm saatler</option>
+            {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+          </select>
+          <select aria-label="Sınav türü" value={kind} onChange={(e) => setKind(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Tüm türler</option>
+            <option value="lab">Laboratuvar</option>
+            <option value="classic">Klasik</option>
+          </select>
+          {anyFilter && <button className="btn sm" onClick={clearAll}>Süzgeçleri temizle</button>}
         </div>
         {sch.list.data?.length === 0 ? (
           <Empty title="Henüz planlanmış sınav yok" hint={secretary ? 'Yukarıdan "Takvimi oluştur" ile ilk çizelgeyi üretin.' : 'Çizelge yayınlandığında burada görünür.'} />
@@ -104,11 +140,11 @@ export function Calendar() {
 function Generator({ onDone }: { onDone: () => void }) {
   const period = useAsync(async () => (await get('/periods')).items?.[0] as { id: number; name: string } | undefined)
   const [seed, setSeed] = useState('42')
-  const [iter, setIter] = useState('300000')
+  const [iter, setIter] = useState(300_000)
   const [job, setJob] = useState<number | null>(null)
   const status = useAsync(async () => (job ? get(`/schedule-jobs/${job}`) : null), [job])
   const start = useAction(async () => {
-    const r = await post('/schedules', { period_id: period.data!.id, seed: Number(seed), iterations: Number(iter) })
+    const r = await post('/schedules', { period_id: period.data!.id, seed: Number(seed), iterations: iter })
     setJob(r.job_id)
   })
   const st: string | undefined = status.data?.status
@@ -125,12 +161,11 @@ function Generator({ onDone }: { onDone: () => void }) {
   return (
     <Card title="Takvimi oluştur" aside={st && <Pill kind={st === 'succeeded' ? 'ok' : st === 'failed' ? 'err' : 'info'}>{{ queued: 'Sırada', running: 'Çalışıyor…', succeeded: 'Tamamlandı', failed: 'Başarısız' }[st]}</Pill>}>
       <div className="row" style={{ alignItems: 'flex-end' }}>
-        <Field label="Tohum" id="seed"><input id="seed" className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 110 }} /></Field>
-        <Field label="İterasyon" id="iter"><input id="iter" className="input" inputMode="numeric" value={iter} onChange={(e) => setIter(e.target.value)} style={{ width: 140 }} /></Field>
-        <button className="btn primary" disabled={start.busy || running || !period.data || !Number(seed) || !Number(iter)} onClick={() => void start.run()}>
+        <TuneFields idPrefix="gen" seed={seed} setSeed={setSeed} quality={iter} setQuality={setIter} presets={[{ label: 'Hızlı (yaklaşık 5 sn)', iterations: 100_000 }, { label: 'Dengeli (yaklaşık 15 sn) — önerilen', iterations: 300_000 }, { label: 'Detaylı (yaklaşık 1 dk)', iterations: 1_000_000 }]} />
+        <button className="btn primary" disabled={start.busy || running || !period.data || !Number(seed)} onClick={() => void start.run()}>
           {running ? 'Üretiliyor…' : 'Takvimi oluştur'}
         </button>
-        <span className="small muted">Aynı tohum ve iterasyonla sonuç her zaman aynıdır. {period.data?.name}</span>
+        <span className="small muted">{period.data?.name}</span>
       </div>
       {start.error && <div style={{ marginTop: 12 }}><ErrorBox error={start.error} /></div>}
       {st === 'failed' && (

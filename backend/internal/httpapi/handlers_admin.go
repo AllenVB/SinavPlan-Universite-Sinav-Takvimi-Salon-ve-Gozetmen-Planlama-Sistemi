@@ -433,20 +433,13 @@ func (s *Server) scheduleInvigilators(w http.ResponseWriter, r *http.Request) er
 }
 
 // myDuties: gözetmenin YAYINLANMIŞ çizelgedeki kendi görevleri.
+// myDuties: GET /me/duties — gözetmenin görevleri; HER dönemin yayınlanmış çizelgesinden (schedule_id ile).
 func (s *Server) myDuties(w http.ResponseWriter, r *http.Request) error {
-	sid, err := store.PublishedScheduleID(r.Context(), s.pool)
-	if errors.Is(err, store.ErrNotFound) {
-		WriteJSON(w, http.StatusOK, map[string]any{"items": []store.Duty{}, "next_cursor": nil})
-		return nil
-	}
-	if err != nil {
-		return err
-	}
 	page, err := parsePage(r)
 	if err != nil {
 		return err
 	}
-	rows, err := store.Duties(r.Context(), s.pool, sid, mustPrincipal(r).UserID, 0, page.After, page.Limit+1)
+	rows, err := store.PublishedDuties(r.Context(), s.pool, mustPrincipal(r).UserID, page.After, page.Limit+1)
 	if err != nil {
 		return err
 	}

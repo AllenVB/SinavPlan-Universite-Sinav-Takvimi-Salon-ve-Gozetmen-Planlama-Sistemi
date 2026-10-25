@@ -238,6 +238,9 @@ func anneal(st *state, rng *rand.Rand, in Input, start time.Time, res *Result) {
 	inChain := make([]bool, p.n)
 	queue := make([]int, 0, p.n)
 
+	if p.slots < 2 || p.n == 0 {
+		iters = 0 // taşınacak başka oturum yok: iyileştirme döngüsü anlamsız (IntN(0) panikler)
+	}
 	for it := 0; it < iters; it++ {
 		if in.TimeLimit > 0 && it%2048 == 0 && time.Since(start) > in.TimeLimit {
 			res.StoppedByTime = true

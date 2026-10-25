@@ -64,14 +64,14 @@ export function Editor() {
         <div><div className="caps">Takvim düzenleme</div><h1>Sürükle-bırak editör</h1><p className="muted">Bir sınavı başka oturuma sürükleyin. Sert kısıtlar bozuluyorsa taşıma reddedilir; uygunsa salon, oturma ve gözetmen planı yeniden kurulur ve <b>yeni bir taslak sürüm</b> oluşur (mevcut sürüm değişmez).</p></div>
         <div className="actions"><ScheduleSelect s={sch} />{filt.element}<input className="input" style={{ width: 200 }} placeholder="Ders ara / vurgula…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
-      {done && <div className="alert ok" role="status"><div><b>Sürüm {done.version} (taslak) oluşturuldu.</b> Ceza {done.before.toLocaleString('tr-TR')} → {done.after.toLocaleString('tr-TR')}. Karşılaştırmak için Sınav takvimi ekranındaki "Sürüm karşılaştırma"yı kullanın.</div></div>}
+      {done && <div className="alert ok" role="status"><div><b>Sürüm {done.version} (taslak) oluşturuldu.</b> Rahatsızlık puanı {done.before.toLocaleString('tr-TR')} → {done.after.toLocaleString('tr-TR')}. Karşılaştırmak için Sınav takvimi ekranındaki "Sürüm karşılaştırma"yı kullanın.</div></div>}
       {check.error && <ErrorBox error={check.error} />}
       {apply.error && <ErrorBox error={apply.error} />}
 
       {pending && (
         <Card title={`${pending.exam.course_code} → ${label(pending.slot)}`} aside={<Pill kind={pending.check.ok ? 'ok' : 'err'}>{pending.check.ok ? 'Uygun' : `${pending.check.violation_count} ihlal`}</Pill>}>
           {pending.check.ok ? (
-            <p>Sert kısıtlar sağlanıyor. Ceza {pending.check.penalty_before.toLocaleString('tr-TR')} → <b style={{ color: pending.check.penalty_after <= pending.check.penalty_before ? 'var(--ok)' : 'var(--error)' }}>{pending.check.penalty_after.toLocaleString('tr-TR')}</b>.</p>
+            <p>Sert kısıtlar sağlanıyor. Rahatsızlık puanı {pending.check.penalty_before.toLocaleString('tr-TR')} → <b style={{ color: pending.check.penalty_after <= pending.check.penalty_before ? 'var(--ok)' : 'var(--error)' }}>{pending.check.penalty_after.toLocaleString('tr-TR')}</b>.</p>
           ) : (
             <ul style={{ margin: 0, paddingLeft: 18 }}>{group(pending.check.violations).map(([t, n]) => <li key={t}>{t}{n > 1 && <b> ×{n}</b>}</li>)}{pending.check.violation_count > pending.check.violations.length && <li className="muted">… ve {pending.check.violation_count - pending.check.violations.length} ihlal daha (listelenmedi)</li>}</ul>
           )}

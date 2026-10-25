@@ -214,7 +214,7 @@ func (d *Dataset) addUser(email, full string, roles ...string) int64 {
 func (d *Dataset) genUsersAndLecturers(r *rand.Rand) {
 	d.addUser(EmailSecretary, "Demo Sekreter", "secretary")
 	lecUser := d.addUser(EmailLecturer, "Demo Öğretim Üyesi", "lecturer")
-	d.addUser(EmailInvigilator, "Demo Gözetmen", "invigilator")
+	invUser := d.addUser(EmailInvigilator, "Demo Gözetmen", "invigilator")
 	d.addUser(EmailStudentAffairs, "Demo Öğrenci İşleri", "student_affairs")
 	d.addUser(EmailStudent, "Demo Öğrenci", "student")
 
@@ -240,9 +240,15 @@ func (d *Dataset) genUsersAndLecturers(r *rand.Rand) {
 		for k, nm := range names {
 			i++
 			uid := lecUser
-			if i == 1 {
+			switch {
+			case i == 1:
 				d.Users[lecUser-1].FullName = nm // demo öğretim üyesi hesabı ilk öğretim üyesidir
-			} else {
+			case i == 2:
+				// demo gözetmen hesabı ikinci öğretim üyesidir (Ömer ASLAN): hem öğretim üyesi hem gözetmen
+				uid = invUser
+				d.Users[invUser-1].FullName = nm
+				d.Users[invUser-1].Roles = []string{"invigilator", "lecturer"}
+			default:
 				// İlk 20 öğretim üyesi aynı zamanda gözetmenlik yapabilir (V-4).
 				roles := []string{"lecturer"}
 				if i <= 20 {
@@ -318,6 +324,9 @@ func (d *Dataset) genStudentsAndEnrollments(r *rand.Rand) {
 	for i := 1; i <= d.Config.Students; i++ {
 		dept := r.IntN(nd) + 1
 		year := r.IntN(numYears) + 1
+		if i == 1 { // demo öğrenci: Yazılım Mühendisliği 4. sınıf (demo sınavın öğrencisi)
+			dept, year = 1, numYears
+		}
 		st := Student{ID: int64(i), DepartmentID: int64(dept), No: fmt.Sprintf("2026%05d", i),
 			FullName: name(r), Disabled: r.Float64() < d.Config.DisabilityRate}
 		if i == 1 {

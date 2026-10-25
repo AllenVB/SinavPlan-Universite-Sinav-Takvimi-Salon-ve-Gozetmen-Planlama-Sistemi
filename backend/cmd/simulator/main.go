@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/AllenVB/sinavplan/backend/internal/logging"
+	"github.com/AllenVB/sinavplan/backend/internal/planning"
 	"github.com/AllenVB/sinavplan/backend/internal/simdata"
 	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/jackc/pgx/v5"
@@ -98,7 +99,19 @@ func runSeed(log *slog.Logger, seed int64) error {
 		return fmt.Errorf("veritabanına bağlanılamadı: %w", err)
 	}
 	defer conn.Close(ctx)
-	return store.Seed(ctx, conn, ds, pw, log)
+	if err := store.Seed(ctx, conn, ds, pw, log); err != nil {
+		return err
+	}
+	// Ayrı bir demo dönemi: küçük, anlaşılır, hazır bir sınav (Prompt Mühendisliği). Tam dönemi etkilemez.
+	if os.Getenv("DEMO_EXAM") != "off" {
+		db, err := store.Open(ctx, dsn)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return planning.SeedDemoExam(ctx, db.Pool, time.Now(), log)
+	}
+	return nil
 }
 
 func envInt[T int | int64](key string, def T) T {
