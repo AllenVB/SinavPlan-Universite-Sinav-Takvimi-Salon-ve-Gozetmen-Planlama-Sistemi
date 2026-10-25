@@ -27,6 +27,17 @@ type RoomInput struct {
 	Cols       int      `json:"cols"`
 	Inactive   [][2]int `json:"inactive_seats"`
 	Accessible [][2]int `json:"accessible_seats"`
+	// Kapı: boş bırakılırsa front/0. DoorPos duvar boyunca 0 tabanlı konumdur.
+	DoorSide string `json:"door_side"`
+	DoorPos  int    `json:"door_pos"`
+}
+
+// doorSide, boş değeri varsayılana çevirir.
+func (in RoomInput) doorSide() string {
+	if in.DoorSide == "" {
+		return "front"
+	}
+	return in.DoorSide
 }
 
 // Validate, girdiyi denetler.
@@ -49,6 +60,18 @@ func (in RoomInput) Validate() error {
 	}
 	if in.Cols < 1 || in.Cols > 40 {
 		f["cols"] = "1 ile 40 arasında olmalı"
+	}
+	switch in.doorSide() {
+	case "front", "back":
+		if in.DoorPos < 0 || in.DoorPos >= in.Cols {
+			f["door_pos"] = "ön/arka duvarda 0 ile sütun sayısı-1 arasında olmalı"
+		}
+	case "left", "right":
+		if in.DoorPos < 0 || in.DoorPos >= in.Rows {
+			f["door_pos"] = "sol/sağ duvarda 0 ile sıra sayısı-1 arasında olmalı"
+		}
+	default:
+		f["door_side"] = "front, back, left veya right olmalı"
 	}
 	if len(f) == 0 {
 		inactive := map[[2]int]bool{}
@@ -89,6 +112,9 @@ type Room struct {
 	Rows     int16  `json:"rows"`
 	Cols     int16  `json:"cols"`
 	Capacity int    `json:"capacity"`
+	// Kapı konumu (krokide gösterilir).
+	DoorSide string `json:"door_side"`
+	DoorPos  int16  `json:"door_pos"`
 	// Accessible: erişilebilir koltuk sayısı.
 	Accessible int `json:"accessible_seats"`
 }
@@ -108,12 +134,12 @@ type RoomDetail struct {
 	Seats []RoomSeat `json:"seats"`
 }
 
-const roomCols = `r.id, r.code, r.building, r.floor, r.type, r.seat_rows, r.seat_cols, r.capacity,
+const roomCols = `r.id, r.code, r.building, r.floor, r.type, r.seat_rows, r.seat_cols, r.capacity, r.door_side, r.door_pos,
 	(SELECT count(*) FROM room_seats s WHERE s.room_id = r.id AND s.is_accessible AND s.is_active)::int`
 
 func scanRoom(row pgx.Row) (Room, error) {
 	var r Room
-	err := row.Scan(&r.ID, &r.Code, &r.Building, &r.Floor, &r.Type, &r.Rows, &r.Cols, &r.Capacity, &r.Accessible)
+	err := row.Scan(&r.ID, &r.Code, &r.Building, &r.Floor, &r.Type, &r.Rows, &r.Cols, &r.Capacity, &r.DoorSide, &r.DoorPos, &r.Accessible)
 	return r, err
 }
 
@@ -192,8 +218,8 @@ func CreateRoom(ctx context.Context, pool *pgxpool.Pool, in RoomInput, actor int
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var id int64
-	err = tx.QueryRow(ctx, `INSERT INTO rooms (code, building, floor, type, seat_rows, seat_cols, capacity) VALUES ($1,$2,$3,$4,$5,$6,1) RETURNING id`,
-		in.Code, in.Building, in.Floor, in.Type, in.Rows, in.Cols).Scan(&id)
+	err = tx.QueryRow(ctx, `INSERT INTO rooms (code, building, floor, type, seat_rows, seat_cols, capacity, door_side, door_pos) VALUES ($1,$2,$3,$4,$5,$6,1,$7,$8) RETURNING id`,
+		in.Code, in.Building, in.Floor, in.Type, in.Rows, in.Cols, in.doorSide(), in.DoorPos).Scan(&id)
 	if isUniqueViolation(err) {
 		return RoomDetail{}, ErrConflict
 	}
@@ -299,7 +325,7 @@ func UpdateRoom(ctx context.Context, pool *pgxpool.Pool, id int64, in RoomInput,
 			return RoomDetail{}, err
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE rooms SET code=$2, building=$3, floor=$4, type=$5 WHERE id=$1`, id, in.Code, in.Building, in.Floor, in.Type); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE rooms SET code=$2, building=$3, floor=$4, type=$5, door_side=$6, door_pos=$7 WHERE id=$1`, id, in.Code, in.Building, in.Floor, in.Type, in.doorSide(), in.DoorPos); err != nil {
 		if isUniqueViolation(err) {
 			return RoomDetail{}, ErrConflict
 		}

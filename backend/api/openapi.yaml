@@ -782,6 +782,8 @@ components:
         cols: {type: integer, minimum: 1, maximum: 40}
         inactive_seats: {type: array, items: {type: array, items: {type: integer}, minItems: 2, maxItems: 2}, description: "[satır, sütun] (0 tabanlı)"}
         accessible_seats: {type: array, items: {type: array, items: {type: integer}, minItems: 2, maxItems: 2}}
+        door_side: {type: string, enum: [front, back, left, right], description: "Kapının duvarı (front = 0. sıranın duvarı); boşsa front"}
+        door_pos: {type: integer, minimum: 0, description: "Duvar boyunca 0 tabanlı konum (front/back: sütun, left/right: sıra)"}
     RoomDetail:
       type: object
       properties:
@@ -793,6 +795,8 @@ components:
         rows: {type: integer}
         cols: {type: integer}
         capacity: {type: integer}
+        door_side: {type: string, enum: [front, back, left, right]}
+        door_pos: {type: integer}
         accessible_seats: {type: integer}
         seats: {type: array, items: {type: object, properties: {id: {type: integer}, row: {type: integer}, col: {type: integer}, active: {type: boolean}, accessible: {type: boolean}}}}
     CreateScheduleRequest:

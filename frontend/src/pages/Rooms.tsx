@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { all, get, idemKey, post } from '../api'
 import { useAuth } from '../auth'
+import { doorLabel, doorShort, RoomGrid } from '../roomgrid'
+import { RoomEditor } from './RoomEditor'
 import { Async, Bar, Card, Empty, ErrorBox, Field, Pill, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 import { examLabel, hasRole, ScheduleSelect, useExamFilter, useExams, useRooms, useSchedules, type Room } from './common'
 
@@ -9,25 +11,22 @@ type SeatRow = { student_id: number; student_no: string; full_name: string; exam
 
 const rowLetter = (r: number) => String.fromCharCode(65 + (r % 26))
 
-function SeatMap({ rows, cols, seats, taken, mine }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string }) {
+function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string; doorSide?: string; doorPos?: number }) {
   const at = new Map(seats?.map((s) => [`${s.row}:${s.col}`, s]))
-  const cells = []
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++) {
-      const k = `${r}:${c}`
-      const s = at.get(k)
-      const t = taken?.get(k)
-      const cls = ['seat', s && !s.active ? 'off' : '', s?.accessible ? 'acc' : '', t ? (t.disabled_student ? 'dis' : 'taken') : '', mine === k ? 'mine' : ''].join(' ')
-      cells.push(
-        <div key={k} className={cls} title={t ? `${t.full_name} (${t.student_no})${t.disabled_student ? ' · erişilebilir koltuk' : ''}` : s && !s.active ? 'Kullanım dışı' : s?.accessible ? 'Erişilebilir koltuk' : 'Boş koltuk'}>
-          {s && !s.active ? '' : `${rowLetter(r)}${c + 1}`}
-        </div>,
-      )
-    }
   return (
-    <div className="seatmap" style={{ gridTemplateColumns: `repeat(${cols}, minmax(38px, 1fr))` }} role="img" aria-label={`${rows} sıra, ${cols} sütunlu oturma düzeni`}>
-      {cells}
-    </div>
+    <RoomGrid rows={rows} cols={cols} doorSide={doorSide} doorPos={doorPos} label={`${rows} sıra, ${cols} sütunlu oturma düzeni`}>
+      {(r, c) => {
+        const k = `${r}:${c}`
+        const s = at.get(k)
+        const t = taken?.get(k)
+        const cls = ['seat', s && !s.active ? 'off' : '', s?.accessible ? 'acc' : '', t ? (t.disabled_student ? 'dis' : 'taken') : '', mine === k ? 'mine' : ''].join(' ')
+        return (
+          <div className={cls} title={t ? `${t.full_name} (${t.student_no})${t.disabled_student ? ' · erişilebilir koltuk' : ''}` : s && !s.active ? 'Kullanım dışı' : s?.accessible ? 'Erişilebilir koltuk' : 'Boş koltuk'}>
+            {s && !s.active ? '' : `${rowLetter(r)}${c + 1}`}
+          </div>
+        )
+      }}
+    </RoomGrid>
   )
 }
 
@@ -38,6 +37,7 @@ const Legend = ({ withStudents }: { withStudents?: boolean }) => (
     <span><i style={{ borderColor: 'var(--ok)' }} />Erişilebilir koltuk</span>
     <span><i style={{ background: 'var(--high)', borderStyle: 'dashed' }} />Kullanım dışı</span>
     <span><i />Boş</span>
+    <span><i style={{ background: 'var(--tertiary, #b45309)' }} />Kapı</span>
   </div>
 )
 
@@ -60,24 +60,28 @@ export function Rooms() {
 function Inventory() {
   const rooms = useRooms()
   const [type, setType] = useState('')
+  const { user } = useAuth()
+  const secretary = hasRole(user!.roles, 'secretary')
   const [open, setOpen] = useState<Room | null>(null)
+  const [edit, setEdit] = useState<Room | 'new' | null>(null)
   const list = useMemo(() => (rooms.data ?? []).filter((r) => !type || r.type === type), [rooms.data, type])
   const detail = useAsync(async () => (open ? ((await get(`/rooms/${open.id}`)).seats as Seat[]) : null), [open?.id])
+  if (edit) return <RoomEditor room={edit === 'new' ? null : edit} onDone={(changed) => { setEdit(null); if (changed) { setOpen(null); void rooms.reload() } }} />
   return (
-    <div className="grid g2">
-      <Card title="Salonlar" aside={<select aria-label="Salon türü" value={type} onChange={(e) => setType(e.target.value)} style={{ width: 'auto' }}><option value="">Tümü</option><option value="classic">Klasik</option><option value="lab">Laboratuvar</option></select>}>
+    <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 16 }}>
+      <Card title="Salonlar" aside={<div className="row">{secretary && <button className="btn primary sm" onClick={() => setEdit('new')}>+ Yeni salon</button>}<select aria-label="Salon türü" value={type} onChange={(e) => setType(e.target.value)} style={{ width: 'auto' }}><option value="">Tümü</option><option value="classic">Klasik</option><option value="lab">Laboratuvar</option></select></div>}>
         <Async s={rooms} empty={(d) => d.length === 0}>
           {() => (
-            <div className="tablewrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
+            <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
               <table>
-                <thead><tr><th>Kod</th><th>Bina</th><th>Tür</th><th>Kapasite</th><th>Erişilebilir</th><th /></tr></thead>
+                <thead><tr><th>Kod</th><th>Bina</th><th>Tür</th><th>Kapasite</th><th>Erişilebilir</th><th>Kapı</th><th /></tr></thead>
                 <tbody>
                   {list.map((r) => (
                     <tr key={r.id}>
                       <td><b>{r.code}</b></td><td>{r.building}</td>
                       <td><Pill kind={r.type === 'lab' ? 'info' : ''}>{r.type === 'lab' ? 'Lab' : 'Klasik'}</Pill></td>
-                      <td>{r.capacity}</td><td>{r.accessible_seats}</td>
-                      <td><button className="btn sm" onClick={() => setOpen(r)}>Düzeni gör</button></td>
+                      <td>{r.capacity}</td><td>{r.accessible_seats}</td><td className="small" style={{ whiteSpace: 'nowrap' }} title={doorLabel(r.door_side, r.door_pos)}>{doorShort(r.door_side, r.door_pos)}</td>
+                      <td><div className="row" style={{ flexWrap: 'nowrap', whiteSpace: 'nowrap' }}><button className="btn sm" onClick={() => setOpen(r)}>Düzeni gör</button>{secretary && <button className="btn sm" onClick={() => setEdit(r)}>Düzenle</button>}</div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -87,8 +91,8 @@ function Inventory() {
         </Async>
       </Card>
       <Card title={open ? `${open.code} koltuk düzeni` : 'Koltuk düzeni'}>
-        {!open ? <Empty title="Bir salon seçin" hint="Koltuk düzenini görmek için soldan “Düzeni gör”e basın." /> : (
-          <Async s={detail}>{(seats) => (<><SeatMap rows={open.rows} cols={open.cols} seats={seats} /><div style={{ marginTop: 12 }}><Legend /></div><p className="small muted" style={{ marginTop: 8 }}>{open.rows} sıra × {open.cols} sütun · {open.capacity} kullanılabilir koltuk</p></>)}</Async>
+        {!open ? <Empty title="Bir salon seçin" hint="Koltuk düzenini ve kapı konumunu görmek için yukarıdan “Düzeni gör”e basın." /> : (
+          <Async s={detail}>{(seats) => (<><SeatMap rows={open.rows} cols={open.cols} seats={seats} doorSide={open.door_side} doorPos={open.door_pos} /><div style={{ marginTop: 12 }}><Legend /></div><p className="small muted" style={{ marginTop: 8 }}>{open.rows} sıra × {open.cols} sütun · {open.capacity} kullanılabilir koltuk · kapı: {doorLabel(open.door_side, open.door_pos)}</p></>)}</Async>
         )}
       </Card>
     </div>
@@ -146,7 +150,7 @@ function RoomPlan({ room, rows }: { room?: Room; rows: SeatRow[] }) {
   const taken = new Map(rows.map((r) => [`${r.seat_row}:${r.seat_col}`, r]))
   return (
     <Card title={`${room?.code ?? 'Salon'} · ${room?.building ?? ''}`} aside={<Pill>{rows.length} öğrenci</Pill>}>
-      {!room ? <Empty title="Salon bilgisi yok" /> : <Async s={seats}>{(s) => (<><SeatMap rows={room.rows} cols={room.cols} seats={s} taken={taken} /><div style={{ marginTop: 10 }}><Legend withStudents /></div></>)}</Async>}
+      {!room ? <Empty title="Salon bilgisi yok" /> : <Async s={seats}>{(s) => (<><SeatMap rows={room.rows} cols={room.cols} seats={s} taken={taken} doorSide={room.door_side} doorPos={room.door_pos} /><div style={{ marginTop: 10 }}><Legend withStudents /></div></>)}</Async>}
     </Card>
   )
 }

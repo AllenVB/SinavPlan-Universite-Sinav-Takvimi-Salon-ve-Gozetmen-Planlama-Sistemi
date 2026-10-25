@@ -3,12 +3,13 @@ import { ApiError, download, fmtDate, fmtTime, get, post } from '../api'
 import { Icon } from '../icons'
 import { useNow } from '../live'
 import { QR } from '../qr'
+import { doorLabel, RoomGrid } from '../roomgrid'
 import { CheckIn } from './CheckIn'
 import { Async, Banner, Card, Dot, Empty, ErrorBox, Ring, Skeleton, Status, useAction, useAsync } from '../ui'
 
 type Exam = { exam_id: number; course_code: string; course_name: string; starts_at: string; ends_at: string; duration_minutes: number; room_code: string | null; building: string | null; seat_row: number | null; seat_col: number | null }
 type CardRes = { qr_token: string; expires_at: string; ttl_seconds: number }
-type SeatMap = { room_code: string; building: string; rows: number; cols: number; seats: { row: number; col: number; active: boolean; accessible: boolean }[]; mine_row: number; mine_col: number }
+type SeatMap = { room_code: string; building: string; rows: number; cols: number; seats: { row: number; col: number; active: boolean; accessible: boolean }[]; mine_row: number; mine_col: number; door_side: string; door_pos: number }
 const seat = (e: Pick<Exam, 'seat_row' | 'seat_col'>) => (e.seat_row === null || e.seat_col === null ? '—' : `${String.fromCharCode(65 + (e.seat_row % 26))}-${e.seat_col + 1}`)
 const dur = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60)
@@ -160,16 +161,16 @@ function ExamCard({ exam, onClose }: { exam: Exam; onClose: () => void }) {
 
 function Croki({ m }: { m: SeatMap }) {
   const at = new Map(m.seats.map((s) => [`${s.row}:${s.col}`, s]))
-  const cells = []
-  for (let r = 0; r < m.rows; r++) for (let c = 0; c < m.cols; c++) {
-    const s = at.get(`${r}:${c}`)
-    const mine = r === m.mine_row && c === m.mine_col
-    cells.push(<div key={`${r}:${c}`} className={`seat ${s && !s.active ? 'off' : ''} ${s?.accessible ? 'acc' : ''} ${mine ? 'taken mine' : ''}`} title={mine ? 'Sizin koltuğunuz' : undefined}>{s && !s.active ? '' : mine ? 'SİZ' : `${String.fromCharCode(65 + (r % 26))}${c + 1}`}</div>)
-  }
   return (
     <>
-      <div className="small muted" style={{ marginBottom: 6 }}>{m.room_code} · {m.building} — tahta / ön taraf yukarıda</div>
-      <div className="seatmap" style={{ gridTemplateColumns: `repeat(${m.cols}, minmax(34px, 1fr))` }} role="img" aria-label={`Koltuğunuz ${String.fromCharCode(65 + (m.mine_row % 26))}-${m.mine_col + 1}`}>{cells}</div>
+      <div className="small muted" style={{ marginBottom: 6 }}>{m.room_code} · {m.building} — tahta ön tarafta, kapı: {doorLabel(m.door_side, m.door_pos)}</div>
+      <RoomGrid rows={m.rows} cols={m.cols} doorSide={m.door_side} doorPos={m.door_pos} minCell={34} label={`Koltuğunuz ${String.fromCharCode(65 + (m.mine_row % 26))}-${m.mine_col + 1}`}>
+        {(r, c) => {
+          const s = at.get(`${r}:${c}`)
+          const mine = r === m.mine_row && c === m.mine_col
+          return <div className={`seat ${s && !s.active ? 'off' : ''} ${s?.accessible ? 'acc' : ''} ${mine ? 'taken mine' : ''}`} title={mine ? 'Sizin koltuğunuz' : undefined}>{s && !s.active ? '' : mine ? 'SİZ' : `${String.fromCharCode(65 + (r % 26))}${c + 1}`}</div>
+        }}
+      </RoomGrid>
     </>
   )
 }

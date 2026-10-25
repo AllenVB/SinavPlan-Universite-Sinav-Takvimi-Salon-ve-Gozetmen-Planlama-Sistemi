@@ -219,3 +219,10 @@ tr.tone-err:hover td { background: #ffecea; }
 .examcard .bd > * { min-width: 0; }
 .seatmap { max-width: 100%; }
 @media (max-width: 520px) { .seat { min-width: 28px; height: 30px; font-size: .625rem; } }
+
+/* Salon krokisi: duvar şeritleri ve kapı */
+.roomgrid { display: grid; gap: 6px; overflow-x: auto; padding: 4px; max-width: 100%; }
+.roomgrid .wall { display: grid; place-items: center; font-size: .625rem; font-weight: 700; letter-spacing: .08em; color: var(--on-var); background: var(--high); border-radius: 4px; }
+.roomgrid .wall.v { writing-mode: vertical-rl; transform: rotate(180deg); }
+.roomgrid .doormark { display: grid; place-items: center; font-size: .625rem; font-weight: 800; letter-spacing: .08em; color: #fff; background: var(--tertiary, #b45309); border-radius: 4px; z-index: 1; }
+.roomgrid .doormark.v { writing-mode: vertical-rl; transform: rotate(180deg); }

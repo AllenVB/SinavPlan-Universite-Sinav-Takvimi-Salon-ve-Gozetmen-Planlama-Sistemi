@@ -120,7 +120,7 @@ func checkF1(ctx context.Context, e *env, f *failures) string {
 func checkF2(ctx context.Context, e *env, f *failures) string {
 	tok := e.tok["secretary"]
 	body := M{"code": fmt.Sprintf("VRF-%d", e.runID), "building": "Z", "floor": 1, "type": "classic", "rows": 4, "cols": 6,
-		"inactive_seats": [][]int{{3, 5}}, "accessible_seats": [][]int{{0, 0}, {0, 2}}}
+		"inactive_seats": [][]int{{3, 5}}, "accessible_seats": [][]int{{0, 0}, {0, 2}}, "door_side": "right", "door_pos": 3}
 	r, err := e.a.post(ctx, "/rooms", tok, body)
 	if !f.expectCode("salon oluştur", r, err, 201) {
 		return ""
@@ -132,7 +132,11 @@ func checkF2(ctx context.Context, e *env, f *failures) string {
 		f.check(num(g.body, "capacity") == 23, "kapasite=%d (4x6-1 pasif=23)", num(g.body, "capacity"))
 		f.check(num(g.body, "accessible_seats") == 2, "erişilebilir koltuk=%d (2)", num(g.body, "accessible_seats"))
 		f.check(len(arr(g.body, "seats")) == 24, "koltuk sayısı=%d (24)", len(arr(g.body, "seats")))
+		f.check(str(g.body, "door_side") == "right" && num(g.body, "door_pos") == 3, "kapı=%s/%d (right/3)", str(g.body, "door_side"), num(g.body, "door_pos"))
 	}
+	badDoor := M{"code": "BADD", "building": "Z", "floor": 1, "type": "classic", "rows": 2, "cols": 2, "door_side": "front", "door_pos": 5}
+	bd, err := e.a.post(ctx, "/rooms", tok, badDoor)
+	f.expectCode("duvara sığmayan kapı", bd, err, 422)
 	d, err := e.a.post(ctx, "/rooms", tok, body)
 	f.expectCode("yinelenen kod", d, err, 409)
 	bad := M{"code": "BAD", "building": "Z", "floor": 1, "type": "classic", "rows": 0, "cols": 6}

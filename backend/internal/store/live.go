@@ -305,6 +305,8 @@ type SeatMap struct {
 	Seats    []SeatMapCell `json:"seats"`
 	MineRow  int16         `json:"mine_row"`
 	MineCol  int16         `json:"mine_col"`
+	DoorSide string        `json:"door_side"`
+	DoorPos  int16         `json:"door_pos"`
 }
 
 // SeatMapCell, krokideki bir koltuk.
@@ -320,12 +322,12 @@ func StudentSeatMap(ctx context.Context, pool *pgxpool.Pool, studentID, examID i
 	var m SeatMap
 	var roomID int64
 	err := pool.QueryRow(ctx, `
-		SELECT r.id, r.code, r.building, r.seat_rows, r.seat_cols, rs.row_no, rs.col_no
+		SELECT r.id, r.code, r.building, r.seat_rows, r.seat_cols, rs.row_no, rs.col_no, r.door_side, r.door_pos
 		FROM seat_assignments sa
 		JOIN schedules sch ON sch.id = sa.schedule_id AND sch.status = 'published'
 		JOIN rooms r ON r.id = sa.room_id JOIN room_seats rs ON rs.id = sa.seat_id
 		WHERE sa.student_id = $1 AND sa.exam_id = $2`, studentID, examID).
-		Scan(&roomID, &m.RoomCode, &m.Building, &m.Rows, &m.Cols, &m.MineRow, &m.MineCol)
+		Scan(&roomID, &m.RoomCode, &m.Building, &m.Rows, &m.Cols, &m.MineRow, &m.MineCol, &m.DoorSide, &m.DoorPos)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SeatMap{}, ErrNotFound
 	}

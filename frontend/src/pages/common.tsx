@@ -6,7 +6,7 @@ import { useAsync } from '../ui'
 export type Schedule = { id: number; period_id: number; version: number; status: 'draft' | 'published'; seed: number; metrics: any; created_at: string; published_at?: string }
 export type Exam = { exam_id: number; course_code: string; course_name: string; slot_id: number; day: number; session: number; starts_at: string; ends_at: string; duration_minutes: number; students: number; rooms: number; requires_lab: boolean; department_id: number; department_code: string; department_name: string; faculty_name: string; year: number }
 export type Faculty = { id: number; code: string; name: string; departments: { id: number; code: string; name: string; students: number; courses: number; years: number[] }[]; lecturers: { id: number; full_name: string }[] }
-export type Room = { id: number; code: string; building: string; floor: number; type: string; rows: number; cols: number; capacity: number; accessible_seats: number }
+export type Room = { id: number; code: string; building: string; floor: number; type: string; rows: number; cols: number; capacity: number; accessible_seats: number; door_side: string; door_pos: number }
 
 export const hasRole = (roles: Role[], ...r: Role[]) => r.some((x) => roles.includes(x))
 

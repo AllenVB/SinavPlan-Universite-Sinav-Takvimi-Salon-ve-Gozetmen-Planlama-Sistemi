@@ -26,3 +26,9 @@ node_modules/
 .vscode/
 *.tsbuildinfo
 shots/
+
+# derlenmiş ikililer
+/backend/verify
+/backend/simulator
+/backend/prove
+/backend/migrate

@@ -199,6 +199,27 @@ func TestRoomsCRUDAndLayoutRules(t *testing.T) {
 	if code != http.StatusOK || upd["capacity"].(float64) != 30 {
 		t.Fatalf("güncelleme: %d %v", code, upd)
 	}
+	// Kapı: varsayılan front/0; geçerli konum kaydedilir; duvara sığmayan konum ve bilinmeyen duvar 422.
+	if upd["door_side"] != "front" || upd["door_pos"].(float64) != 0 {
+		t.Fatalf("varsayılan kapı front/0 olmalı: %v %v", upd["door_side"], upd["door_pos"])
+	}
+	body["door_side"], body["door_pos"] = "right", 3
+	code, upd = do(t, s, http.MethodPut, "/rooms/"+id, sec, "application/json", j(body))
+	if code != http.StatusOK || upd["door_side"] != "right" || upd["door_pos"].(float64) != 3 {
+		t.Fatalf("kapı güncelleme: %d %v", code, upd)
+	}
+	if _, got := do(t, s, http.MethodGet, "/rooms/"+id, sec, "", ""); got["door_side"] != "right" {
+		t.Fatalf("kapı okunamadı: %v", got)
+	}
+	body["door_pos"] = 5 // 5 sıralı salonda sağ duvar: 0..4
+	if code, _ := do(t, s, http.MethodPut, "/rooms/"+id, sec, "application/json", j(body)); code != http.StatusUnprocessableEntity {
+		t.Fatalf("duvara sığmayan kapı konumu 422: %d", code)
+	}
+	body["door_side"], body["door_pos"] = "tavan", 0
+	if code, _ := do(t, s, http.MethodPut, "/rooms/"+id, sec, "application/json", j(body)); code != http.StatusUnprocessableEntity {
+		t.Fatalf("bilinmeyen duvar 422: %d", code)
+	}
+	body["door_side"], body["door_pos"] = "front", 0
 	if code, _ := do(t, s, http.MethodPut, "/rooms/999999", sec, "application/json", j(body)); code != http.StatusNotFound {
 		t.Fatalf("olmayan salon 404: %d", code)
 	}
