@@ -27,8 +27,8 @@ jobs:
       - name: gofmt kontrolü
         working-directory: backend
         run: |
-          # sqlc üretimi biçimlendirme dışında tutulur.
-          unformatted=$(gofmt -l $(find . -name '*.go' -not -path './internal/store/sqlc/*'))
+          # sqlc üretimi ve vendor/ (üçüncü taraf kod) biçimlendirme dışında tutulur.
+          unformatted=$(gofmt -l $(find . -name '*.go' -not -path './internal/store/sqlc/*' -not -path './vendor/*'))
           if [ -n "$unformatted" ]; then
             echo "gofmt uygulanmamış dosyalar:"; echo "$unformatted"; exit 1
           fi
