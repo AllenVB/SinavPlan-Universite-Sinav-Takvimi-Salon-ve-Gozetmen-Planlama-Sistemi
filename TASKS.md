@@ -141,3 +141,48 @@ Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Fa
 **Faz 16 doğrulama:** `make verify` 24/24 PASS (yeni FAK-1), `go test ./...` yeşil; seed özeti yenilendi; UI duman (pages/flows/features) PASS, F16 süzgeç ve kapsam testleri dahil. Bilinen: eski veritabanı için `docker compose down -v` gerekir; hoca havuzu yorumu ADR-016'da.
 
 **Faz 17–18 doğrulama (bu oturum):** `go test ./...` yeşil; `make verify` 25/25 (yeni CHK-1, tam ölçek); UI duman `checkin.cjs` (gözetmen QR+kod → öğrenci kodla yoklamaya yazıldı → sayaç arttı) ve sekreterin mazeret onayı Vite üzerinden PASS. **Yapılmadı:** menü grupları / başlangıç rehberi / sekmeli takvim (dönem seçici de gereksiz kaldı: tek dönem), diğer duman betiklerinin (pages/flows/features/live) yeniden koşusu, `docs/screens` yenileme, gerçek telefon kamerası ile QR okuma, README'de Faz 17–18 bölümü, Windows/CI.
+
+---
+
+## Faz 19–21 planı (kalan işler; limit yenilenince buradan devam)
+
+**Durum (25 Ekim 2026, ~14:30):** Son teslim 26 Ekim 23:59. Çekirdek T-1..T-5 ve F-1..F-7 tamam; CI (test/lint/frontend/docker) ilk kez yeşil; `make verify` 26/26. Aşağıdaki işler teslim kalitesini ve değerlendirme izlenimini artırır.
+
+### Faz 19 — Teslim zorunlulukları (P0, ~3 sa)
+| # | İş | Kabul ölçütü | Doğrulama |
+|---|---|---|---|
+| 19.1 | README/TESTING sayılarını güncelle: test sayısı (`go test ./... -v \| grep -c "^--- PASS"`), verify kimlik sayısı (26), ölçüm tabloları (T-1 ceza/süre, salon sayısı, gözetmen yükü yeni 301 sınavlı seed için), Faz 17–18 bölümleri, kapı + salon düzenleme ekranı | README'deki her sayı bir komutla yeniden üretilmiş; "178 test / 24 kimlik" kalmadı | `grep -n "178\|24 kimlik" README.md TESTING.md` boş |
+| 19.2 | TESTING.md: CHK-1 (QR+kod yoklaması), F-2 kapı kontrolü, mazeret karar rolleri (sekreter + öğrenci işleri), `checkin.cjs` | Her yeni özellik için "nasıl denenir / beklenen" satırı | `make verify` çıktısındaki her kimlik TESTING.md'de var |
+| 19.3 | `make load` (k6) ve `make explain` yeniden koş; README tablolarını yenile | p50/p95/p99 + hata oranı tablosu güncel; EXPLAIN çıktıları `docs/explain/` | k6 özeti, hata %0 |
+| 19.4 | Duman betikleri (pages/flows/features/live/checkin/qr-roundtrip) yeniden koş; kırılan seçicileri düzelt | 6 betik PASS | betik çıktıları |
+| 19.5 | `docs/screens` yenile: kapı krokisi, salon düzenleyici, QR+kod (gözetmen ve öğrenci), mazeret masası (sekreter), takvim süzgeçleri | README ekran tablosu yeni görsellerle | görseller depoda |
+| 19.6 | ADR-018: salon kapısı + salon düzenleyici (Bağlam/Karar/Alternatifler/Sonuçlar) | DECISIONS.md'de ADR-018 | — |
+| 19.7 | **Soğuk başlatma kanıtı:** CI'ya `docker compose up --build --wait` + `make verify` işi ekle (5 dk sınırı ölçülsün) | CI'da yeşil, süre özet adımında | Actions çıktısı |
+
+### Faz 20 — Sade kullanım (P1, ~4 sa)
+| # | İş | Kabul ölçütü |
+|---|---|---|
+| 20.1 | Yan menüyü gruplara ayır (Planlama / Sınav günü / Yönetim) | Her rolde ≤7 öğe, gruplar başlıklı |
+| 20.2 | Ana panelde "Başlangıç rehberi": 4 adım, gerçek durumdan ✓ (çizelge var mı, yayınlandı mı, gözetmen atandı mı, canlı oturum var mı) | Adımlar veriyle ✓/○ değişir |
+| 20.3 | Takvim sayfasını sekmelere böl: Takvim / Üret / Prova / Karşılaştır | Her sekme tek iş; mobilde taşma yok |
+| 20.4 | "Varyasyon no" ve "Hesaplama kalitesi" → "Gelişmiş ayarlar" (kapalı başlar) | Varsayılan akış tek düğme |
+| 20.5 | Takvim satırına "Öğretim üyesi" sütunu (API'de `lecturer_name` hazır) | Sütun görünür, aramada çalışır |
+| 20.6 | Demo: demo sınavdan ÖNCEKİ oturumlara da yoklama ekle (panel sıfır yüzde göstermesin) | Panel/izleme ekranları ilk açılışta anlamlı |
+
+### Faz 21 — İsteğe bağlı (P2, zaman kalırsa)
+- Gerçek akademisyen adları (kullanıcı fakülte başına liste verirse `curriculum.go`'ya girilir; README'ye "adlar herkese açık listeden, ders atamaları kurgusal" notu).
+- Vercel (frontend) + Render/Fly (API) + Neon (PostgreSQL) yayını: `frontend/vercel.json` (`/api` yönlendirmesi), `render.yaml`, uzak veritabanına migrate+seed betiği.
+- Hatalı kod sayacını paylaşımlı depoya taşı (çok örnekli kurulum); öğrenci çevrimdışı yoklama kuyruğu.
+- Erişilebilirlik taraması (klavye, odak, kontrast), karanlık tema.
+
+### Kullanıcıdan beklenenler (benim yapamadıklarım)
+1. **Doğrulama Soruları** son metni (özellikle 4. soru) — taslaklar README'de; sayılar Faz 19.1'de yenilenecek.
+2. Depoyu `ddo-case-suleyman-emre-arli` adıyla **public** yap; bağlantıyı ankete yükle (26 Ekim 23:59'a kadar). Teslimden sonra force-push/özel yapma/silme **yok**.
+3. İsteniyorsa gerçek hoca adları listesi.
+4. Windows'ta soğuk kurulum denemesi (`git clone` → `copy .env.example .env` → `docker compose up --build`) ve süre.
+
+### Bilinen sınırlar (README'de dürüstçe kalacak)
+Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın); eski bir commit'te 9 MB derlenmiş ikili var (geçmiş yeniden yazılmadı); kamera ile QR okuma yalnız sahte aygıtla sınandı; hatalı kod sayacı tek örnek için bellekte.
+
+### Önerilen sıra
+19.1 → 19.2 → 19.6 → 19.3 → 19.4 → 19.5 → 19.7 → (zaman varsa) 20.1–20.6 → teslim kontrol listesi. Her adımdan sonra `go test ./...`, `make verify`, CI yeşil olmadan ilerleme.
