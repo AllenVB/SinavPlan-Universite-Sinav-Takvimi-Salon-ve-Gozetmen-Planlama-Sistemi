@@ -1,0 +1,301 @@
+﻿Tarih;Başlangıç;Bitiş;Gün;Oturum;Ders kodu;Ders adı;Öğrenci;Salon sayısı;Tür
+25.01.2027;13:00;15:30;11;2;YZM101;Programlamaya Giriş;162;3;Klasik
+19.01.2027;16:30;19:00;7;3;YZM102;Matematik I;156;7;Laboratuvar
+11.01.2027;16:30;19:00;1;3;YZM103;Fizik I;158;4;Klasik
+15.01.2027;13:00;15:30;5;2;YZM104;Yazılım Mühendisliğine Giriş;166;7;Laboratuvar
+21.01.2027;13:00;15:30;9;2;YZM105;Ayrık Matematik;160;3;Klasik
+19.01.2027;09:00;11:30;7;1;YZM201;Veri Yapıları ve Algoritmalar;126;4;Klasik
+27.01.2027;13:00;15:30;13;2;YZM202;Nesne Yönelimli Programlama;126;4;Klasik
+21.01.2027;09:00;11:30;9;1;YZM203;Veritabanı Sistemleri;128;4;Klasik
+29.01.2027;09:00;11:30;15;1;YZM204;Sayısal Mantık Tasarımı;129;3;Klasik
+13.01.2027;09:00;11:30;3;1;YZM205;Olasılık ve İstatistik;123;3;Klasik
+21.01.2027;16:30;19:00;9;3;YZM301;Yazılım Mimarisi;114;5;Laboratuvar
+29.01.2027;16:30;19:00;15;3;YZM302;Yazılım Test ve Kalite;112;5;Klasik
+13.01.2027;16:30;19:00;3;3;YZM303;İşletim Sistemleri;110;3;Klasik
+27.01.2027;09:00;11:30;13;1;YZM304;Web Programlama;109;3;Klasik
+15.01.2027;16:30;19:00;5;3;YZM305;Mobil Uygulama Geliştirme;113;3;Klasik
+25.01.2027;09:00;11:30;11;1;YZM401;Yazılım Proje Yönetimi;149;6;Laboratuvar
+13.01.2027;13:00;15:30;3;2;YZM402;Yapay Zekâ;149;3;Klasik
+11.01.2027;09:00;11:30;1;1;YZM403;Bulut Bilişim;149;6;Laboratuvar
+19.01.2027;13:00;15:30;7;2;YZM404;Bilgi Güvenliği;149;6;Laboratuvar
+27.01.2027;16:30;19:00;13;3;YZM405;Bitirme Projesi;149;4;Klasik
+14.01.2027;13:00;15:30;4;2;ELK101;Devre Analizi I;162;3;Klasik
+27.01.2027;09:00;11:30;13;1;ELK102;Matematik I;162;3;Klasik
+18.01.2027;09:00;11:30;6;1;ELK103;Fizik I;170;3;Klasik
+20.01.2027;16:30;19:00;8;3;ELK104;Elektrik Mühendisliğine Giriş;166;3;Klasik
+29.01.2027;16:30;19:00;15;3;ELK105;Programlama Temelleri;162;3;Klasik
+14.01.2027;09:00;11:30;4;1;ELK201;Devre Analizi II;155;3;Klasik
+20.01.2027;13:00;15:30;8;2;ELK202;Elektronik I;154;6;Laboratuvar
+22.01.2027;13:00;15:30;10;2;ELK203;Sinyaller ve Sistemler;152;3;Klasik
+11.01.2027;16:30;19:00;1;3;ELK204;Elektromanyetik Alan Teorisi;146;6;Laboratuvar
+27.01.2027;13:00;15:30;13;2;ELK205;Diferansiyel Denklemler;156;3;Klasik
+22.01.2027;16:30;19:00;10;3;ELK301;Elektronik II;145;3;Klasik
+11.01.2027;13:00;15:30;1;2;ELK302;Kontrol Sistemleri;144;3;Klasik
+14.01.2027;16:30;19:00;4;3;ELK303;Güç Sistemleri;146;3;Klasik
+18.01.2027;16:30;19:00;6;3;ELK304;Mikroişlemciler;146;3;Klasik
+29.01.2027;09:00;11:30;15;1;ELK305;Haberleşme Sistemleri;144;4;Klasik
+11.01.2027;09:00;11:30;1;1;ELK401;Elektrik Makineleri;119;4;Klasik
+20.01.2027;09:00;11:30;8;1;ELK402;Güç Elektroniği;119;2;Klasik
+29.01.2027;13:00;15:30;15;2;ELK403;Sayısal Sinyal İşleme;119;3;Klasik
+18.01.2027;13:00;15:30;6;2;ELK404;Yüksek Gerilim Tekniği;119;3;Klasik
+22.01.2027;09:00;11:30;10;1;ELK405;Bitirme Projesi;119;2;Klasik
+25.01.2027;16:30;19:00;11;3;BLM101;Bilgisayar Programlama I;174;7;Laboratuvar
+14.01.2027;16:30;19:00;4;3;BLM102;Matematik I;170;4;Klasik
+29.01.2027;16:30;19:00;15;3;BLM103;Fizik I;162;4;Klasik
+12.01.2027;13:00;15:30;2;2;BLM104;Bilgisayar Mühendisliğine Giriş;165;3;Klasik
+20.01.2027;16:30;19:00;8;3;BLM105;Lineer Cebir;161;4;Klasik
+27.01.2027;13:00;15:30;13;2;BLM201;Veri Yapıları;146;3;Klasik
+14.01.2027;09:00;11:30;4;1;BLM202;Bilgisayar Organizasyonu;154;6;Laboratuvar
+29.01.2027;09:00;11:30;15;1;BLM203;Mantık Devreleri;153;6;Laboratuvar
+12.01.2027;16:30;19:00;2;3;BLM204;Algoritma Analizi;152;3;Klasik
+18.01.2027;13:00;15:30;6;2;BLM205;Ayrık Matematik;147;3;Klasik
+27.01.2027;16:30;19:00;13;3;BLM301;İşletim Sistemleri;141;6;Laboratuvar
+25.01.2027;13:00;15:30;11;2;BLM302;Bilgisayar Ağları;141;3;Klasik
+18.01.2027;16:30;19:00;6;3;BLM303;Veritabanı Yönetim Sistemleri;140;3;Klasik
+20.01.2027;13:00;15:30;8;2;BLM304;Yazılım Mühendisliği;139;3;Klasik
+12.01.2027;09:00;11:30;2;1;BLM305;Biçimsel Diller ve Otomata;142;3;Klasik
+18.01.2027;09:00;11:30;6;1;BLM401;Yapay Zekâ;133;5;Laboratuvar
+27.01.2027;09:00;11:30;13;1;BLM402;Bilgisayar Grafikleri;133;6;Laboratuvar
+29.01.2027;13:00;15:30;15;2;BLM403;Dağıtık Sistemler;133;3;Klasik
+20.01.2027;09:00;11:30;8;1;BLM404;Siber Güvenlik;133;2;Klasik
+14.01.2027;13:00;15:30;4;2;BLM405;Bitirme Projesi;133;3;Klasik
+14.01.2027;13:00;15:30;4;2;YBS101;İşletmeye Giriş;153;3;Klasik
+12.01.2027;13:00;15:30;2;2;YBS102;Genel Muhasebe;158;3;Klasik
+29.01.2027;13:00;15:30;15;2;YBS103;Matematik I;151;3;Klasik
+19.01.2027;09:00;11:30;7;1;YBS104;Bilgisayar Programlamaya Giriş;155;3;Klasik
+21.01.2027;13:00;15:30;9;2;YBS105;Mikroekonomi;153;5;Klasik
+27.01.2027;09:00;11:30;13;1;YBS201;Yönetim Bilişim Sistemleri;142;3;Klasik
+14.01.2027;09:00;11:30;4;1;YBS202;Veritabanı Yönetimi;148;3;Klasik
+25.01.2027;16:30;19:00;11;3;YBS203;İstatistik I;139;3;Klasik
+29.01.2027;16:30;19:00;15;3;YBS204;Sistem Analizi ve Tasarımı;145;3;Klasik
+21.01.2027;16:30;19:00;9;3;YBS205;Makroekonomi;149;4;Klasik
+12.01.2027;09:00;11:30;2;1;YBS301;Kurumsal Kaynak Planlama;152;3;Klasik
+14.01.2027;16:30;19:00;4;3;YBS302;Veri Madenciliği;153;3;Klasik
+27.01.2027;16:30;19:00;13;3;YBS303;Web Tabanlı Uygulamalar;151;5;Klasik
+25.01.2027;13:00;15:30;11;2;YBS304;İş Zekâsı;151;3;Klasik
+19.01.2027;16:30;19:00;7;3;YBS305;Proje Yönetimi;150;3;Klasik
+29.01.2027;09:00;11:30;15;1;YBS401;Bilişim Hukuku;146;3;Klasik
+27.01.2027;13:00;15:30;13;2;YBS402;Elektronik Ticaret;146;3;Klasik
+19.01.2027;13:00;15:30;7;2;YBS403;Bilgi Güvenliği Yönetimi;146;3;Klasik
+21.01.2027;09:00;11:30;9;1;YBS404;Bilişim Stratejileri;146;4;Klasik
+25.01.2027;09:00;11:30;11;1;YBS405;Bitirme Çalışması;146;4;Klasik
+11.01.2027;09:00;11:30;1;1;EKM101;Mikroekonomi I;130;4;Klasik
+21.01.2027;13:00;15:30;9;2;EKM102;Matematik I;132;3;Klasik
+15.01.2027;13:00;15:30;5;2;EKM103;İstatistik I;135;3;Klasik
+27.01.2027;13:00;15:30;13;2;EKM104;Genel Muhasebe;130;6;Klasik
+25.01.2027;09:00;11:30;11;1;EKM105;Hukukun Temel Kavramları;138;4;Klasik
+21.01.2027;09:00;11:30;9;1;EKM201;Makroekonomi I;152;3;Klasik
+19.01.2027;09:00;11:30;7;1;EKM202;Matematiksel İktisat;152;5;Klasik
+29.01.2027;13:00;15:30;15;2;EKM203;İstatistik II;151;3;Klasik
+13.01.2027;09:00;11:30;3;1;EKM204;Ekonometri I;150;3;Klasik
+27.01.2027;09:00;11:30;13;1;EKM205;Para ve Banka;147;4;Klasik
+25.01.2027;13:00;15:30;11;2;EKM301;Ekonometri II;135;3;Klasik
+13.01.2027;13:00;15:30;3;2;EKM302;Zaman Serisi Analizi;133;4;Klasik
+21.01.2027;16:30;19:00;9;3;EKM303;Uluslararası İktisat;133;3;Klasik
+27.01.2027;16:30;19:00;13;3;EKM304;Yöneylem Araştırması;138;5;Klasik
+11.01.2027;16:30;19:00;1;3;EKM305;Finansal Ekonometri;132;4;Klasik
+29.01.2027;16:30;19:00;15;3;EKM401;Panel Veri Analizi;136;3;Klasik
+13.01.2027;16:30;19:00;3;3;EKM402;Ekonomik Büyüme;136;3;Klasik
+11.01.2027;13:00;15:30;1;2;EKM403;Tahmin ve Öngörü;136;3;Klasik
+15.01.2027;09:00;11:30;5;1;EKM404;Uygulamalı Ekonometri;136;3;Klasik
+19.01.2027;16:30;19:00;7;3;EKM405;Bitirme Çalışması;136;3;Klasik
+15.01.2027;13:00;15:30;5;2;MLY101;Maliyeye Giriş;143;3;Klasik
+29.01.2027;16:30;19:00;15;3;MLY102;İktisada Giriş;144;3;Klasik
+21.01.2027;09:00;11:30;9;1;MLY103;Genel Muhasebe;143;4;Klasik
+11.01.2027;13:00;15:30;1;2;MLY104;Hukukun Temel Kavramları;150;3;Klasik
+19.01.2027;09:00;11:30;7;1;MLY105;Matematik;147;3;Klasik
+27.01.2027;13:00;15:30;13;2;MLY201;Kamu Maliyesi;124;3;Klasik
+13.01.2027;13:00;15:30;3;2;MLY202;Vergi Hukuku;125;5;Laboratuvar
+25.01.2027;13:00;15:30;11;2;MLY203;Mikroekonomi;123;3;Klasik
+29.01.2027;09:00;11:30;15;1;MLY204;Maliye Politikası;131;3;Klasik
+15.01.2027;16:30;19:00;5;3;MLY205;İstatistik;125;3;Klasik
+21.01.2027;13:00;15:30;9;2;MLY301;Vergi Teorisi;125;3;Klasik
+13.01.2027;16:30;19:00;3;3;MLY302;Bütçe ve Mali Planlama;125;3;Klasik
+27.01.2027;09:00;11:30;13;1;MLY303;Mali Hukuk;125;3;Klasik
+25.01.2027;09:00;11:30;11;1;MLY304;Devlet Borçları;127;3;Klasik
+19.01.2027;13:00;15:30;7;2;MLY305;Uluslararası Maliye;127;3;Klasik
+13.01.2027;09:00;11:30;3;1;MLY401;Mahalli İdareler Maliyesi;130;3;Klasik
+15.01.2027;16:30;19:00;5;3;MLY402;Vergi Uygulamaları;130;3;Klasik
+21.01.2027;16:30;19:00;9;3;MLY403;Kamu Harcamaları Analizi;130;3;Klasik
+11.01.2027;16:30;19:00;1;3;MLY404;Sosyal Güvenlik Maliyesi;130;6;Klasik
+27.01.2027;16:30;19:00;13;3;MLY405;Bitirme Çalışması;130;4;Klasik
+20.01.2027;13:00;15:30;8;2;TRH101;Tarih Biliminin Temelleri;154;3;Klasik
+22.01.2027;13:00;15:30;10;2;TRH102;İslam Öncesi Türk Tarihi;151;3;Klasik
+28.01.2027;09:00;11:30;14;1;TRH103;Osmanlı Türkçesi I;153;3;Klasik
+13.01.2027;16:30;19:00;3;3;TRH104;Eski Çağ Tarihi;155;3;Klasik
+26.01.2027;16:30;19:00;12;3;TRH105;Atatürk İlkeleri ve İnkılap Tarihi I;147;3;Klasik
+18.01.2027;09:00;11:30;6;1;TRH201;Orta Çağ Tarihi;144;3;Klasik
+26.01.2027;13:00;15:30;12;2;TRH202;Osmanlı Tarihi I;153;3;Klasik
+22.01.2027;16:30;19:00;10;3;TRH203;Osmanlı Türkçesi II;150;3;Klasik
+11.01.2027;09:00;11:30;1;1;TRH204;Tarih Metodolojisi;147;4;Klasik
+20.01.2027;16:30;19:00;8;3;TRH205;Türk-İslam Devletleri Tarihi;157;4;Klasik
+18.01.2027;13:00;15:30;6;2;TRH301;Osmanlı Tarihi II;132;4;Klasik
+13.01.2027;09:00;11:30;3;1;TRH302;Yeni Çağ Avrupa Tarihi;128;3;Klasik
+22.01.2027;09:00;11:30;10;1;TRH303;Türk Kültür Tarihi;135;3;Klasik
+28.01.2027;13:00;15:30;14;2;TRH304;Tarihî Coğrafya;129;3;Klasik
+11.01.2027;13:00;15:30;1;2;TRH305;Arşivcilik;128;3;Klasik
+18.01.2027;16:30;19:00;6;3;TRH401;Yakın Çağ Tarihi;142;3;Klasik
+26.01.2027;09:00;11:30;12;1;TRH402;Çağdaş Türk Tarihi;142;6;Laboratuvar
+13.01.2027;13:00;15:30;3;2;TRH403;Tarih Felsefesi;142;3;Klasik
+28.01.2027;16:30;19:00;14;3;TRH404;Türk Diplomasi Tarihi;142;3;Klasik
+11.01.2027;16:30;19:00;1;3;TRH405;Bitirme Çalışması;142;3;Klasik
+14.01.2027;16:30;19:00;4;3;UIL101;Uluslararası İlişkilere Giriş;141;3;Klasik
+22.01.2027;09:00;11:30;10;1;UIL102;Siyaset Bilimine Giriş;148;3;Klasik
+26.01.2027;09:00;11:30;12;1;UIL103;Hukukun Temel Kavramları;149;3;Klasik
+18.01.2027;09:00;11:30;6;1;UIL104;İktisada Giriş;146;3;Klasik
+20.01.2027;13:00;15:30;8;2;UIL105;Tarih ve Dünya Siyaseti;141;3;Klasik
+26.01.2027;13:00;15:30;12;2;UIL201;Uluslararası İlişkiler Kuramları;150;3;Klasik
+28.01.2027;13:00;15:30;14;2;UIL202;Uluslararası Hukuk I;145;3;Klasik
+11.01.2027;09:00;11:30;1;1;UIL203;Karşılaştırmalı Siyaset;144;4;Klasik
+20.01.2027;16:30;19:00;8;3;UIL204;Diplomasi Tarihi;151;3;Klasik
+14.01.2027;13:00;15:30;4;2;UIL205;Siyasi Düşünceler Tarihi;151;3;Klasik
+22.01.2027;16:30;19:00;10;3;UIL301;Dış Politika Analizi;131;6;Laboratuvar
+18.01.2027;13:00;15:30;6;2;UIL302;Uluslararası Örgütler;132;3;Klasik
+11.01.2027;16:30;19:00;1;3;UIL303;Uluslararası Politik Ekonomi;133;3;Klasik
+14.01.2027;09:00;11:30;4;1;UIL304;Avrupa Birliği;136;3;Klasik
+28.01.2027;16:30;19:00;14;3;UIL305;Türk Dış Politikası;131;3;Klasik
+11.01.2027;13:00;15:30;1;2;UIL401;Güvenlik Çalışmaları;125;5;Klasik
+28.01.2027;09:00;11:30;14;1;UIL402;Ortadoğu Siyaseti;125;5;Laboratuvar
+20.01.2027;09:00;11:30;8;1;UIL403;Küresel Sorunlar;125;2;Klasik
+22.01.2027;13:00;15:30;10;2;UIL404;Müzakere ve Arabuluculuk;125;3;Klasik
+18.01.2027;16:30;19:00;6;3;UIL405;Bitirme Çalışması;125;3;Klasik
+11.01.2027;09:00;11:30;1;1;HEM101;Anatomi;183;3;Klasik
+25.01.2027;13:00;15:30;11;2;HEM102;Fizyoloji;183;3;Klasik
+21.01.2027;09:00;11:30;9;1;HEM103;Hemşirelik Esasları;187;3;Klasik
+29.01.2027;13:00;15:30;15;2;HEM104;Mikrobiyoloji;195;4;Klasik
+13.01.2027;09:00;11:30;3;1;HEM105;Hemşirelikte Temel Kavramlar;189;3;Klasik
+21.01.2027;13:00;15:30;9;2;HEM201;İç Hastalıkları Hemşireliği;155;3;Klasik
+11.01.2027;13:00;15:30;1;2;HEM202;Farmakoloji;153;6;Laboratuvar
+19.01.2027;09:00;11:30;7;1;HEM203;Patoloji;160;3;Klasik
+27.01.2027;13:00;15:30;13;2;HEM204;Cerrahi Hastalıklar Hemşireliği;149;6;Laboratuvar
+15.01.2027;13:00;15:30;5;2;HEM205;Sağlık Değerlendirmesi;154;3;Klasik
+13.01.2027;16:30;19:00;3;3;HEM301;Doğum ve Kadın Sağlığı Hemşireliği;149;3;Klasik
+27.01.2027;16:30;19:00;13;3;HEM302;Çocuk Sağlığı ve Hastalıkları Hemşireliği;149;4;Klasik
+29.01.2027;16:30;19:00;15;3;HEM303;Ruh Sağlığı Hemşireliği;150;3;Klasik
+19.01.2027;16:30;19:00;7;3;HEM304;Halk Sağlığı Hemşireliği;150;3;Klasik
+25.01.2027;16:30;19:00;11;3;HEM305;Hemşirelikte Araştırma;147;4;Klasik
+15.01.2027;16:30;19:00;5;3;HEM401;Yoğun Bakım Hemşireliği;122;5;Klasik
+27.01.2027;09:00;11:30;13;1;HEM402;Hemşirelikte Yönetim;122;3;Klasik
+11.01.2027;16:30;19:00;1;3;HEM403;Acil Hemşireliği;122;3;Klasik
+25.01.2027;09:00;11:30;11;1;HEM404;Geriatri Hemşireliği;122;3;Klasik
+21.01.2027;16:30;19:00;9;3;HEM405;İntörn Klinik Uygulama;122;3;Klasik
+19.01.2027;13:00;15:30;7;2;ECZ101;Genel Kimya;154;3;Klasik
+27.01.2027;16:30;19:00;13;3;ECZ102;Anatomi ve Fizyoloji;158;3;Klasik
+22.01.2027;09:00;11:30;10;1;ECZ103;Eczacılığa Giriş;162;7;Laboratuvar
+13.01.2027;16:30;19:00;3;3;ECZ104;Biyoloji;159;3;Klasik
+11.01.2027;13:00;15:30;1;2;ECZ105;Eczacılık Matematiği;158;3;Klasik
+15.01.2027;16:30;19:00;5;3;ECZ201;Organik Kimya;135;3;Klasik
+27.01.2027;13:00;15:30;13;2;ECZ202;Analitik Kimya;148;4;Klasik
+19.01.2027;09:00;11:30;7;1;ECZ203;Farmasötik Botanik;137;6;Laboratuvar
+11.01.2027;09:00;11:30;1;1;ECZ204;Biyokimya;137;4;Klasik
+29.01.2027;13:00;15:30;15;2;ECZ205;Mikrobiyoloji;136;7;Klasik
+13.01.2027;09:00;11:30;3;1;ECZ301;Farmakoloji I;113;5;Laboratuvar
+11.01.2027;16:30;19:00;1;3;ECZ302;Farmasötik Teknoloji I;118;5;Klasik
+29.01.2027;16:30;19:00;15;3;ECZ303;Farmakognozi;114;2;Klasik
+22.01.2027;13:00;15:30;10;2;ECZ304;Farmasötik Kimya I;113;5;Laboratuvar
+15.01.2027;13:00;15:30;5;2;ECZ305;Toksikoloji;111;3;Klasik
+22.01.2027;16:30;19:00;10;3;ECZ401;Klinik Eczacılık;142;3;Klasik
+29.01.2027;09:00;11:30;15;1;ECZ402;Farmasötik Teknoloji II;142;3;Klasik
+13.01.2027;13:00;15:30;3;2;ECZ403;Farmakoloji II;142;3;Klasik
+15.01.2027;09:00;11:30;5;1;ECZ404;Biyofarmasötik;142;4;Klasik
+19.01.2027;16:30;19:00;7;3;ECZ405;Eczacılık Uygulaması;142;3;Klasik
+27.01.2027;16:30;19:00;13;3;EBE101;Anatomi;136;4;Klasik
+19.01.2027;13:00;15:30;7;2;EBE102;Fizyoloji;138;4;Klasik
+13.01.2027;09:00;11:30;3;1;EBE103;Ebeliğe Giriş;142;4;Klasik
+21.01.2027;16:30;19:00;9;3;EBE104;Mikrobiyoloji;150;3;Klasik
+25.01.2027;13:00;15:30;11;2;EBE105;Sağlık Psikolojisi;147;6;Laboratuvar
+19.01.2027;09:00;11:30;7;1;EBE201;Doğum Bilgisi;138;6;Laboratuvar
+27.01.2027;13:00;15:30;13;2;EBE202;Kadın Hastalıkları;143;4;Klasik
+29.01.2027;13:00;15:30;15;2;EBE203;Farmakoloji;138;4;Klasik
+11.01.2027;09:00;11:30;1;1;EBE204;Beslenme İlkeleri;141;3;Klasik
+15.01.2027;13:00;15:30;5;2;EBE205;Temel Ebelik Uygulamaları;137;3;Klasik
+19.01.2027;16:30;19:00;7;3;EBE301;Doğum ve Doğum Sonu Bakım;145;7;Laboratuvar
+15.01.2027;16:30;19:00;5;3;EBE302;Yenidoğan Sağlığı;143;3;Klasik
+13.01.2027;13:00;15:30;3;2;EBE303;Jinekoloji ve Üreme Sağlığı;142;3;Klasik
+21.01.2027;13:00;15:30;9;2;EBE304;Halk Sağlığı;148;3;Klasik
+29.01.2027;09:00;11:30;15;1;EBE305;Ebelikte Araştırma;144;3;Klasik
+11.01.2027;16:30;19:00;1;3;EBE401;Riskli Gebelikler;148;3;Klasik
+15.01.2027;09:00;11:30;5;1;EBE402;Doğum Eylemi Yönetimi;148;3;Klasik
+25.01.2027;16:30;19:00;11;3;EBE403;Ebelikte Danışmanlık;148;3;Klasik
+13.01.2027;16:30;19:00;3;3;EBE404;Aile Planlaması;148;7;Klasik
+27.01.2027;09:00;11:30;13;1;EBE405;Klinik Uygulama;148;3;Klasik
+15.01.2027;13:00;15:30;5;2;HBK101;Temel Hasta Bakımı;145;4;Klasik
+27.01.2027;13:00;15:30;13;2;HBK102;Anatomi;149;5;Klasik
+21.01.2027;09:00;11:30;9;1;HBK103;Fizyoloji;144;3;Klasik
+25.01.2027;09:00;11:30;11;1;HBK104;Hasta Bakımında İletişim;141;3;Klasik
+11.01.2027;16:30;19:00;1;3;HBK105;İlk Yardım;137;3;Klasik
+11.01.2027;09:00;11:30;1;1;HBK201;Hastalıklarda Bakım;140;3;Klasik
+29.01.2027;09:00;11:30;15;1;HBK202;Hasta Güvenliği;140;5;Klasik
+15.01.2027;09:00;11:30;5;1;HBK203;Enfeksiyon Kontrolü;136;4;Klasik
+13.01.2027;09:00;11:30;3;1;HBK204;Beslenme ve Diyet;126;5;Laboratuvar
+19.01.2027;09:00;11:30;7;1;HBK205;Farmakolojiye Giriş;134;3;Klasik
+13.01.2027;16:30;19:00;3;3;HBK301;Yaşlı Bakımı;135;3;Klasik
+21.01.2027;16:30;19:00;9;3;HBK302;Palyatif Bakım;132;3;Klasik
+19.01.2027;13:00;15:30;7;2;HBK303;Evde Bakım Hizmetleri;136;6;Laboratuvar
+25.01.2027;16:30;19:00;11;3;HBK304;Rehabilitasyon Temelleri;134;3;Klasik
+27.01.2027;09:00;11:30;13;1;HBK305;Sağlık Yönetimi;134;5;Laboratuvar
+13.01.2027;13:00;15:30;3;2;HBK401;Kronik Hastalık Bakımı;149;3;Klasik
+29.01.2027;13:00;15:30;15;2;HBK402;Yoğun Bakım Temelleri;149;4;Klasik
+15.01.2027;16:30;19:00;5;3;HBK403;Bakım Planlama;149;6;Laboratuvar
+25.01.2027;13:00;15:30;11;2;HBK404;Mesleki Etik;149;3;Klasik
+21.01.2027;13:00;15:30;9;2;HBK405;Klinik Uygulama;149;3;Klasik
+13.01.2027;16:30;19:00;3;3;BES101;Spor Anatomisi;170;3;Klasik
+15.01.2027;16:30;19:00;5;3;BES102;Genel Fizyoloji;171;3;Klasik
+29.01.2027;13:00;15:30;15;2;BES103;Eğitim Bilimine Giriş;167;4;Klasik
+11.01.2027;16:30;19:00;1;3;BES104;Atletizm;167;3;Klasik
+25.01.2027;16:30;19:00;11;3;BES105;Jimnastik;161;3;Klasik
+25.01.2027;09:00;11:30;11;1;BES201;Egzersiz Fizyolojisi;131;3;Klasik
+19.01.2027;13:00;15:30;7;2;BES202;Öğrenme ve Öğretim;125;3;Klasik
+27.01.2027;13:00;15:30;13;2;BES203;Voleybol;130;3;Klasik
+11.01.2027;13:00;15:30;1;2;BES204;Basketbol;134;3;Klasik
+21.01.2027;13:00;15:30;9;2;BES205;Spor Psikolojisi;130;6;Klasik
+15.01.2027;13:00;15:30;5;2;BES301;Spor Biyomekaniği;153;3;Klasik
+29.01.2027;09:00;11:30;15;1;BES302;Beden Eğitimi Öğretim Yöntemleri;155;3;Klasik
+21.01.2027;16:30;19:00;9;3;BES303;Futbol;151;6;Laboratuvar
+27.01.2027;16:30;19:00;13;3;BES304;Yüzme;153;3;Klasik
+19.01.2027;16:30;19:00;7;3;BES305;Ölçme ve Değerlendirme;152;4;Klasik
+25.01.2027;13:00;15:30;11;2;BES401;Okullarda Beden Eğitimi Uygulaması;145;4;Klasik
+21.01.2027;09:00;11:30;9;1;BES402;Spor Sosyolojisi;145;3;Klasik
+11.01.2027;09:00;11:30;1;1;BES403;Özel Eğitimde Spor;145;3;Klasik
+13.01.2027;13:00;15:30;3;2;BES404;Hentbol;145;3;Klasik
+19.01.2027;09:00;11:30;7;1;BES405;Öğretmenlik Uygulaması;145;3;Klasik
+19.01.2027;16:30;19:00;7;3;ANT101;Antrenman Bilgisi I;172;3;Klasik
+13.01.2027;16:30;19:00;3;3;ANT102;Spor Anatomisi;172;3;Klasik
+11.01.2027;16:30;19:00;1;3;ANT103;Spor Fizyolojisi;165;4;Klasik
+21.01.2027;16:30;19:00;9;3;ANT104;Atletizm;163;3;Klasik
+27.01.2027;09:00;11:30;13;1;ANT105;Spor Tarihi;169;3;Klasik
+19.01.2027;09:00;11:30;7;1;ANT201;Antrenman Bilgisi II;140;3;Klasik
+29.01.2027;16:30;19:00;15;3;ANT202;Hareket Bilgisi;136;6;Klasik
+25.01.2027;09:00;11:30;11;1;ANT203;Spor Beslenmesi;138;6;Laboratuvar
+15.01.2027;16:30;19:00;5;3;ANT204;Takım Sporları Antrenmanı;135;3;Klasik
+21.01.2027;13:00;15:30;9;2;ANT205;Spor Psikolojisi;136;3;Klasik
+13.01.2027;13:00;15:30;3;2;ANT301;Performans Analizi;128;6;Klasik
+25.01.2027;13:00;15:30;11;2;ANT302;Müsabaka ve Taktik;129;4;Klasik
+11.01.2027;13:00;15:30;1;2;ANT303;Spor Sakatlıkları;126;4;Klasik
+15.01.2027;13:00;15:30;5;2;ANT304;Güç ve Kondisyon;126;3;Klasik
+29.01.2027;09:00;11:30;15;1;ANT305;Genç Sporcu Gelişimi;126;3;Klasik
+21.01.2027;09:00;11:30;9;1;ANT401;Elit Sporcu Antrenmanı;151;4;Klasik
+15.01.2027;09:00;11:30;5;1;ANT402;Antrenörlükte Yönetim;151;3;Klasik
+27.01.2027;13:00;15:30;13;2;ANT403;Spor Bilimlerinde Araştırma;151;3;Klasik
+11.01.2027;09:00;11:30;1;1;ANT404;Spor Hukuku;151;3;Klasik
+29.01.2027;13:00;15:30;15;2;ANT405;Uygulamalı Antrenörlük;151;4;Klasik
+27.01.2027;09:00;11:30;13;1;SPY101;Spor Yönetimine Giriş;144;3;Klasik
+29.01.2027;13:00;15:30;15;2;SPY102;İşletme Temelleri;143;4;Klasik
+22.01.2027;13:00;15:30;10;2;SPY103;Spor Sosyolojisi;148;4;Klasik
+14.01.2027;16:30;19:00;4;3;SPY104;Genel Muhasebe;144;4;Klasik
+18.01.2027;16:30;19:00;6;3;SPY105;Spor Tarihi;151;4;Klasik
+14.01.2027;13:00;15:30;4;2;SPY201;Spor Pazarlaması;142;3;Klasik
+18.01.2027;13:00;15:30;6;2;SPY202;Spor Organizasyonları;145;3;Klasik
+11.01.2027;16:30;19:00;1;3;SPY203;Spor Ekonomisi;139;3;Klasik
+20.01.2027;16:30;19:00;8;3;SPY204;Halkla İlişkiler;140;3;Klasik
+22.01.2027;16:30;19:00;10;3;SPY205;İstatistik;147;6;Laboratuvar
+20.01.2027;13:00;15:30;8;2;SPY301;Spor Tesisleri Yönetimi;133;3;Klasik
+27.01.2027;16:30;19:00;13;3;SPY302;Spor Hukuku;134;4;Klasik
+11.01.2027;09:00;11:30;1;1;SPY303;Spor Turizmi;133;4;Klasik
+14.01.2027;09:00;11:30;4;1;SPY304;Finansal Yönetim;138;4;Klasik
+29.01.2027;16:30;19:00;15;3;SPY305;Etkinlik Yönetimi;134;3;Klasik
+20.01.2027;09:00;11:30;8;1;SPY401;Spor Kulüplerinde Yönetim;120;2;Klasik
+29.01.2027;09:00;11:30;15;1;SPY402;Sponsorluk ve Medya;120;4;Klasik
+27.01.2027;13:00;15:30;13;2;SPY403;Stratejik Yönetim;120;3;Klasik
+19.01.2027;09:00;11:30;7;1;SPY404;Spor Politikaları;120;4;Klasik
+11.01.2027;13:00;15:30;1;2;SPY405;Bitirme Projesi;120;4;Klasik
