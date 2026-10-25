@@ -24,7 +24,7 @@ docker compose up --build -d  # postgres -> migrate -> seed -> api -> frontend (
 
 **Port çakışması ("8080 kullanımda"):** `.env` içinde `API_PORT=8081` yapıp `docker compose up -d` çalıştırın; Swagger/health adresleri `localhost:8081` olur. Arayüz (3000) etkilenmez. Windows'ta `cp` yerine `copy .env.example .env` kullanın.
 
-Seed deterministiktir: 300 sınav, 8.000 öğrenci, 60 salon, 15 gün × 3 oturum (`SEED=42`).
+Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühendisliği*) = **301 sınav**, 8.000 öğrenci (+ demo hesapları), 60 salon, 15 gün × 3 oturum (`SEED=42`).
 
 ### Demo hesapları (her rol için bir tane; parola `Demo!1234`, yalnızca yerel demo)
 
@@ -40,7 +40,7 @@ Seed deterministiktir: 300 sınav, 8.000 öğrenci, 60 salon, 15 gün × 3 oturu
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (16 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (25 satır = 26 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -90,6 +90,9 @@ flowchart LR
 | 009 | T-4: açgözlü + artırma zinciri + takas; `Reassign` iteratif derinleştirme |
 | 010 | T-5: HLC + sıradan bağımsız çakışma kuralı, koşullu UPDATE ile tek kullanımlık QR |
 | 011 | asenkron takvim işi, COPY+upsert içe aktarma, belge–kod uyumu testi |
+| 016 | fakülte → bölüm → sınıf yapısı, kapsamlı sınav provası |
+| 017 | öğrenci kendi hesabıyla QR/kodla yoklama; tüm dönem için demo çizelgesi |
+| 018 | salon kapısı (kroki) ve salon ekleme/düzenleme ekranı |
 
 **Teknoloji:** Go 1.24 (chi, pgx/v5, sqlc, goose) · PostgreSQL 16 · React + Vite + TypeScript · Docker Compose.
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
@@ -119,6 +122,10 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 İlk kurulumda tüm dönem (301 sınav) için yayınlanmış çizelge gelir; **Prompt Mühendisliği** (Yazılım Müh. 4. sınıf, Fahrettin Burak DEMİR, gözetmen Ömer ASLAN) şu an sürüyor. Mazeret kararını sekreter ve öğrenci işleri verebilir. Eski veritabanı için `docker compose down -v` gerekir.
 
+## Salon kapısı ve salon düzenleyici (Faz 17)
+
+Sekreter **Salon ve oturma planı → Salon envanteri** ekranında salon ekleyebilir, satır × sütun düzenini, pasif ve erişilebilir koltukları ve **kapının duvarını/konumunu** (ön, arka, sol, sağ + konum) düzenleyebilir. Kapasite = satır × sütun − pasif koltuk, sunucuda hesaplanır; geçersiz kapı konumu 422 döner (`make verify` F-2). Kapı, koltuk haritasında "KAPI" işaretiyle çizilir; öğrencinin sınav kartı aynı krokiyi gösterir (ADR-018).
+
 ## Ekranlar
 
 | | |
@@ -130,6 +137,13 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 | ![Takvim: fakülte → bölüm → sınıf süzgeci](docs/screens/08-takvim-fakulte-bolum-sinif.png) | ![Sınav provası: kapsam seçimi](docs/screens/09-sinav-provasi-kapsam.png) |
 
 Öğrenci (mobil, dinamik QR): ![Öğrenci](docs/screens/07-ogrenci-dinamik-qr.png)
+
+Faz 17–19 ekranları:
+
+| ![Salon kapısı krokisi](docs/screens/10-salon-kapisi-krokisi.png) | ![Salon düzenleyici](docs/screens/11-salon-duzenleyici.png) |
+|---|---|
+| ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Öğrenci: kod girişi](docs/screens/13-ogrenci-kod-girisi.png) |
+| ![Mazeret masası (sekreter)](docs/screens/14-mazeret-masasi.png) | ![Takvim: gün/saat/tür süzgeçleri](docs/screens/15-takvim-suzgecleri.png) |
 
 ## Canlı arayüz (Faz 12–15)
 
@@ -152,28 +166,31 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 ## Ölçümler
 
-### Doğruluk (T-1..T-5, 300 sınav / 8.000 öğrenci, `make verify` + `make prove-*`)
+### Doğruluk (T-1..T-5; `make prove-*` 300 üretilmiş sınav / 8.000 öğrenci, `make verify` canlı 301 sınav)
 
 | Görev | Sonuç |
 |---|---|
-| T-1 takvim | 0 sert ihlal, ~3 sn; ceza 1.972 → 1.062 (başlangıç → SA); ardışık gün çifti 0 |
-| T-2/T-3 | 42.715 / 42.715 öğrenci-sınav çifti oturtuldu, 0 ihlal; 877 engelli öğrenci erişilebilir koltukta |
-| T-4 | 929 görev; gözetmen yükü min 9 / max 10 (fark 1 = ideal) |
+| T-1 takvim | 0 sert ihlal, ~3,2 sn (1.000.000 yineleme); ceza 1.830 → 1.044 (DSatur → benzetimli tavlama); ardışık gün çifti 0; 24/45 slot kullanılır. `make verify` canlı 301 sınavda: aynı slot çakışması 0, günde 2 sınavı olan öğrenci-gün 1.289 = uç nokta sayısı |
+| İlk kurulum çizelgesi (301 sınav, Takvim ekranı "Sürüm 1") | ceza 1.394; 570 salon kullanımı, oturtulamayan 0, ihlal 0; 933 görev / 99 gözetmen, yük 9–10; ardışık gün 36 öğrenci, aynı gün 2 sınav 1.122 (not: `prove-*` 300 sınavlık sentetik veriyle, bu satır canlı seed ile ölçüldü) |
+| T-2 | 60 salon / 4.105 koltuk; 550 (slot, salon) kullanımı, alt sınır 369; 1.107 pay; 0 ihlal; aynı girdi → birebir aynı çıktı |
+| T-3 | 42.715 / 42.715 öğrenci-sınav çifti oturtuldu, 0 ihlal; 877 engelli öğrenci erişilebilir koltukta; bilerek bozulmuş planda sayaç beklenen 3 ihlali buldu |
+| T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | 178 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
+| Testler | **184 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
+| `make verify` | 25 satır (26 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 
 | Uç / senaryo | istek | p50 (ms) | p95 (ms) | p99 (ms) |
 |---|---|---|---|---|
-| GET /schedules/{id}/exams | 8343 | 37.6 | 66.0 | 83.6 |
-| GET /me/exams | 8343 | 31.4 | 70.8 | 97.6 |
-| GET /rooms | 8343 | 21.9 | 48.1 | 65.1 |
-| GET /schedules/{id}/seating | 8343 | 39.7 | 71.4 | 93.0 |
-| POST /attendance/sync (5 olay) | 14233 | 23.8 | 53.7 | 73.1 |
-| **Tümü** | 47612 | 30.3 | 63.3 | 85.1 |
+| GET /schedules/{id}/exams | 8683 | 49.3 | 104.9 | 140.7 |
+| GET /me/exams | 8683 | 18.5 | 41.5 | 77.5 |
+| GET /rooms | 8683 | 19.4 | 42.4 | 60.4 |
+| GET /schedules/{id}/seating | 8683 | 34.9 | 64.8 | 87.9 |
+| POST /attendance/sync (5 olay) | 15882 | 21.3 | 48.3 | 67.2 |
+| **Tümü** | 50621 | 26.0 | 70.2 | 106.3 |
 
-Hata oranı (http_req_failed): 0.000 % · toplam 47612 istek · 1181 istek/sn · 30 okuma + 10 yazma VU, 40s
+Hata oranı (http_req_failed): 0.000 % · toplam 50621 istek · 1256 istek/sn · 30 okuma + 10 yazma VU, 40s
 
 Ayrıntı: [docs/load/results.md](docs/load/results.md). Bu, geliştirme ortamında (API ve PostgreSQL aynı makinede) alınmış bir ölçümdür; üretim kapasitesi iddiası değildir.
 
@@ -183,49 +200,51 @@ PostgreSQL durdurulunca `/health` → 503, veri uçları ~20 ms içinde **503** 
 
 ### EXPLAIN (`make explain`) — dizin transaction içinde düşürülür, ROLLBACK ile geri gelir
 
+Çizelge 3, öğrenci 94, şube 369, slot 1, gözetmen 3. Dizin transaction içinde düşürülüp ROLLBACK edilir.
+
 #### seat_by_student
 
-`SELECT * FROM seat_assignments WHERE student_id = 77 AND schedule_id = 4`
+`SELECT * FROM seat_assignments WHERE student_id = 94 AND schedule_id = 3`
 
 | | düğüm | süre |
 |---|---|---|
-| dizinsiz | Index Scan using seat_assignments_schedule_id_exam_id_student_id_key on seat_assignments  | 6.197 ms |
-| dizinli (`seat_assignments_student_idx`) | Bitmap Heap Scan on seat_assignments  | 0.172 ms |
+| dizinsiz | Index Scan using seat_assignments_schedule_id_exam_id_student_id_key on seat_assignments  | 1.863 ms |
+| dizinli (`seat_assignments_student_idx`) | Bitmap Heap Scan on seat_assignments  | 0.153 ms |
 
-Tam plan: [seat_by_student.txt](seat_by_student.txt)
+Tam plan: [seat_by_student.txt](docs/explain/seat_by_student.txt)
 
 #### enrollments_by_section
 
-`SELECT student_id FROM enrollments WHERE section_id = 675`
+`SELECT student_id FROM enrollments WHERE section_id = 369`
 
 | | düğüm | süre |
 |---|---|---|
-| dizinsiz | Seq Scan on enrollments  | 2.564 ms |
-| dizinli (`enrollments_section_idx`) | Bitmap Heap Scan on enrollments  | 0.522 ms |
+| dizinsiz | Seq Scan on enrollments  | 2.278 ms |
+| dizinli (`enrollments_section_idx`) | Bitmap Heap Scan on enrollments  | 0.520 ms |
 
-Tam plan: [enrollments_by_section.txt](enrollments_by_section.txt)
+Tam plan: [enrollments_by_section.txt](docs/explain/enrollments_by_section.txt)
 
 #### exams_in_slot
 
-`SELECT exam_id FROM schedule_exams WHERE schedule_id = 4 AND slot_id = 1`
+`SELECT exam_id FROM schedule_exams WHERE schedule_id = 3 AND slot_id = 1`
 
 | | düğüm | süre |
 |---|---|---|
-| dizinsiz | Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams  | 0.139 ms |
-| dizinli (`schedule_exams_slot_idx`) | Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams  | 0.111 ms |
+| dizinsiz | Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams  | 0.217 ms |
+| dizinli (`schedule_exams_slot_idx`) | Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams  | 0.138 ms |
 
-Tam plan: [exams_in_slot.txt](exams_in_slot.txt)
+Tam plan: [exams_in_slot.txt](docs/explain/exams_in_slot.txt)
 
 #### duties_by_user
 
-`SELECT * FROM invigilator_assignments WHERE user_id = 3 AND schedule_id = 4`
+`SELECT * FROM invigilator_assignments WHERE user_id = 3 AND schedule_id = 3`
 
 | | düğüm | süre |
 |---|---|---|
-| dizinsiz | Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on invigilator_assignments  | 0.281 ms |
-| dizinli (`invigilator_assignments_user_idx`) | Bitmap Heap Scan on invigilator_assignments  | 0.165 ms |
+| dizinsiz | Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on invigilator_assignments  | 0.211 ms |
+| dizinli (`invigilator_assignments_user_idx`) | Bitmap Heap Scan on invigilator_assignments  | 0.161 ms |
 
-Tam plan: [duties_by_user.txt](duties_by_user.txt)
+Tam plan: [duties_by_user.txt](docs/explain/duties_by_user.txt)
 
 ## Doğrulama Soruları
 
@@ -237,7 +256,7 @@ Tam plan: [duties_by_user.txt](duties_by_user.txt)
 
 ### 2. Bilinen sınırlama
 
-*Taslak veri:* (a) Salon sayısı en iyi değil: 558 (slot, salon) kullanımı, gevşek alt sınır 366; kutulama sezgisel (Best-Fit Decreasing + bölme + birleştirme). (b) `Reassign` zincir uzunluğunu 3 ile sınırlar; daha derin takas gerektiren çok sıkışık planlarda "doldurulamadı" döner ve bunu raporlar. (c) Yazma yükü testi tek makinede; çok düğümlü senaryo sınanmadı. (d) CI GitHub'da henüz çalıştırılmadı; Windows'ta denenmedi.
+*Taslak veri:* (a) Salon sayısı en iyi değil: 550 (slot, salon) kullanımı, gevşek alt sınır 369; kutulama sezgisel (Best-Fit Decreasing + bölme + birleştirme). (b) `Reassign` zincir uzunluğunu 3 ile sınırlar; daha derin takas gerektiren çok sıkışık planlarda "doldurulamadı" döner ve bunu raporlar. (c) Yazma yükü testi tek makinede; çok düğümlü senaryo sınanmadı. (d) Windows'ta soğuk kurulum yazar tarafından denenmedi (CI Linux'ta çalışır).
 
 ### 3. Dizinler: dizinsiz / dizinli fark
 
@@ -254,12 +273,12 @@ Ayrıca kendi hatam: tırnaksız bir heredoc `make reset-demo`'yu yanlışlıkla
 make prove-t1
 ```
 
-Çözücüden bağımsız `Validate` (sıfırdan hesaplar) 0 sert ihlal raporlar: aynı slotta çakışan sınav yok, öğrenci başına günde ≤2 sınav. Ceza 1.972 → 1.062. Aynı tohum aynı sonucu verir (determinizm testi + `make verify` F-3: aynı tohumla iki üretim özdeş). Uçtan uca: `make verify` T-1 satırı, API verisinden bağımsız hesapla `/conflicts` uç noktasıyla 9.180 = 9.180 eşleşir. Çözümsüz girdi için çözümsüzlük raporu (klik > slot, aşırı yüklü öğrenci) testlerle sınanır.
+Çözücüden bağımsız `Validate` (sıfırdan hesaplar) 0 sert ihlal raporlar: aynı slotta çakışan sınav yok, öğrenci başına günde ≤2 sınav. Ceza 1.830 → 1.044 (300 sınavlık `prove-t1`). Aynı tohum aynı sonucu verir (determinizm testi + `make verify` F-3: aynı tohumla iki üretim özdeş). Uçtan uca: `make verify` T-1 satırı, API verisinden bağımsız hesapla `/conflicts` uç noktasıyla aynı slotta çakışma 0 ve günde 2 sınav sayısı (1.289 öğrenci-gün) uç noktayla birebir eşleşir. Çözümsüz girdi için çözümsüzlük raporu (klik > slot, aşırı yüklü öğrenci) testlerle sınanır.
 
 ## Bilinen sınırlar ve yapılmayanlar
 
 - **ÖBS entegrasyonu yapılmadı:** üniversitenin ÖBS'si harici bir sistem; erişimi/protokolü yok ve sahte bir "canlı bağlantı" göstermek yanıltıcı olurdu. ÖBS'den alınan dışa aktarım CSV ile F-1 içe aktarma uçlarından (öğrenci/ders/şube/kayıt) sisteme girer.
 - **Arayüz** birim testsiz; Playwright duman testleri var (`deploy/ui-smoke/`). Tasarımlardaki yazdırma, PDF için tarayıcının "PDF olarak kaydet"i kullanılır (sunucuda PDF üretilmez). Sürükle-bırak editör bir sınavı taşır ve **yeni taslak sürüm** üretir; tam yeniden kurulum tam ölçekte ~birkaç sn sürer.
 - Bu ortamda `docker compose build frontend` ilk denemede ağ yüzünden çalışmamıştı; kullanıcı makinesinde derleme başarıyla tamamlandı (kullanıcı çıktısı).
-- **Doğrulanmadı:** GitHub Actions CI (hiç çalışmadı), Windows'ta çalıştırma.
+- **Doğrulanmadı:** Windows'ta çalıştırma (CI Linux'ta yeşil: test, lint, frontend, docker).
 - **testcontainers-go** yerine `TEST_DATABASE_URL` + test başına geçici veritabanı kullanıldı (ADR-010).

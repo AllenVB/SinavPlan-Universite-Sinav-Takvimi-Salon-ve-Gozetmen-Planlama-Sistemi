@@ -1,23 +1,23 @@
--- SELECT student_id FROM enrollments WHERE section_id = 675
+-- SELECT student_id FROM enrollments WHERE section_id = 369
 == DİZİNSİZ (enrollments_section_idx düşürüldü) ==
-Seq Scan on enrollments (actual rows=117 loops=1)
-  Filter: (section_id = 675)
-  Rows Removed by Filter: 51918
-  Buffers: shared hit=288
+Seq Scan on enrollments (actual rows=113 loops=1)
+  Filter: (section_id = 369)
+  Rows Removed by Filter: 42639
+  Buffers: shared hit=232
 Planning:
-  Buffers: shared hit=69
-Planning Time: 0.666 ms
-Execution Time: 2.564 ms
+  Buffers: shared hit=70
+Planning Time: 0.607 ms
+Execution Time: 2.278 ms
 
 == DİZİNLİ ==
-Bitmap Heap Scan on enrollments (actual rows=117 loops=1)
-  Recheck Cond: (section_id = 675)
-  Heap Blocks: exact=99
-  Buffers: shared hit=102 read=2
-  ->  Bitmap Index Scan on enrollments_section_idx (actual rows=117 loops=1)
-        Index Cond: (section_id = 675)
-        Buffers: shared hit=3 read=2
+Bitmap Heap Scan on enrollments (actual rows=113 loops=1)
+  Recheck Cond: (section_id = 369)
+  Heap Blocks: exact=92
+  Buffers: shared hit=97
+  ->  Bitmap Index Scan on enrollments_section_idx (actual rows=113 loops=1)
+        Index Cond: (section_id = 369)
+        Buffers: shared hit=5
 Planning:
-  Buffers: shared hit=87
-Planning Time: 0.844 ms
-Execution Time: 0.522 ms
+  Buffers: shared hit=83
+Planning Time: 0.998 ms
+Execution Time: 0.520 ms

@@ -10,8 +10,8 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   { // X-1: öğrenci kartında gerçek QR (SVG, çok sayıda modül) + .ics indirme
     const p = await login('ogrenci@sinavplan.test', { width: 390, height: 800 });
     await p.waitForSelector('text=Sınav kartı');
-    const n = await p.$$eval('.card button.primary', (e) => e.length); let found = false;
-    for (let i = 0; i < n && !found; i++) { await p.click(`.card button.primary >> nth=${i}`); await p.waitForTimeout(900); found = !!(await p.$('[data-testid=qr-svg]')); }
+    const n = await p.$$eval('.card button.primary:has-text("Sınav kartı"):not([disabled])', (e) => e.length); let found = false;
+    for (let i = 0; i < n && !found; i++) { await p.click(`.card button.primary:has-text("Sınav kartı"):not([disabled]) >> nth=${i}`); await p.waitForTimeout(900); found = !!(await p.$('[data-testid=qr-svg]')); }
     ok(found, 'X-1: sınav kartında QR SVG çizildi');
     const modules = await p.$$eval('[data-testid=qr-svg] path, [data-testid=qr-svg] rect', (e) => e.length); ok(modules > 0, 'X-1: QR SVG içeriği var');
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('text=Takvimime ekle')]); ok(dl.suggestedFilename().endsWith('.ics'), 'X-3: öğrenci .ics indirildi (' + dl.suggestedFilename() + ')');
@@ -42,8 +42,11 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   { // X-7: editör — denetle (klavye alternatifi) ve ızgara
     const p = await login('sekreter@sinavplan.test'); await p.goto(BASE + '/#/duzenle'); await p.waitForSelector('[draggable=true]', { timeout: 15000 });
     ok((await p.$$('[draggable=true]')).length > 10, 'X-7: sınav çipleri sürüklenebilir');
-    await p.selectOption('#pe', { index: 1 }); await p.selectOption('#ps', { index: 2 }); await p.click('button:has-text("Denetle")');
-    await p.waitForSelector('h2:has-text("→")', { timeout: 20000 }); ok(true, 'X-7: denetim paneli açıldı');
+    await p.selectOption('#pe', { index: 1 });
+    // sınavın zaten bulunduğu oturum seçilirse düğme işlem yapmaz; denetim paneli açılana dek sıradaki oturumu dene
+    let opened = false;
+    for (let si = 2; si < 8 && !opened; si++) { await p.selectOption('#ps', { index: si }); await p.click('button:has-text("Denetle")'); opened = await p.waitForSelector('h2:has-text("→")', { timeout: 6000 }).then(() => true, () => false); }
+    if (!opened) await p.waitForSelector('h2:has-text("→")', { timeout: 20000 }); ok(true, 'X-7: denetim paneli açıldı');
     // gerçek sürükle-bırak: ilk çipi başka bir oturum hücresine bırak
     const chip = p.locator('[draggable=true]').first(); const cells = p.locator('td[aria-label*="oturum"]');
     const ci = await cells.evaluateAll((els, id) => els.findIndex((e) => e.contains(document.querySelector('[draggable=true]'))), 0);

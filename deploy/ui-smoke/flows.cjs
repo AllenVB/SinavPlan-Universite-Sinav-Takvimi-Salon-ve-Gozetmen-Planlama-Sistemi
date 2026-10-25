@@ -15,7 +15,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     const ov = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1); ok(!ov, 'mobil 390px: yatay taşma yok');
     await p.screenshot({ path: './shots/mobile-student.png', fullPage: true }); }
   // sekreter: oturma planı sınav seçimi
-  { const p = await login('sekreter@sinavplan.test', { width: 1280, height: 900 }); await p.goto(BASE + '/#/salonlar'); await p.click('button:has-text("Sınav oturma planı")'); await p.waitForSelector('select[aria-label=Sınav] option:nth-child(3)', { state: 'attached' }); await p.selectOption('select[aria-label=Sınav]', { index: 3 }); await p.waitForSelector('.seatmap', { timeout: 8000 });
+  { const p = await login('sekreter@sinavplan.test', { width: 1280, height: 900 }); await p.goto(BASE + '/#/salonlar'); await p.click('button:has-text("Sınav oturma planı")'); await p.waitForSelector('select[aria-label=Sınav] option:nth-child(3)', { state: 'attached' }); await p.selectOption('select[aria-label=Sınav]', { index: 3 }); await p.waitForSelector('.roomgrid', { timeout: 8000 });
     ok((await p.$$('.seat.taken, .seat.dis')).length > 0, 'oturma planında dolu koltuklar çizildi'); await p.screenshot({ path: './shots/sekreter-plan.png', fullPage: false });
     // içe aktarma: hatalı CSV
     await p.goto(BASE + '/#/ice-aktar'); await p.fill('textarea', 'student_no,full_name,department_code,disability\n9,Hatalı,BLM,false\n'); await p.click('text=İçe aktar'); await p.waitForSelector('text=İçe aktarma raporu'); ok((await p.textContent('main')).includes('1 hata'), 'içe aktarma satır hatası raporlandı'); }

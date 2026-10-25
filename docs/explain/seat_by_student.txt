@@ -1,22 +1,22 @@
--- SELECT * FROM seat_assignments WHERE student_id = 77 AND schedule_id = 4
+-- SELECT * FROM seat_assignments WHERE student_id = 94 AND schedule_id = 3
 == DİZİNSİZ (seat_assignments_student_idx düşürüldü) ==
-Index Scan using seat_assignments_schedule_id_exam_id_student_id_key on seat_assignments (actual rows=6 loops=1)
-  Index Cond: ((schedule_id = 4) AND (student_id = 77))
-  Buffers: shared hit=3 read=393
+Index Scan using seat_assignments_schedule_id_exam_id_student_id_key on seat_assignments (actual rows=5 loops=1)
+  Index Cond: ((schedule_id = 3) AND (student_id = 94))
+  Buffers: shared hit=335
 Planning:
-  Buffers: shared hit=128
-Planning Time: 1.570 ms
-Execution Time: 6.197 ms
+  Buffers: shared hit=127
+Planning Time: 0.874 ms
+Execution Time: 1.863 ms
 
 == DİZİNLİ ==
-Bitmap Heap Scan on seat_assignments (actual rows=6 loops=1)
-  Recheck Cond: ((student_id = 77) AND (schedule_id = 4))
-  Heap Blocks: exact=6
-  Buffers: shared hit=11
-  ->  Bitmap Index Scan on seat_assignments_student_idx (actual rows=6 loops=1)
-        Index Cond: ((student_id = 77) AND (schedule_id = 4))
+Bitmap Heap Scan on seat_assignments (actual rows=5 loops=1)
+  Recheck Cond: ((student_id = 94) AND (schedule_id = 3))
+  Heap Blocks: exact=5
+  Buffers: shared hit=10
+  ->  Bitmap Index Scan on seat_assignments_student_idx (actual rows=5 loops=1)
+        Index Cond: ((student_id = 94) AND (schedule_id = 3))
         Buffers: shared hit=5
 Planning:
-  Buffers: shared hit=143
-Planning Time: 1.205 ms
-Execution Time: 0.172 ms
+  Buffers: shared hit=137
+Planning Time: 0.978 ms
+Execution Time: 0.153 ms

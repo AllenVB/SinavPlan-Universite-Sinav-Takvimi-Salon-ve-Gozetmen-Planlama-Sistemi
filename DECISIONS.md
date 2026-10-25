@@ -533,3 +533,18 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Alternatifler.** Öğrenci kartını tarama akışını korumak (istenen değil; eski uç yine duruyor), tek kullanımlık QR (30 sn'lik pencerede çok öğrenci okutamazdı), sabit kod (paylaşılır).
 
 **Sonuçlar.** Yeni uçlar OpenAPI'de ve testli (`checkin_http_test.go`, verify CHK-1, UI `checkin.cjs`). Sınır: öğrencinin telefonu internetsizse QR/kod çalışmaz (gözetmen tabletinden elle işaretler). Seed ~6 sn uzadı (tam çizelge).
+
+## ADR-018 — Salon kapısı (kroki) ve salon ekleme/düzenleme ekranı
+
+**Bağlam.** Sekreter salon envanterini yalnız okuyabiliyordu; yeni salon ya da koltuk düzeni değişikliği için seed/SQL gerekiyordu. Ayrıca oturma krokisinde kapı görünmüyordu; gözetmen ve öğrenci salona girişi ve erişilebilir koltukların (kapıya yakın) nerede olduğunu çizimden anlamak istiyordu. Salon düzeni değişince kapasite, oturma planı ve gözetmen ataması tutarlı kalmalıydı.
+
+**Karar.**
+- **Şema:** `rooms.door_side` (`front|back|left|right`, varsayılan `front`) ve `rooms.door_pos` (duvar boyunca 0 tabanlı konum) — migrasyon 0006, CHECK kısıtlı. Eski satırlar varsayılanla doldurulur; veri kaybı yok.
+- **Doğrulama (API):** `door_pos`, ön/arka duvarda `0..cols-1`, sol/sağ duvarda `0..rows-1`; aksi 422 ve alan bazlı hata. Aynı kural `RoomInput.Validate` içinde, veritabanı CHECK'i yalnız negatif konumu yakalar (boyuta bağlı kural SQL'e taşınmadı: boyut değişince sessizce geçersiz kalan bir CHECK yerine açık API hatası tercih edildi).
+- **Salon CRUD (F-2):** `POST/PUT/DELETE /rooms` yalnız sekreter; koltuk düzeni (satır × sütun, pasif ve erişilebilir koltuklar) tek istekte yazılır, kapasite = satır × sütun − pasif koltuk sunucuda hesaplanır (istemciye güvenilmez). Salon silme, çizelgede kullanılıyorsa reddedilir.
+- **Arayüz:** ortak `RoomGrid` bileşeni kapıyı ve duvarları (ÖN·TAHTA, ARKA, SOL, SAĞ) çizer; koltuk haritası, salon düzenleyici ve öğrenci kartı aynı bileşeni kullanır. Salon envanterinde "Kapı" sütunu ve "Düzenle" / "+ Yeni salon" düğmeleri.
+- **Doğrulama:** `make verify` F-2 kapıyı yazar/okur ve geçersiz kapıyı 422 ile sınar; `admin_http_test.go` aynı kuralları kapsar; `screens.cjs` kapı işaretini (`data-testid=room-door`) bekleyerek kroki görselini üretir.
+
+**Alternatifler.** Kapıyı serbest metin etiketi yapmak (çizilemez, doğrulanamaz); kapıyı koltuk matrisinin hücresi saymak (kapasite hesabını ve koltuk numaralandırmasını bozar); salon düzenini yalnız CSV içe aktarmayla yönetmek (F-1 kapsamı öğrenci/ders/şube/kayıt; salon için görsel düzenleme daha anlaşılır).
+
+**Sonuçlar.** Salon düzeni değişince mevcut yayınlanmış çizelgenin oturma planı otomatik yeniden hesaplanmaz; sekreter yeni taslak üretmelidir (ekranda buna dair bir uyarı yok; bilinen eksik). Kapı, çözücü kısıtı değildir (yalnız gösterim); erişilebilir koltukların kapıya yakınlığı T-3'te zaten `accessible` işaretiyle sağlanır.

@@ -20,8 +20,8 @@ const API = process.env.API_URL || 'http://localhost:8080';
   }
   { // F14: dinamik QR — jeton kendiliğinden yenilenir, eski jeton iptal olur
     const p = await login('ogrenci@sinavplan.test', { width: 420, height: 900 });
-    await p.waitForSelector('.card button.primary'); const n = await p.$$eval('.card button.primary', (e) => e.length); let found = false;
-    for (let i = 0; i < n && !found; i++) { await p.click(`.card button.primary >> nth=${i}`); await p.waitForTimeout(1200); found = !!(await p.$('[data-testid=qr-svg]')); }
+    await p.waitForSelector('.card button.primary'); const n = await p.$$eval('.card button.primary:not([disabled])', (e) => e.length); let found = false;
+    for (let i = 0; i < n && !found; i++) { await p.click(`.card button.primary:not([disabled]) >> nth=${i}`); await p.waitForTimeout(1200); found = !!(await p.$('[data-testid=qr-svg]')); }
     ok(found, 'F14: QR çizildi'); if (found) {
       await p.evaluate(() => document.querySelector('details')?.setAttribute('open', ''));
       const t1 = await p.textContent('[data-testid=qr-token]'); const r1 = Number(await p.textContent('[data-testid=qr-rotations]'));

@@ -1,20 +1,20 @@
--- SELECT exam_id FROM schedule_exams WHERE schedule_id = 4 AND slot_id = 1
+-- SELECT exam_id FROM schedule_exams WHERE schedule_id = 3 AND slot_id = 1
 == DİZİNSİZ (schedule_exams_slot_idx düşürüldü) ==
-Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams (actual rows=14 loops=1)
-  Index Cond: ((schedule_id = 4) AND (slot_id = 1))
-  Heap Fetches: 0
-  Buffers: shared hit=4 read=3
-Planning:
-  Buffers: shared hit=93
-Planning Time: 0.796 ms
-Execution Time: 0.139 ms
-
-== DİZİNLİ ==
-Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams (actual rows=14 loops=1)
-  Index Cond: ((schedule_id = 4) AND (slot_id = 1))
+Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams (actual rows=12 loops=1)
+  Index Cond: ((schedule_id = 3) AND (slot_id = 1))
   Heap Fetches: 0
   Buffers: shared hit=7
 Planning:
-  Buffers: shared hit=112
-Planning Time: 1.038 ms
-Execution Time: 0.111 ms
+  Buffers: shared hit=89
+Planning Time: 0.974 ms
+Execution Time: 0.217 ms
+
+== DİZİNLİ ==
+Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on schedule_exams (actual rows=12 loops=1)
+  Index Cond: ((schedule_id = 3) AND (slot_id = 1))
+  Heap Fetches: 0
+  Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=107
+Planning Time: 1.167 ms
+Execution Time: 0.138 ms
