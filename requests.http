@@ -394,6 +394,11 @@ Content-Type: {{json}}
 
 {"slot_id": {{slotId2}}}
 
+### Faz 22 B1: aynı gün iki sınavı olan öğrenci için çözüm önerisi (yazmaz; uygulamak için yukarıdaki move)
+GET {{host}}/schedules/{{scheduleId}}/fix-suggestions?student_id=2&limit=3
+Authorization: Bearer {{secretary}}
+
+###
 ### İki sürümü karşılaştır
 GET {{host}}/schedules/compare?a=1&b=2
 Authorization: Bearer {{secretary}}

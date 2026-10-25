@@ -432,3 +432,88 @@ func checkCheckin1(ctx context.Context, e *env, f *failures) string {
 	f.check(r.code == 409 && errCode(r) == "checkin_closed", "kapalı oturum: HTTP %d %s (409 checkin_closed)", r.code, errCode(r))
 	return fmt.Sprintf("oturum %d: QR + 6 haneli kod → yoklamada 'geldi'; yanlış kod 422, eski kod 422, kapalı oturum 409, öğrenci oturum açamaz 403", id)
 }
+
+// B1-1 (Faz 22): çakışma çözüm önerisi. Salt-okur: hiçbir sürüm oluşturmaz. Her öneri API'den okunan
+// takvimle BAĞIMSIZ yeniden denetlenir: taşınan sınavın hiçbir öğrencisinin hedef slotta başka sınavı
+// yoktur, hiçbir öğrenci hedef günde 2'den fazla sınava çıkmaz, sorunlu öğrencinin hedef gününde başka
+// sınavı yoktur ve öneri başlamış bir oturuma dokunmaz.
+func checkB1(ctx context.Context, e *env, f *failures) string {
+	if !needSnap(e, f) {
+		return ""
+	}
+	sec := e.tok["secretary"]
+	slots, err := e.a.get(ctx, fmt.Sprintf("/periods/%d/slots", e.periodID), sec)
+	if !f.expectCode("slotlar", slots, err, 200) {
+		return ""
+	}
+	day, start := map[int64]int64{}, map[int64]time.Time{}
+	for _, it := range arr(slots.body, "items") {
+		s := it.(M)
+		day[num(s, "id")] = num(s, "day")
+		start[num(s, "id")], _ = time.Parse(time.RFC3339, str(s, "starts_at"))
+	}
+	byStudent := e.sn.studentExams()
+	studentsOf := map[int64][]int64{}
+	for st, ex := range byStudent {
+		for _, x := range ex {
+			studentsOf[x] = append(studentsOf[x], st)
+		}
+	}
+	slotOf := func(x int64) int64 { return num(e.sn.exams[x], "slot_id") }
+	versions := func() int { l, _ := e.a.all(ctx, "/schedules", sec); return len(l) }
+	n0 := versions()
+
+	// başlamamış bir günde aynı gün iki sınavı olan ilk öğrenci
+	var student int64
+	for st, ex := range byStudent {
+		perDay := map[int64]int{}
+		for _, x := range ex {
+			if start[slotOf(x)].After(time.Now()) {
+				perDay[day[slotOf(x)]]++
+			}
+		}
+		for _, n := range perDay {
+			if n >= 2 && (student == 0 || st < student) {
+				student = st
+			}
+		}
+	}
+	if student == 0 {
+		f.check(false, "aynı gün iki sınavı olan (gelecek günde) öğrenci bulunamadı")
+		return ""
+	}
+	r, err := e.a.get(ctx, fmt.Sprintf("/schedules/%d/fix-suggestions?student_id=%d", e.sched2, student), e.tok["affairs"])
+	if !f.expectCode("öneri", r, err, 200) {
+		return ""
+	}
+	items := arr(r.body, "items")
+	f.check(len(items) > 0, "öğrenci %d için öneri yok", student)
+	checked := 0
+	for _, it := range items {
+		g := obj(it.(M), "suggestion")
+		x, to := num(g, "exam_id"), num(g, "to_slot_id")
+		f.check(num(g, "violations") == 0, "API ihlalli öneri döndü: %v", g)
+		f.check(start[slotOf(x)].After(time.Now()) && start[to].After(time.Now()), "öneri başlamış oturuma dokunuyor: sınav %d → slot %d", x, to)
+		for _, st := range studentsOf[x] {
+			sameDay := 1
+			for _, y := range byStudent[st] {
+				if y == x {
+					continue
+				}
+				f.check(slotOf(y) != to, "çakışma: öğrenci %d'nin %d sınavı zaten slot %d'de", st, y, to)
+				if day[slotOf(y)] == day[to] {
+					sameDay++
+				}
+			}
+			f.check(sameDay <= 2, "öğrenci %d hedef günde %d sınava çıkar", st, sameDay)
+		}
+		for _, y := range byStudent[student] {
+			f.check(y == x || day[slotOf(y)] != day[to], "sorunlu öğrencinin hedef günde başka sınavı var (sınav %d)", y)
+		}
+		checked++
+	}
+	f.check(versions() == n0, "öneri isteği sürüm oluşturdu")
+	s, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/fix-suggestions", e.sched2), e.tok["student"])
+	f.check(s.code == 403, "öğrenci öneri: HTTP %d (403)", s.code)
+	return fmt.Sprintf("öğrenci %d: %d öneri bağımsız denetlendi (slot çakışması 0, günde ≤2, hedef gün boş, başlamış oturum yok); sürüm sayısı değişmedi; öğrenci 403", student, checked)
+}

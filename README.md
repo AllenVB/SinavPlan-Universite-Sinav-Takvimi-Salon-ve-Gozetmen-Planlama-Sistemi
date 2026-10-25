@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (25 satır = 26 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (26 satır = 27 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -135,6 +135,12 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 8 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını ve mazeret masasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
 
+## Çakışma çözüm önerisi (Faz 22 B1)
+
+**Mazeret ve çakışma → Çakışmalar** sekmesinde aynı gün iki sınavı olan her öğrencinin yanında **Çöz** düğmesi var. Sistem o öğrencinin sınavlarından birini, öğrencinin başka sınavı olmayan bir güne taşıyan en iyi 3 seçeneği listeler. Seçenekler çakışma, günde en çok 2 sınav ve slot kapasitesi kurallarını bozmaz; başlamış oturumlara dokunmaz. Her seçenek bağımsız doğrulayıcıdan geçer (**İhlal 0**). Tüm öğrencilerin toplam rahatsızlığına etkisi de dürüstçe yazılır; örneğin `+16`, ama aynı gün iki sınavlı öğrenci-gün 1.289 → 1.281. Sekreter **Uygula** deyince yeni bir taslak sürüm oluşur; yayındaki sürüm değişmez.
+
+Neden "toplam cezayı düşüren" öneri değil? Çözücü çıktısı tek-sınav taşıması anlamında yerel optimumdadır: tam doğrulayıcıyla kaba kuvvet de iyileştiren tek hamle bulamaz (`TestSuggestMovesFindsTheBruteForceOptimum`). Asıl ihtiyaç, belirli bir öğrencinin sorununu en düşük maliyetle çözmektir. Öneri, çözücünün artımlı değerlendiricisini kullanır; 301 sınavda yaklaşık 0,16 sn sürer.
+
 ## Faz 21: güvenlik, erişilebilirlik, yayın
 
 - **Kod deneme sınırı paylaşımlı:** 6 haneli yoklama kodu için "5 dk'da 8 hatalı deneme" sayacı artık PostgreSQL'de (`checkin_failures`); birden çok API örneğinde ve yeniden başlatmada da geçerli (ADR-019).
@@ -196,7 +202,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 25 satır (26 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 26 satır (27 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/AllenVB/sinavplan/backend/internal/export"
 	"github.com/AllenVB/sinavplan/backend/internal/planning"
+	"github.com/AllenVB/sinavplan/backend/internal/simdata"
 	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/AllenVB/sinavplan/backend/internal/store/sqlc"
 )
@@ -547,5 +548,75 @@ func (s *Server) faculties(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"items": rows})
+	return nil
+}
+
+// --- Çakışma çözüm önerisi (Faz 22 B1) ---------------------------------------------------
+
+// fixSuggestions: GET /schedules/{id}/fix-suggestions?student_id=&limit= — öğrencinin aynı gün iki
+// sınavını ayıracak (ya da student_id yoksa toplam cezayı düşürecek) tek-sınav taşımaları. Hiçbir şey
+// yazmaz; uygulamak için sekreter mevcut taşıma ucunu (yeni taslak sürüm) kullanır.
+func (s *Server) fixSuggestions(w http.ResponseWriter, r *http.Request) error {
+	sid, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	student, err := queryInt64(r, "student_id")
+	if err != nil {
+		return err
+	}
+	limit, err := queryInt64(r, "limit")
+	if err != nil {
+		return err
+	}
+	if limit == 0 {
+		limit = 3
+	}
+	if limit > 10 {
+		return Validation("limit en çok 10", map[string]string{"limit": "1..10"})
+	}
+	sc, err := s.visibleSchedule(r, sid)
+	if err != nil {
+		return err
+	}
+	base, err := store.ScheduleAssignment(r.Context(), s.pool, sid)
+	if err != nil {
+		return err
+	}
+	ds, err := store.LoadDataset(r.Context(), s.pool, sc.PeriodID, sc.Seed)
+	if err != nil {
+		return storeError(err)
+	}
+	if student > 0 {
+		found := false
+		for _, st := range ds.Students {
+			if st.ID == student {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return NotFound("öğrenci bulunamadı")
+		}
+	}
+	fx, err := planning.SuggestFixes(ds, sc.Seed, base, student, time.Now(), int(limit))
+	if err != nil {
+		return err
+	}
+	course := map[int64]simdata.Course{}
+	for _, c := range ds.Courses {
+		course[c.ID] = c
+	}
+	names := map[int64][2]string{}
+	for _, e := range ds.Exams {
+		c := course[e.CourseID]
+		names[e.ID] = [2]string{c.Code, c.Name}
+	}
+	items := make([]map[string]any, 0, len(fx.Suggestions))
+	for _, sg := range fx.Suggestions {
+		items = append(items, map[string]any{"suggestion": sg, "course_code": names[sg.ExamID][0], "course_name": names[sg.ExamID][1]})
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"schedule_id": sid, "mode": fx.Mode, "metrics_before": fx.MetricsBefore,
+		"student_days": fx.StudentDays, "items": items})
 	return nil
 }

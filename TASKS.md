@@ -255,3 +255,4 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 | Özellik | Durum |
 |---|---|
 | A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
+| B1 Çakışma çözüm önerisi | **tamam** — öğrenci odaklı (çözücü çıktısı tek-hamlede yerel optimumda olduğundan "toplamı düşür" önerisi genelde boş: kaba kuvvetle doğrulandı); verify B1-1, `fix.cjs` 4/4, gerçek ölçek 0,16 sn |

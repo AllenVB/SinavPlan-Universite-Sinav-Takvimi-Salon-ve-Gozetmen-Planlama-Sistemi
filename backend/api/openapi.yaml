@@ -344,6 +344,24 @@ paths:
       parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
       responses:
         "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /schedules/{id}/fix-suggestions:
+    get:
+      tags: [Mazeret (F-6)]
+      summary: Çakışma çözüm önerisi — öğrencinin aynı gün iki sınavını ayıran tek-sınav taşımaları (yazmaz)
+      description: |
+        `student_id` verilirse öğrencinin aynı gün iki sınavı olan günlerindeki sınavlarından biri, öğrencinin başka sınavı
+        olmayan bir güne taşınır; `delta` toplam cezadaki değişimdir (artı olabilir, dürüstçe raporlanır). `student_id`
+        yoksa yalnız toplam cezayı düşüren taşımalar döner (çözücü çıktısı genelde yerel optimumdadır, liste boş olabilir).
+        Başlamış oturumlar kilitlidir. Her önerinin `violations` ve `metrics_after` alanları bağımsız doğrulayıcıdan gelir.
+        Uygulamak için `POST /schedules/{id}/exams/{examId}/move` (yeni taslak sürüm).
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: student_id, in: query, schema: {type: integer, format: int64}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 10, default: 3}}
+      responses:
+        "200": {description: "mode, metrics_before, student_days, items[{suggestion, course_code, course_name}]", content: {application/json: {schema: {type: object}}}}
+        "404": {description: Öğrenci ya da çizelge yok}
+        "422": {description: Geçersiz parametre}
   /schedules/{id}/invigilators:
     get:
       tags: [Gözetmen (F-5)]
