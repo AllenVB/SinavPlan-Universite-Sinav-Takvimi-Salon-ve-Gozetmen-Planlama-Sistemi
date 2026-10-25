@@ -256,3 +256,17 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 |---|---|
 | A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
 | B1 Çakışma çözüm önerisi | **tamam** — öğrenci odaklı (çözücü çıktısı tek-hamlede yerel optimumda olduğundan "toplamı düşür" önerisi genelde boş: kaba kuvvetle doğrulandı); verify B1-1, `fix.cjs` 4/4, gerçek ölçek 0,16 sn |
+
+### Tam test turu (25 Ekim 2026, ~22:50 UTC) — A1 + B1 sonrası, temiz kurulumdan (`docker compose down -v`)
+| Doğrulama | Sonuç |
+|---|---|
+| `go test -race ./...` | 192 PASS, 0 FAIL, 1 SKIP (`TestFullScale` `-race` altında bilinçli atlanır; tam ölçek `prove-t1`'de) |
+| Domain kapsamı | scheduling %95,4 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
+| `make prove-all` | T-1..T-4 SONUÇ: BAŞARILI (0 ihlal) |
+| `make verify` | 26 satır (27 kimlik, yeni **B1-1** dahil) hepsi PASS, 28 sn |
+| UI duman | checkin 6, tour 10, simple 18, pages 17, flows 8, features 15, fix 4, qr-roundtrip 5, live 9 (`QR_TTL=20s`) — hepsi PASS |
+| Erişilebilirlik | a11y 23/23, 20 ekranda axe bulgusu 0 |
+| Frontend | `npm run build` başarılı (tsc + vite) |
+
+**Yarın buradan devam:** C1 (yazdırılabilir föyler) → A3 (Ctrl+K + Öğrenci 360) → A2 (Kanıtlar sayfası) → B2 (ya olursa? önizleme) → C2 (dikkat gerektirenler) → B3 (ısı haritası) → C3 (PWA). Kesme noktası 26 Ekim 15:00; ardından README son kontrol, soğuk kurulum, Doğrulama Soruları.
+Ortamı kaldırma: dockerd + `docker compose up -d --build postgres migrate seed api` + `cd frontend && npx vite --port 3000`; `checkin`/`live`/`tour` için taze seed (`make reset-demo` ya da `down -v`).
