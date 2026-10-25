@@ -131,7 +131,7 @@ export function Live() {
 
         <Card title="Canlı olay akışı" aside={<LiveBadge updatedAt={feed.updatedAt} error={feed.error} />}>
           {feed.data && feed.data.length > 0 ? (
-            <ul className="feed" style={{ maxHeight: 520, overflowY: 'auto' }}>
+            <ul className="feed" style={{ maxHeight: 520, overflowY: 'auto' }} tabIndex={0} aria-label="Yoklama olay akışı">
               {feed.data.map((e) => {
                 const tone: Tone = e.status === 'present' ? 'ok' : 'err'
                 const title = e.status === 'present' ? (e.source === 'qr' ? 'QR okutuldu' : 'Elle: geldi') : 'Gelmedi işaretlendi'

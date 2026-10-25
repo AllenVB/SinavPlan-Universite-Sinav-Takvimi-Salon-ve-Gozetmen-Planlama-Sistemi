@@ -132,7 +132,7 @@ export function Compare({ schedules, current }: { schedules: Schedule[]; current
                 })}</tbody>
               </table></div>
               <p style={{ margin: '12px 0 6px' }}><b>{c.moved_count}</b> sınavın slotu farklı{c.moved_count > c.moved.length ? ` (ilk ${c.moved.length} gösteriliyor)` : ''}.</p>
-              {c.moved.length > 0 && <div className="tablewrap" style={{ maxHeight: 260, overflowY: 'auto' }}><table><thead><tr><th>Ders</th><th>Önce</th><th>Sonra</th></tr></thead><tbody>{c.moved.map((m) => <tr key={m.exam_id}><td><b>{m.course_code}</b> {m.course_name}</td><td>{fmtDateTime(m.from_starts_at)}</td><td>{fmtDateTime(m.to_starts_at)}</td></tr>)}</tbody></table></div>}
+              {c.moved.length > 0 && <div className="tablewrap" style={{ maxHeight: 260, overflowY: 'auto' }} tabIndex={0} role="region" aria-label="Slotu değişen sınavlar"><table><thead><tr><th>Ders</th><th>Önce</th><th>Sonra</th></tr></thead><tbody>{c.moved.map((m) => <tr key={m.exam_id}><td><b>{m.course_code}</b> {m.course_name}</td><td>{fmtDateTime(m.from_starts_at)}</td><td>{fmtDateTime(m.to_starts_at)}</td></tr>)}</tbody></table></div>}
             </>
           )}
         </Async>

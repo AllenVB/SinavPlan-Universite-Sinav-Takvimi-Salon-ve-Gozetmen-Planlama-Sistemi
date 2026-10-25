@@ -72,7 +72,7 @@ function Inventory() {
       <Card title="Salonlar" aside={<div className="row">{secretary && <button className="btn primary sm" onClick={() => setEdit('new')}>+ Yeni salon</button>}<select aria-label="Salon türü" value={type} onChange={(e) => setType(e.target.value)} style={{ width: 'auto' }}><option value="">Tümü</option><option value="classic">Klasik</option><option value="lab">Laboratuvar</option></select></div>}>
         <Async s={rooms} empty={(d) => d.length === 0}>
           {() => (
-            <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+            <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }} tabIndex={0} role="region" aria-label="Salon listesi">
               <table>
                 <thead><tr><th>Kod</th><th>Bina</th><th>Tür</th><th>Kapasite</th><th>Erişilebilir</th><th>Kapı</th><th /></tr></thead>
                 <tbody>
@@ -226,7 +226,7 @@ function Capacity() {
               <section className="card roomcard" key={c.id}>
                 <div className="row between"><div><h2>{c.room?.code ?? `#${c.id}`}</h2><div className="small muted">{c.room?.building} · {c.room?.type === 'lab' ? 'Laboratuvar' : 'Derslik'}</div></div><Status tone={tone(c.pct)}>%{Math.round(c.pct)} dolu</Status></div>
                 <div className="small">{c.list.map((x) => <div key={x.exam_id}><b>{x.course_code}</b> <span className="muted">({x.students} öğrenci)</span></div>)}</div>
-                <Bar pct={c.pct} />
+                <Bar pct={c.pct} label={`${c.room?.code ?? c.id} doluluk`} />
                 <div className="meta"><div><b>{c.room?.capacity ?? '—'}</b><span className="small muted">Kapasite</span></div><div><b>{c.total}</b><span className="small muted">Atanan</span></div><div><b>{(c.room?.capacity ?? 0) - c.total}</b><span className="small muted">Boş</span></div></div>
               </section>
             ))}

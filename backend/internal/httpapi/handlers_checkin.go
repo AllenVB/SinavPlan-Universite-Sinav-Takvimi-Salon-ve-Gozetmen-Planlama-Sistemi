@@ -3,47 +3,17 @@ package httpapi
 import (
 	"errors"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/AllenVB/sinavplan/backend/internal/store"
 )
 
-// checkinGuard, 6 haneli kod tahminini sınırlar: kullanıcı başına 5 dakikada en çok 8 başarısız deneme.
-type checkinGuard struct {
-	mu   sync.Mutex
-	fail map[int64][]time.Time
-}
-
+// 6 haneli kod tahminini sınırlar: kullanıcı başına 5 dakikada en çok 8 başarısız deneme. Sayaç
+// PostgreSQL'dedir (checkin_failures), bu yüzden birden çok API örneğinde ortak ve yeniden başlatmaya dayanıklıdır.
 const (
 	checkinMaxFails = 8
 	checkinFailSpan = 5 * time.Minute
 )
-
-func (g *checkinGuard) blocked(uid int64, now time.Time) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	kept := g.fail[uid][:0]
-	for _, t := range g.fail[uid] {
-		if now.Sub(t) < checkinFailSpan {
-			kept = append(kept, t)
-		}
-	}
-	if g.fail == nil {
-		g.fail = map[int64][]time.Time{}
-	}
-	g.fail[uid] = kept
-	return len(kept) >= checkinMaxFails
-}
-
-func (g *checkinGuard) record(uid int64, now time.Time) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.fail == nil {
-		g.fail = map[int64][]time.Time{}
-	}
-	g.fail[uid] = append(g.fail[uid], now)
-}
 
 func checkinError(err error) error {
 	switch {
@@ -160,7 +130,11 @@ func (s *Server) selfCheckIn(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	now := time.Now()
-	if s.checkins.blocked(p.UserID, now) {
+	fails, err := store.CheckinFailures(r.Context(), s.pool, p.UserID, now.Add(-checkinFailSpan))
+	if err != nil {
+		return storeError(err)
+	}
+	if fails >= checkinMaxFails {
 		return &APIError{Status: http.StatusTooManyRequests, Code: "too_many_attempts", Message: "çok fazla hatalı deneme; birkaç dakika sonra tekrar deneyin"}
 	}
 	if s.qr == nil {
@@ -169,7 +143,9 @@ func (s *Server) selfCheckIn(w http.ResponseWriter, r *http.Request) error {
 	res, err := s.qr.CheckIn(r.Context(), s.pool, p.UserID, p.StudentID, req.Token, req.Code, now)
 	if err != nil {
 		if errors.Is(err, store.ErrCheckinBadCode) || errors.Is(err, store.ErrQRInvalid) {
-			s.checkins.record(p.UserID, now)
+			if rerr := store.RecordCheckinFailure(r.Context(), s.pool, p.UserID, now, now.Add(-checkinFailSpan)); rerr != nil {
+				return storeError(rerr)
+			}
 		}
 		return checkinError(err)
 	}

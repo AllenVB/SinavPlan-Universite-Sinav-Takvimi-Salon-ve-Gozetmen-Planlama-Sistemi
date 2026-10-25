@@ -182,7 +182,7 @@ Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Fa
 4. Windows'ta soğuk kurulum denemesi (`git clone` → `copy .env.example .env` → `docker compose up --build`) ve süre.
 
 ### Bilinen sınırlar (README'de dürüstçe kalacak)
-Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın); eski bir commit'te 9 MB derlenmiş ikili var (geçmiş yeniden yazılmadı); kamera ile QR okuma yalnız sahte aygıtla sınandı; hatalı kod sayacı tek örnek için bellekte.
+Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın); eski bir commit'te 9 MB derlenmiş ikili var (geçmiş yeniden yazılmadı); kamera ile QR okuma yalnız sahte aygıtla sınandı; (hatalı kod sayacı Faz 21'de PostgreSQL'e taşındı).
 
 ### Önerilen sıra
 19.1 → 19.2 → 19.6 → 19.3 → 19.4 → 19.5 → 19.7 → (zaman varsa) 20.1–20.6 → teslim kontrol listesi. Her adımdan sonra `go test ./...`, `make verify`, CI yeşil olmadan ilerleme.
@@ -202,3 +202,15 @@ Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın)
 
 **Doğrulanmayanlar:** Windows'ta soğuk kurulum; gerçek kamerayla QR okuma (yalnız sahte aygıt); Faz 20 sonrası CI koşusu push sonrası kontrol edilecek.
 **Bilinen notlar:** `make verify` yayındaki çizelgeyi değiştirir → `checkin`/`live`/`screens` için önce `make reset-demo`; `checkin.cjs` aynı demo verisinde ikinci koşuda başarısız olur (öğrenci zaten yoklamada).
+
+## Faz 21 durumu (25 Ekim 2026, gece)
+
+| İş | Durum | Doğrulama |
+|---|---|---|
+| Hatalı kod sayacı → PostgreSQL (`checkin_failures`, migrasyon 0007) | tamam | `TestCheckinRateLimitIsSharedAcrossInstances` (iki API örneği, pencere sonu temizlik); mevcut kurulumda `migrate` 0007'yi veri silmeden uygular |
+| Erişilebilirlik taraması (axe-core + klavye) | tamam | `a11y.cjs` 23/23 PASS, 20 ekranda 0 bulgu (önce: kontrast, adsız ilerleme çubuğu, odaklanamayan kaydırmalı bölge) |
+| Vercel + Render + Neon yapılandırması | hazır, **yayınlanmadı** | yerelde Neon taklidi: migrate-seed.sh → production API `/health` healthy, giriş 200, kısıtlı rol audit_log UPDATE reddi |
+| Gerçek akademisyen adları | **bekliyor** | kullanıcının fakülte başına ad listesi gerekli |
+| Karanlık tema, çevrimdışı öğrenci yoklama kuyruğu | yapılmadı | P2, zaman/değer oranı düşük |
+
+Son koşu: `go test ./...` 185 PASS / 0 FAIL; `make verify` 25 satır PASS; UI: simple 18, checkin 6, pages 17, flows 8, features 15, qr-roundtrip 5, a11y 23 PASS. `live.cjs` bu turda yeniden koşulmadı (`QR_TTL=20s` gerektirir; ilgili kod değişmedi).

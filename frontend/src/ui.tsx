@@ -115,8 +115,8 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
   )
 }
 
-export const Bar = ({ pct }: { pct: number }) => (
-  <div className={`bar ${pct >= 95 ? 'err' : pct >= 80 ? 'warn' : ''}`} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+export const Bar = ({ pct, label = 'Doluluk' }: { pct: number; label?: string }) => (
+  <div className={`bar ${pct >= 95 ? 'err' : pct >= 80 ? 'warn' : ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
     <i style={{ width: `${Math.min(100, pct)}%` }} />
   </div>
 )
@@ -168,7 +168,7 @@ export function StatCard({ icon, tone = 'info', label, value, note, progress }: 
         <span className={`ibadge ${tone}`}><Icon name={icon} size={18} /></span>
       </div>
       <div className="v">{value}</div>
-      {progress !== undefined && <div className={`bar ${tone === 'err' ? 'err' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : ''}`} role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>}
+      {progress !== undefined && <div className={`bar ${tone === 'err' ? 'err' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>}
       {note && <div className="small muted" style={{ marginTop: 6 }}>{note}</div>}
     </div>
   )

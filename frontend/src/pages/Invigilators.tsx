@@ -62,7 +62,7 @@ export function Invigilators() {
       </div>
       <div className="grid g2">
         <Card title="Görev sayısı dağılımı">
-          {hist.length === 0 ? <div className="skel" /> : <div className="hist">{hist.map(([n, c]) => <div className="hrow" key={n}><span>{n} görev</span><Bar pct={(c / load.size) * 100} /><span className="muted">{c} kişi (%{Math.round((c / load.size) * 100)})</span></div>)}</div>}
+          {hist.length === 0 ? <div className="skel" /> : <div className="hist">{hist.map(([n, c]) => <div className="hrow" key={n}><span>{n} görev</span><Bar pct={(c / load.size) * 100} label={`${n} görevli gözetmen oranı`} /><span className="muted">{c} kişi (%{Math.round((c / load.size) * 100)})</span></div>)}</div>}
         </Card>
         <Card title="Aktif atama kuralları" aside={<Pill kind={violations === 0 ? 'ok' : 'err'}>{violations === 0 ? 'Hepsi sağlanıyor' : `${violations} ihlal`}</Pill>}>
           <ul className="checks">
@@ -106,10 +106,10 @@ export function Invigilators() {
         </Async>
       </Card>
       <Card title="Gözetmen yükleri" aside={<span className="small muted">çubuk: en yüklü gözetmene göre</span>}>
-        <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }}><table>
+        <div className="tablewrap" style={{ maxHeight: 360, overflowY: 'auto' }} tabIndex={0} role="region" aria-label="Gözetmen yükleri tablosu"><table>
           <thead><tr><th>Gözetmen</th><th style={{ width: '45%' }}>Görev yükü</th><th>Durum</th></tr></thead>
           <tbody>{[...load.entries()].sort((a, b) => b[1].n - a[1].n || a[1].name.localeCompare(b[1].name, 'tr')).map(([id, v]) => (
-            <tr key={id} className={pendingUsers.has(id) ? 'tone-warn' : ''}><td>{v.name}</td><td><div className="row" style={{ flexWrap: 'nowrap' }}><div style={{ flex: 1 }}><Bar pct={(v.n / Math.max(...loads)) * 100} /></div><b>{v.n}</b></div></td><td>{pendingUsers.has(id) ? <Status tone="warn">Mazeret bekliyor</Status> : <Status tone="ok">Onaylandı</Status>}</td></tr>
+            <tr key={id} className={pendingUsers.has(id) ? 'tone-warn' : ''}><td>{v.name}</td><td><div className="row" style={{ flexWrap: 'nowrap' }}><div style={{ flex: 1 }}><Bar pct={(v.n / Math.max(...loads)) * 100} label={`${v.name} görev yükü`} /></div><b>{v.n}</b></div></td><td>{pendingUsers.has(id) ? <Status tone="warn">Mazeret bekliyor</Status> : <Status tone="ok">Onaylandı</Status>}</td></tr>
           ))}</tbody>
         </table></div>
       </Card>

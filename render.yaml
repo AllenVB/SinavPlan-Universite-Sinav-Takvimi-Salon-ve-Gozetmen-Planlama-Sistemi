@@ -1,0 +1,39 @@
+# Render Blueprint: yalnız API (Go). Frontend Vercel'de, veritabanı Neon'da (bkz. deploy/remote/README.md).
+# Arayüz aynı kaynaktan /api/ çağırır; Vercel bu yolu buraya vekiller, bu yüzden CORS gerekmez.
+services:
+  - type: web
+    name: sinavplan-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile    # varsayılan TARGET=api
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: false               # teslim sonrası depo değişse bile yayın kendiliğinden değişmez
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: HTTP_ADDR
+        value: ":8080"
+      - key: PORT
+        value: "8080"
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL          # Neon: kısıtlı uygulama rolü (sinavplan_app) ile, ?sslmode=require
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QR_HMAC_SECRET
+        generateValue: true
+      - key: QR_TTL
+        value: 2m
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL
+        value: 168h
+      - key: SCHEDULING_DAYS
+        value: "15"
+      - key: SCHEDULING_SESSIONS_PER_DAY
+        value: "3"
+      - key: SCHEDULING_TIME_LIMIT
+        value: 15s

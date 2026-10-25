@@ -5,7 +5,7 @@
   --primary: #3b4cd0; --primary-c: #5667eb; --primary-fixed: #dfe0ff; --on-primary-fixed: #000b63;
   --secondary-c: #d0e1fb; --tertiary: #904900; --tertiary-fixed: #ffdcc5;
   --error: #ba1a1a; --error-c: #ffdad6; --on-error-c: #93000a;
-  --ok: #0a7d4f; --ok-c: #d6f5e6; --warn-c: #fff1cc; --warn: #8a5a00;
+  --ok: #08734a; /* WCAG AA: --ok-c üstünde 5,07:1 (önce 4,45) */ --ok-c: #d6f5e6; --warn-c: #fff1cc; --warn: #8a5a00;
   --radius: 10px; --shadow: 0 1px 2px rgba(25, 28, 30, .06), 0 1px 3px rgba(25, 28, 30, .05);
 }
 * { box-sizing: border-box; }
@@ -229,7 +229,7 @@ tr.tone-err:hover td { background: #ffecea; }
 
 /* Yan menü grupları (Faz 20.1) */
 .navgroup { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
-.navhead { padding: 4px 12px; font-size: .6875rem; letter-spacing: .06em; color: var(--on-var); opacity: .75; }
+.navhead { padding: 4px 12px; font-size: .6875rem; letter-spacing: .06em; color: var(--on-var); }
 .bottomnav .navgroup { display: contents; }
 .bottomnav .navhead { display: none; }
 

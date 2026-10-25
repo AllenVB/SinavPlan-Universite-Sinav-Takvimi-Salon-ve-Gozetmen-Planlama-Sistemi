@@ -525,7 +525,7 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Karar.**
 - **Oturum:** `checkin_sessions` (migrasyon 0005), (çizelge, slot, salon) başına tek açık oturum; yalnız o göreve atanmış gözetmen açar, sınavdan 30 dk önce – bitişinden 15 dk sonra. QR jetonu veritabanında tutulmaz: `SP1.` + HMAC(oturum, 30 sn'lik pencere); bir önceki pencere de geçerli (okuma payı), ekran 4 sn'de bir taze jeton ister. Yedek kod DB'de, 10 dk ömürlü, "yeni kod üret" eskisini geçersiz kılar.
 - **Öğrenci uçu** `POST /me/checkin {token | code}`: öğrencinin o salon+slotta koltuğu olmalı (başka salondakiyle kod paylaşılsa bile yazılmaz → 409 `checkin_not_here`), onaylı mazereti varsa 409, tekrar okutma zararsız (`already_present`). QR `qr`, kod `manual` kaynağıyla mevcut `attendance_events` + HLC çözümüne yazılır; yani tablet/çakışma/canlı ekranlar değişmeden çalışır.
-- **Kaba kuvvet:** 6 hane = 10⁶ olasılık; kullanıcı başına 5 dk'da 8 hatalı denemede 429 (doğru kod da durur). Bellek içi sayaç tek API örneği için yeterli; çok örnekli kurulumda paylaşılan depoya taşınmalı.
+- **Kaba kuvvet:** 6 hane = 10⁶ olasılık; kullanıcı başına 5 dk'da 8 hatalı denemede 429 (doğru kod da durur). Bellek içi sayaç tek API örneği için yeterli; çok örnekli kurulumda paylaşılan depoya taşınmalı (ADR-019 ile PostgreSQL'e taşındı).
 - **Mazeret:** karar uçu `secretary` + `student_affairs`; liste kişi ve ders/oturum adını döner.
 - **Demo:** ayrı dönem kaldırıldı. İlk kurulumda ana dönemin TÜM sınavları (300 + Prompt Mühendisliği) için çizelge üretilip yayınlanır; Prompt Mühendisliği öğrencileriyle çakışmayan en erken oturuma konur, gözetmeni Ömer ASLAN olur (salonun gözetmeniyle yer değiştirerek), tüm oturumlar o sınav "şimdi başlamış" olacak biçimde kaydırılır. Demo öğrenci hesabı bilerek işaretsiz bırakılır ki QR/kod denenebilsin. `DEMO_EXAM=off` ile kapatılır.
 - Çözücü, tek oturumlu planda `IntN(0)` ile çöküyordu; yerel arama bu durumda atlanır.
@@ -548,3 +548,16 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Alternatifler.** Kapıyı serbest metin etiketi yapmak (çizilemez, doğrulanamaz); kapıyı koltuk matrisinin hücresi saymak (kapasite hesabını ve koltuk numaralandırmasını bozar); salon düzenini yalnız CSV içe aktarmayla yönetmek (F-1 kapsamı öğrenci/ders/şube/kayıt; salon için görsel düzenleme daha anlaşılır).
 
 **Sonuçlar.** Salon düzeni değişince mevcut yayınlanmış çizelgenin oturma planı otomatik yeniden hesaplanmaz; sekreter yeni taslak üretmelidir (ekranda buna dair bir uyarı yok; bilinen eksik). Kapı, çözücü kısıtı değildir (yalnız gösterim); erişilebilir koltukların kapıya yakınlığı T-3'te zaten `accessible` işaretiyle sağlanır.
+
+## ADR-019 — Faz 21: paylaşımlı deneme sayacı, erişilebilirlik taraması, isteğe bağlı bulut yayını
+
+**Bağlam.** (1) ADR-017'deki "5 dk'da 8 hatalı kod" sınırı API sürecinin belleğindeydi: birden çok API örneğinde her örnek ayrı sayıyor (saldırgan istekleri örneklere dağıtarak sınırı N katına çıkarabilir), yeniden başlatma sayacı sıfırlıyordu. (2) Arayüz için otomatik erişilebilirlik denetimi yoktu. (3) Değerlendirici için "tıkla-dene" bir adres isteniyordu; ancak teslimin ana yolu `docker compose up` olarak kalmalıydı.
+
+**Karar.**
+- **Sayaç PostgreSQL'de:** `checkin_failures (user_id, failed_at)` (migrasyon 0007, `(user_id, failed_at)` dizinli). Deneme öncesi pencere içindeki sayım okunur, hatalı denemede tek ifadeyle (CTE) ekleme + o kullanıcının pencere dışı satırlarını silme yapılır; tablo küçük kalır. Test: iki ayrı `Server` örneği aynı veritabanında aynı engeli görür; pencere geçince engel kalkar ve eski satırlar silinir.
+- **Erişilebilirlik:** `deploy/ui-smoke/a11y.cjs` her rolün 20 ekranını axe-core (WCAG 2.1 A/AA) ile tarar, "serious/critical" bulguda başarısız olur; ayrıca klavyeyle giriş (Tab/Enter) ve görünür odak halkası denetlenir. İlk taramanın bulguları düzeltildi: yeşil metin kontrastı 4,45→5,07:1 (`--ok`), menü grup başlığı kontrastı (opaklık kaldırıldı), adsız ilerleme çubuklarına `aria-label`, kaydırmalı tablolara klavye odağı (`tabIndex=0`, `role=region`).
+- **Yayın:** Vercel (statik arayüz, `/api/*` → API vekili; CORS yok) + Render (Docker API, `render.yaml`, sırlar Render'da üretilir, `autoDeploy: false`) + Neon (PostgreSQL; `deploy/remote/migrate-seed.sh` sahip rolle migrate+seed yapar, API'ye kısıtlı rolün URL'ini verir).
+
+**Alternatifler.** Sayaç için Redis (yeni bağımlılık ve servis; tek tablo yeterli), sabit pencereli sayaç satırı (pencere sınırında 2 kat deneme kaçırır), IP bazlı sınır (öğrenciler aynı kampüs NAT'ının arkasında). Yayın için tek platform (Fly.io'da üçü birden) — Neon'un ücretsiz kalıcı PostgreSQL'i ve Vercel'in statik barındırması daha az işletme yükü getirir.
+
+**Sonuçlar.** Her hatalı kod denemesi bir yazma maliyeti getirir (kullanıcı başına en çok 8 / 5 dk; önemsiz). Bulut yayını gerçek hesaplarla denenmedi; yerelde ayrı veritabanı + ayrı rol ile Neon taklidi yapıldı. Karanlık tema yapılmadı.

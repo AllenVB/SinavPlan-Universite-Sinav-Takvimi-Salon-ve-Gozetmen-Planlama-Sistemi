@@ -30,7 +30,6 @@ type Server struct {
 	issuer        *auth.Issuer
 	idem          *idempotency.Store
 	qr            *store.QR
-	checkins      checkinGuard
 	qrTTL         time.Duration
 	runner        *jobs.Runner
 	seatingStrict bool

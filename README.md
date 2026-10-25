@@ -93,6 +93,7 @@ flowchart LR
 | 016 | fakülte → bölüm → sınıf yapısı, kapsamlı sınav provası |
 | 017 | öğrenci kendi hesabıyla QR/kodla yoklama; tüm dönem için demo çizelgesi |
 | 018 | salon kapısı (kroki) ve salon ekleme/düzenleme ekranı |
+| 019 | yoklama kodu deneme sayacı PostgreSQL'de, erişilebilirlik taraması, isteğe bağlı bulut yayını |
 
 **Teknoloji:** Go 1.24 (chi, pgx/v5, sqlc, goose) · PostgreSQL 16 · React + Vite + TypeScript · Docker Compose.
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
@@ -129,6 +130,12 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 - **Takvim sayfası sekmeli:** Takvim / Üret / Prova / Karşılaştır / Düzenle. "Varyasyon no" ve "Hesaplama kalitesi" kapalı başlayan **Gelişmiş ayarlar** altında; varsayılan akış tek düğmedir.
 - Takvim tablosunda **Öğretim üyesi** sütunu var; arama hoca adıyla da çalışır.
 - Demo: ilk kurulumda demo oturumundan önceki oturumlara da yoklama girilir (~%92 geldi, ~%4 gelmedi), böylece panel ve izleme ekranları sıfır yüzde göstermez.
+
+## Faz 21: güvenlik, erişilebilirlik, yayın
+
+- **Kod deneme sınırı paylaşımlı:** 6 haneli yoklama kodu için "5 dk'da 8 hatalı deneme" sayacı artık PostgreSQL'de (`checkin_failures`); birden çok API örneğinde ve yeniden başlatmada da geçerli (ADR-019).
+- **Erişilebilirlik:** axe-core (WCAG 2.1 A/AA) ile 5 rolün 20 ekranı tarandı; bulunan kontrast, adsız ilerleme çubuğu ve klavyeyle odaklanamayan tablo sorunları düzeltildi, son tarama **0 bulgu**. Klavyeyle giriş ve görünür odak halkası da denetlenir (`deploy/ui-smoke/a11y.cjs`).
+- **İsteğe bağlı bulut yayını:** Vercel (arayüz) + Render (API) + Neon (PostgreSQL) için hazır yapılandırma: `frontend/vercel.json`, `render.yaml`, `deploy/remote/migrate-seed.sh`. Adımlar: [deploy/remote/README.md](deploy/remote/README.md). Gerçek hesaplarla denenmedi; yerelde Neon taklidiyle denendi.
 
 ## Salon kapısı ve salon düzenleyici (Faz 17)
 
@@ -184,7 +191,7 @@ Faz 17–19 ekranları:
 | T-3 | 42.715 / 42.715 öğrenci-sınav çifti oturtuldu, 0 ihlal; 877 engelli öğrenci erişilebilir koltukta; bilerek bozulmuş planda sayaç beklenen 3 ihlali buldu |
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | **184 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
+| Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
 | `make verify` | 25 satır (26 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker

@@ -2,11 +2,16 @@ package httpapi
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/AllenVB/sinavplan/backend/internal/auth"
 	"github.com/AllenVB/sinavplan/backend/internal/simdata"
+	"github.com/AllenVB/sinavplan/backend/internal/store"
 	"github.com/AllenVB/sinavplan/backend/internal/testdb"
 )
 
@@ -176,5 +181,41 @@ func TestCheckinRejectsStudentSeatedInAnotherRoom(t *testing.T) {
 	code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"token": sess["token"].(string)})
 	if code != http.StatusConflict || out["error"].(map[string]any)["code"] != "checkin_not_here" {
 		t.Fatalf("başka salonun oturumu 409 checkin_not_here olmalı: %d %v", code, out)
+	}
+}
+
+// Sayaç veritabanındadır: ikinci bir API örneği (aynı veritabanı) de engeli görür; pencere dışına düşen
+// denemeler sayılmaz ve yeni bir hatalı denemede silinir.
+func TestCheckinRateLimitIsSharedAcrossInstances(t *testing.T) {
+	f := checkinFixture(t)
+	_, sess := post(t, f.s, "/checkin-sessions", f.inv, "", map[string]int64{"slot_id": f.slotID, "room_id": f.roomID})
+	bad := "000000"
+	if sess["code"].(string) == bad {
+		bad = "000001"
+	}
+	for i := 0; i < checkinMaxFails; i++ {
+		post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": bad})
+	}
+	svc, _ := auth.NewService(f.env.App.Pool, auth.NewIssuer(rbacSecret, 15*time.Minute), 7*24*time.Hour)
+	other := NewServer(Options{DB: f.env.App, Pool: f.env.App.Pool, Auth: svc, QR: store.NewQR(httpQRSecret),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if code, _ := post(t, other, "/me/checkin", f.stu, "", map[string]string{"code": bad}); code != http.StatusTooManyRequests {
+		t.Fatalf("ikinci örnek de 429 vermeli: %d", code)
+	}
+
+	// Denemeler pencerenin dışına kayınca engel kalkar; bir sonraki hata eski satırları temizler.
+	ctx := context.Background()
+	if _, err := f.env.Owner.Pool.Exec(ctx, `UPDATE checkin_failures SET failed_at = failed_at - interval '6 minutes'`); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := post(t, other, "/me/checkin", f.stu, "", map[string]string{"code": bad}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("pencere geçince yeniden 422 (hatalı kod) beklenir: %d", code)
+	}
+	var rows int
+	if err := f.env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM checkin_failures`).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 {
+		t.Fatalf("eski denemeler temizlenmeli, kalan %d (1 beklenir)", rows)
 	}
 }
