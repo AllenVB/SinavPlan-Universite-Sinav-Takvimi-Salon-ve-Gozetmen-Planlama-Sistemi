@@ -214,3 +214,39 @@ Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın)
 | Karanlık tema, çevrimdışı öğrenci yoklama kuyruğu | yapılmadı | P2, zaman/değer oranı düşük |
 
 Son koşu: `go test ./...` 185 PASS / 0 FAIL; `make verify` 25 satır PASS; UI: simple 18, checkin 6, pages 17, flows 8, features 15, qr-roundtrip 5, a11y 23 PASS. `live.cjs` bu turda yeniden koşulmadı (`QR_TTL=20s` gerektirir; ilgili kod değişmedi).
+
+## Faz 22 planı — "standart sınav provasından farklı" dokunuşlar (taslak; onay bekliyor)
+
+**Neden:** Puanın 50'si yönetici incelemesi (çalışırken verdiği izlenim, kullanılabilirlik, kararların mantığı) ve 5'i 20 dk'lık görüşme. Çekirdek T-1..T-5 tamam; fark yaratacak şey, sistemin **gerçek bir sınav ofisinin işini kolaylaştırdığını** ve **neden böyle karar verdiğini gösterebilmesi**. İlke: her özellik (a) mevcut veriden beslenir, (b) varsayılan ekranı kalabalıklaştırmaz (Faz 20 sadeliği korunur), (c) test/verify ile kanıtlanır. Teslim 26 Ekim 23:59; kalan ~26 sa, ~6 sa güvenlik payı → en çok ~16 sa iş.
+
+### A. Değerlendiriciyi yönlendiren deneyim (en yüksek getiri / en düşük risk)
+| # | Özellik | Ne işe yarar | Efor | Kabul ölçütü |
+|---|---|---|---|---|
+| A1 | **Rehberli tur ("Demo senaryosu")**: ilk girişte/üst çubuktaki "Tur" düğmesiyle 6 adım: çizelge → neden bu slot → salon kapısı+koltuk → canlı yoklama → hasta gözetmen → mazeret; her adım ilgili ekrana götürür, hangi hesabı kullanacağını söyler | 20 dk'lık görüşmeyi ve yöneticinin ilk 5 dakikasını yönetir; hiçbir özellik gözden kaçmaz | 2 sa | 6 adımın hepsi gerçek ekranı açar; tur kapatılıp yeniden açılır; `simple.cjs`'e tur kontrolü |
+| A2 | **"Kanıtlar" sayfası** (sekreter, Yönetim grubu): T-1..T-5 doğrulayıcılarını **canlı çalıştırır** (0 ihlal, süre, ceza), son `make verify` tablosu, EXPLAIN dizin farkı, test sayısı/kapsam | Zor görevlerin (40 puan) kanıtını arayüzde gösterir | 3 sa | Sayfadaki sayılar API'den hesaplanır (sabit metin yok); doğrulayıcı bozuk planda ihlal gösterir (test) |
+| A3 | **Ctrl+K komut paleti + "Öğrenci 360"**: öğrenci no/ad, ders, salon ara → öğrencinin programı, salonu/koltuğu/kapısı, mazereti, yoklaması tek kartta | Ofisin en sık işi ("şu öğrenci nerede?") 2 saniyede | 3 sa | Rol yetkisi sunucuda denetlenir (öğrenci başkasını göremez, 403 testi); klavyeyle açılır/kapanır (a11y) |
+
+### B. Planlama zekâsı (T-1..T-4'ün derinliğini görünür kılar)
+| # | Özellik | Ne işe yarar | Efor | Kabul ölçütü |
+|---|---|---|---|---|
+| B1 | **Çakışma çözüm önerisi**: çakışan/yoğun öğrenci için "en iyi 3 taşıma" (ceza farkı + ihlal 0) tek tıkla taslak sürüm | Sekreter sorunu sadece görmez, çözer | 3 sa | Öneri uygulanınca ihlal 0 ve ceza ≤ önceki (test); çakışmaya yeni sürüm oluşur |
+| B2 | **"Ya olursa?" önizleme (dry-run)**: gözetmen çıkar / salon kapanır / tahliye için **uygulamadan önce** etki özeti (kaç görev değişir, kim etkilenir, ihlal) ve "Uygula" | Kritik işlemde güven; F-5/T-5'in minimum-değişiklik iddiasını gösterir | 3 sa | Önizleme veritabanını değiştirmez (test: sürüm/atama sayısı aynı); uygula sonucu önizlemeyle aynı sayıları verir |
+| B3 | **Rahatsızlık ısı haritası + "bu sınav neden burada?"**: gün × oturum yoğunluğu, öğrenci başına ardışık/aynı-gün dağılımı; sınav satırında kısıt gerekçesi ("12 ortak öğrenci olan 3 sınavla çakışmaz") | Çizelgenin kalitesini ve açıklanabilirliğini gösterir | 2 sa | Haritadaki toplamlar `metrics` ile birebir (test) |
+
+### C. Sınav günü pratikleri
+| # | Özellik | Ne işe yarar | Efor | Kabul ölçütü |
+|---|---|---|---|---|
+| C1 | **Yazdırılabilir föyler** (tarayıcı "PDF olarak kaydet"): salon kapısı listesi (öğrenci no + koltuk), gözetmen görev kâğıdı, imza föyü; kapı krokisi dahil | Gerçek sınav lojistiği; sunucuda PDF yok, yazdırma stili | 2 sa | Üç föy A4'te taşmadan yazdırılır (ekran görüntüsü); satır sayısı = oturan sayısı (test) |
+| C2 | **Dikkat gerektirenler** (canlı ekranda otomatik uyarılar): oturum başladı + 15 dk, salonda geliş <%50; gözetmeni çıkarılmış/atanmamış salon; kapasite %95+ | Operasyonu proaktif yapar | 2 sa | Kurallar saf fonksiyon + birim test; demo verisinde en az bir uyarı görünür |
+| C3 | **Tablet PWA**: kurulabilir (manifest + service worker), çevrimdışı kabuk; ağ yokken yoklama kuyruğu görünür | T-5'in çevrimdışı iddiasını gerçekten telefonda/tablette gösterir | 2 sa | Playwright `offline` modunda sayfa açılır, olay kuyruğa girer, ağ gelince senkron |
+
+### D. İstenirse (P2)
+D1 çözücü ilerleme grafiği (ceza eğrisi, canlı) · D2 öğrenci "Bugün" kartı + geri sayım + kapıdan koltuğa yönlendirme · D3 karanlık tema.
+
+### Önerilen sıra ve bütçe (~16 sa)
+A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). Her özellikten sonra `go test ./...`, `make verify` (yeni kimlikler: **A2-1, A3-1, B1-1, B2-1, C2-1** TESTING.md'ye), duman testi, a11y taraması (0 bulgu korunur), CI yeşil. **Kesme noktası:** 26 Ekim 15:00'te biten ne varsa dondurulur; kalan süre README'nin son kontrolü, soğuk kurulum denemesi ve Doğrulama Soruları için ayrılır.
+
+### Riskler
+- Yeni uç noktalar RBAC testlerini bozabilir → her uç `Roles(...)` ile açılır, 403 testi eklenir.
+- `make verify` 15 dk sınırı → yeni kontroller salt-okunur/dry-run, çizelge değiştirmez.
+- Sadelik → hepsi mevcut menü altında (≤7 öğe korunur): Kanıtlar "Yönetim"e, tur ve arama üst çubuğa.
