@@ -111,6 +111,14 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 - **Ekranlarda:** Ana panel "Fakülteler ve bölümler" kartı; Takvim, Oturma planı ve Editör ekranlarında **Fakülte → Bölüm → Sınıf** süzgeci; **Sınav provası** fakülte → bölümler → sınıflar seçilerek yalnızca o kapsam için çalışır.
 - **Mevcut veritabanı için:** veri kümesi değiştiği için eski bir kurulum varsa `docker compose down -v` ve `docker compose up --build -d` (tüm demo verisi silinir). Aksi halde seed, "farklı veri kümesi" uyarısı verir.
 
+## Yoklama: QR ve 6 haneli kod (Faz 18)
+
+1. Gözetmen (`gozetmen@sinavplan.test`) **Yoklama ve görevlerim** → görevini seç → **Yeni QR oluştur**. Ekranda 30 sn'de bir yenilenen QR, yedek 6 haneli kod ve "geldi / beklenen" sayacı görünür.
+2. Öğrenci (`ogrenci@sinavplan.test`) **Sınav programım** → **QR okut** (kamera) ya da kodu girer; yoklamada otomatik **geldi** olur. QR çalışmazsa gözetmen **Yeni kod üret** der.
+3. Güvenlik: salon eşleşmesi, onaylı mazeret denetimi, hatalı kod denemesi sınırı (8/5 dk) — ADR-017.
+
+İlk kurulumda tüm dönem (301 sınav) için yayınlanmış çizelge gelir; **Prompt Mühendisliği** (Yazılım Müh. 4. sınıf, Fahrettin Burak DEMİR, gözetmen Ömer ASLAN) şu an sürüyor. Mazeret kararını sekreter ve öğrenci işleri verebilir. Eski veritabanı için `docker compose down -v` gerekir.
+
 ## Ekranlar
 
 | | |

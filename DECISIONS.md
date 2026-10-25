@@ -517,3 +517,19 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 **Alternatifler.** Her bölüme ayrı 8 hoca (120 kişi, adları verilen listeyle çelişir), sınıfı ayrı tablo yapmak (gereksiz: `courses.year` yeterli), kısmi takvim üretimi (tutarsızlık riski).
 
 **Sonuçlar.** Veri kümesi değişti → seed özeti ve bazı ölçümler yenilendi (T-1 ceza 1.972→1.062, 929 görev, 42.715 öğrenci-sınav çifti). Eski veritabanıyla uyumsuzluk için seed hata mesajı artık `docker compose down -v` önerir. `make verify` FAK-1 yapıyı ve kapsam sayılarını (300→60→20→5) doğrular.
+
+## ADR-017 — Öğrenci kendi hesabıyla QR/kodla yoklama; ilk kurulumda tüm dönem için demo çizelgesi
+
+**Bağlam.** (1) Mevcut akışta öğrenci kartını gösterir, gözetmen tarar; istenen UBYS tarzı akış ters yönlüdür: gözetmen "Yeni QR oluştur" der, ekranda dönen QR çıkar, öğrenci kendi hesabıyla okutur ve otomatik "geldi" sayılır; aksilikte rastgele 6 haneli kod. (2) Sekreter mazeret kararı veremiyordu (yalnız öğrenci işleri). (3) İlk sürüm demo sınavı ayrı bir dönemde tek sınavlıktı; yayınlanmış tek çizelge o olduğu için diğer tüm dersler/fakülteler kullanılamıyordu.
+
+**Karar.**
+- **Oturum:** `checkin_sessions` (migrasyon 0005), (çizelge, slot, salon) başına tek açık oturum; yalnız o göreve atanmış gözetmen açar, sınavdan 30 dk önce – bitişinden 15 dk sonra. QR jetonu veritabanında tutulmaz: `SP1.` + HMAC(oturum, 30 sn'lik pencere); bir önceki pencere de geçerli (okuma payı), ekran 4 sn'de bir taze jeton ister. Yedek kod DB'de, 10 dk ömürlü, "yeni kod üret" eskisini geçersiz kılar.
+- **Öğrenci uçu** `POST /me/checkin {token | code}`: öğrencinin o salon+slotta koltuğu olmalı (başka salondakiyle kod paylaşılsa bile yazılmaz → 409 `checkin_not_here`), onaylı mazereti varsa 409, tekrar okutma zararsız (`already_present`). QR `qr`, kod `manual` kaynağıyla mevcut `attendance_events` + HLC çözümüne yazılır; yani tablet/çakışma/canlı ekranlar değişmeden çalışır.
+- **Kaba kuvvet:** 6 hane = 10⁶ olasılık; kullanıcı başına 5 dk'da 8 hatalı denemede 429 (doğru kod da durur). Bellek içi sayaç tek API örneği için yeterli; çok örnekli kurulumda paylaşılan depoya taşınmalı.
+- **Mazeret:** karar uçu `secretary` + `student_affairs`; liste kişi ve ders/oturum adını döner.
+- **Demo:** ayrı dönem kaldırıldı. İlk kurulumda ana dönemin TÜM sınavları (300 + Prompt Mühendisliği) için çizelge üretilip yayınlanır; Prompt Mühendisliği öğrencileriyle çakışmayan en erken oturuma konur, gözetmeni Ömer ASLAN olur (salonun gözetmeniyle yer değiştirerek), tüm oturumlar o sınav "şimdi başlamış" olacak biçimde kaydırılır. Demo öğrenci hesabı bilerek işaretsiz bırakılır ki QR/kod denenebilsin. `DEMO_EXAM=off` ile kapatılır.
+- Çözücü, tek oturumlu planda `IntN(0)` ile çöküyordu; yerel arama bu durumda atlanır.
+
+**Alternatifler.** Öğrenci kartını tarama akışını korumak (istenen değil; eski uç yine duruyor), tek kullanımlık QR (30 sn'lik pencerede çok öğrenci okutamazdı), sabit kod (paylaşılır).
+
+**Sonuçlar.** Yeni uçlar OpenAPI'de ve testli (`checkin_http_test.go`, verify CHK-1, UI `checkin.cjs`). Sınır: öğrencinin telefonu internetsizse QR/kod çalışmaz (gözetmen tabletinden elle işaretler). Seed ~6 sn uzadı (tam çizelge).
