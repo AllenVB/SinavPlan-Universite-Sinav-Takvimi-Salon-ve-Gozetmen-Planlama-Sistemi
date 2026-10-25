@@ -39,6 +39,15 @@ export function Dashboard() {
   }, [feed.data])
 
   const m = sch.current?.metrics
+  // Başlangıç rehberi: her adımın ✓/○ durumu gerçek veriden gelir.
+  const published = sch.list.data?.find((x) => x.status === 'published')
+  const liveNow = useLive(async () => (await get<{ slot: { mode: string } }>(`/schedules/${published!.id}/live`)).slot.mode === 'active', [published?.id], 30_000, !!published)
+  const guide = [
+    { done: (sch.list.data?.length ?? 0) > 0, title: 'Çizelge üret', hint: 'Sınav takvimi → Üret sekmesi', href: '#/takvim?tab=uret' },
+    { done: !!published, title: 'Çizelgeyi yayınla', hint: 'Öğrenci ve hocalar yalnız yayındakini görür', href: '#/takvim' },
+    { done: !!published?.metrics && published.metrics.invigilation.assignments > 0 && published.metrics.invigilation_unfilled === 0, title: 'Gözetmenler atandı', hint: 'Gözetmen atama ekranından kontrol edin', href: '#/gozetmenler' },
+    { done: !!liveNow.data, title: 'Canlı oturum', hint: liveNow.data ? 'Şu an bir oturum sürüyor' : 'Sınav günü izleme ekranı', href: '#/canli' },
+  ]
   const cap = rooms.data?.reduce((a, r) => a + r.capacity, 0)
   const hard = m ? m.room_violations + m.seat_violations + m.unseated : 0
 
@@ -68,6 +77,17 @@ export function Dashboard() {
 
       {m && hard > 0 && <Banner tone="err" icon="alert" title={`${hard} sert kısıt ihlali`} actions={<a className="btn sm" href="#/takvim">Takvime git</a>}>Bu sürümde salon/oturma planı eksik; yayınlamadan önce yeniden üretin.</Banner>}
       {sch.current?.status === 'draft' && <Banner tone="warn" icon="clock" title="Seçili sürüm taslak" actions={<a className="btn sm" href="#/takvim">Yayınla</a>}>Öğrenciler, gözetmenler ve öğretim üyeleri yalnızca yayınlanmış sürümü görür.</Banner>}
+
+      <Card title="Başlangıç rehberi" aside={<span className="small muted">{guide.filter((g) => g.done).length} / {guide.length} adım tamam</span>}>
+        <ol className="guide">
+          {guide.map((g, i) => (
+            <li key={g.title} className={g.done ? 'done' : ''}>
+              <span className="mark" aria-hidden>{g.done ? '✓' : '○'}</span>
+              <div><div className="t"><a href={g.href}>{i + 1}. {g.title}</a> <span className="sr-only">{g.done ? '(tamam)' : '(bekliyor)'}</span></div><div className="d">{g.hint}</div></div>
+            </li>
+          ))}
+        </ol>
+      </Card>
 
       <div className="grid g4">
         <StatCard icon="calendar" tone="info" label="Sınav sayısı" value={periods.data?.[0]?.exams ?? '—'} note={periods.data?.[0] && `${periods.data[0].days} gün × ${periods.data[0].sessions_per_day} oturum`} progress={m ? 100 : 0} />

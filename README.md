@@ -122,6 +122,14 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 İlk kurulumda tüm dönem (301 sınav) için yayınlanmış çizelge gelir; **Prompt Mühendisliği** (Yazılım Müh. 4. sınıf, Fahrettin Burak DEMİR, gözetmen Ömer ASLAN) şu an sürüyor. Mazeret kararını sekreter ve öğrenci işleri verebilir. Eski veritabanı için `docker compose down -v` gerekir.
 
+## Sade kullanım (Faz 20)
+
+- **Yan menü gruplara ayrıldı** (Planlama / Sınav günü / Yönetim); hiçbir rolde 7'den fazla öğe yok (sekreter 7, öğrenci işleri 5, gözetmen 4, hoca 2, öğrenci 2). Takvim editörü ve çakışma masası menüden kalktı: Takvim ekranında **Düzenle** sekmesi, Mazeretler ekranında **Çakışmalar** sekmesi olarak durur (eski bağlantılar çalışır).
+- **Ana panelde "Başlangıç rehberi":** çizelge üret → yayınla → gözetmenler atandı → canlı oturum; her adımın ✓/○ durumu gerçek veriden gelir.
+- **Takvim sayfası sekmeli:** Takvim / Üret / Prova / Karşılaştır / Düzenle. "Varyasyon no" ve "Hesaplama kalitesi" kapalı başlayan **Gelişmiş ayarlar** altında; varsayılan akış tek düğmedir.
+- Takvim tablosunda **Öğretim üyesi** sütunu var; arama hoca adıyla da çalışır.
+- Demo: ilk kurulumda demo oturumundan önceki oturumlara da yoklama girilir (~%92 geldi, ~%4 gelmedi), böylece panel ve izleme ekranları sıfır yüzde göstermez.
+
 ## Salon kapısı ve salon düzenleyici (Faz 17)
 
 Sekreter **Salon ve oturma planı → Salon envanteri** ekranında salon ekleyebilir, satır × sütun düzenini, pasif ve erişilebilir koltukları ve **kapının duvarını/konumunu** (ön, arka, sol, sağ + konum) düzenleyebilir. Kapasite = satır × sütun − pasif koltuk, sunucuda hesaplanır; geçersiz kapı konumu 422 döner (`make verify` F-2). Kapı, koltuk haritasında "KAPI" işaretiyle çizilir; öğrencinin sınav kartı aynı krokiyi gösterir (ADR-018).

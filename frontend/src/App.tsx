@@ -7,33 +7,35 @@ import { AuthProvider, useAuth } from './auth'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Calendar } from './pages/Calendar'
-import { Editor } from './pages/Editor'
 import { Rooms } from './pages/Rooms'
 import { Invigilators } from './pages/Invigilators'
-import { Conflicts } from './pages/Conflicts'
-import { Excuses } from './pages/Excuses'
+import { ExcuseDesk } from './pages/Excuses'
 import { Imports } from './pages/Imports'
 import { Live } from './pages/Live'
 import { Tablet } from './pages/Tablet'
 import { MyExams } from './pages/MyExams'
 import type { Role } from './api'
 
-type Route = { path: string; label: string; roles: Role[]; page: ComponentType; icon: IconName }
+/** group: yan menü başlığı; hidden: menüde görünmez (doğrudan bağlantı çalışır), parent: menüde hangi öğe vurgulanır. */
+type Route = { path: string; label: string; roles: Role[]; page: ComponentType; icon: IconName; group?: string; hidden?: boolean; parent?: string }
 const ALL: Role[] = ['secretary', 'lecturer', 'invigilator', 'student_affairs', 'student']
 
 const routes: Route[] = [
   { path: 'programim', label: 'Sınav programım', roles: ['student'], page: MyExams, icon: 'calendar' },
   { path: 'yoklama', label: 'Yoklama ve görevlerim', roles: ['invigilator'], page: Tablet, icon: 'qr' },
   { path: 'panel', label: 'Ana panel', roles: ['secretary'], page: Dashboard, icon: 'building' },
-  { path: 'takvim', label: 'Sınav takvimi', roles: ['secretary', 'student_affairs', 'lecturer'], page: Calendar, icon: 'calendar' },
-  { path: 'duzenle', label: 'Takvim editörü', roles: ['secretary'], page: Editor, icon: 'edit' },
-  { path: 'salonlar', label: 'Salon ve oturma planı', roles: ['secretary', 'lecturer', 'student_affairs', 'invigilator'], page: Rooms, icon: 'seat' },
-  { path: 'gozetmenler', label: 'Gözetmen atama', roles: ['secretary', 'student_affairs'], page: Invigilators, icon: 'users' },
-  { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: Conflicts, icon: 'alert' },
-  { path: 'mazeret', label: 'Mazeretler', roles: ['secretary', 'student_affairs', 'student', 'invigilator'], page: Excuses, icon: 'mail' },
-  { path: 'ice-aktar', label: 'Veri içe aktarma', roles: ['secretary'], page: Imports, icon: 'upload' },
-  { path: 'canli', label: 'Sınav günü izleme', roles: ['secretary', 'student_affairs'], page: Live, icon: 'zap' },
+  { path: 'takvim', label: 'Sınav takvimi', roles: ['secretary', 'student_affairs', 'lecturer'], page: Calendar, icon: 'calendar', group: 'Planlama' },
+  { path: 'duzenle', label: 'Takvim editörü', roles: ['secretary'], page: CalendarEditor, icon: 'edit', hidden: true, parent: 'takvim' },
+  { path: 'salonlar', label: 'Salon ve oturma planı', roles: ['secretary', 'lecturer', 'student_affairs', 'invigilator'], page: Rooms, icon: 'seat', group: 'Planlama' },
+  { path: 'gozetmenler', label: 'Gözetmen atama', roles: ['secretary', 'student_affairs'], page: Invigilators, icon: 'users', group: 'Planlama' },
+  { path: 'canli', label: 'Sınav günü izleme', roles: ['secretary', 'student_affairs'], page: Live, icon: 'zap', group: 'Sınav günü' },
+  { path: 'mazeret', label: 'Mazeret ve çakışma', roles: ['secretary', 'student_affairs', 'student', 'invigilator'], page: ExcuseDesk, icon: 'mail', group: 'Sınav günü' },
+  { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: ConflictsTab, icon: 'alert', hidden: true, parent: 'mazeret' },
+  { path: 'ice-aktar', label: 'Veri içe aktarma', roles: ['secretary'], page: Imports, icon: 'upload', group: 'Yönetim' },
 ]
+
+function CalendarEditor() { return <Calendar initialTab="duzenle" /> }
+function ConflictsTab() { return <ExcuseDesk initialTab="cakisma" /> }
 
 const roleName: Record<Role, string> = { secretary: 'Bölüm sekreteri', lecturer: 'Öğretim üyesi', invigilator: 'Gözetmen', student_affairs: 'Öğrenci işleri', student: 'Öğrenci' }
 
@@ -56,18 +58,34 @@ function Shell() {
   const period = useAsync(async () => (user!.roles.includes('student') ? null : ((await get('/periods')).items?.[0]?.name as string | undefined) ?? null))
   const roles = user!.roles.length ? user!.roles : ALL.slice(0, 0)
   const mine = routes.filter((r) => r.roles.some((x) => roles.includes(x)))
-  const cur = mine.find((r) => r.path === hash) ?? mine[0]
+  const hashPath = hash.split('?')[0]
+  const cur = mine.find((r) => r.path === hashPath) ?? mine[0]
   useEffect(() => {
-    if (cur && cur.path !== hash) location.hash = `/${cur.path}`
-  }, [cur, hash])
+    if (cur && cur.path !== hashPath) location.hash = `/${cur.path}`
+  }, [cur, hashPath])
   if (!cur) return <main className="page"><div className="alert err">Bu hesaba tanımlı bir ekran yok.</div></main>
   const Page = cur.page
-  const nav = mine.map((r) => (
-    <a key={r.path} href={`#/${r.path}`} aria-current={r.path === cur.path ? 'page' : undefined}>
+  const visible = mine.filter((r) => !r.hidden)
+  const activePath = cur.parent ?? cur.path
+  const link = (r: Route) => (
+    <a key={r.path} href={`#/${r.path}`} aria-current={r.path === activePath ? 'page' : undefined}>
       <Icon name={r.icon} size={17} />
       <span>{r.label}</span>
     </a>
-  ))
+  )
+  // başlıklı gruplar: ilk görülen sırayla; grubu olmayan öğeler (ana ekranlar) başta
+  const groups = [...new Set(visible.map((r) => r.group).filter((g): g is string => !!g))]
+  const nav = (
+    <>
+      {visible.filter((r) => !r.group).map(link)}
+      {groups.map((g) => (
+        <div key={g} className="navgroup" role="group" aria-label={g}>
+          <span className="navhead caps">{g}</span>
+          {visible.filter((r) => r.group === g).map(link)}
+        </div>
+      ))}
+    </>
+  )
   return (
     <div className="shell">
       <aside className="side">

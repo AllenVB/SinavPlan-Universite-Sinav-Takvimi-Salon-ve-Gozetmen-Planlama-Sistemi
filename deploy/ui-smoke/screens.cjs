@@ -10,7 +10,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/01-ana-panel.png` });
   await p.goto(BASE + '/#/takvim'); await p.waitForSelector('tbody tr'); await p.selectOption('select[aria-label=Fakülte]', { label: 'Mühendislik Fakültesi' }); await p.selectOption('select[aria-label=Bölüm]', { label: 'Bilgisayar Mühendisliği' }); await p.selectOption('select[aria-label=Sınıf]', { label: '2. sınıf' }); await p.waitForTimeout(500);
   await p.locator('text=Sınav oturumları').first().scrollIntoViewIfNeeded(); await p.screenshot({ path: `${out}/08-takvim-fakulte-bolum-sinif.png` });
-  await p.locator('text=Sınav provası').first().scrollIntoViewIfNeeded(); await p.click('button:has-text("Mühendislik Fakültesi") >> nth=0').catch(() => {}); await p.waitForTimeout(400); await p.screenshot({ path: `${out}/09-sinav-provasi-kapsam.png` });
+  await p.click('.tabs button:has-text("Prova")'); await p.locator('text=Sınav provası').first().scrollIntoViewIfNeeded(); await p.click('button:has-text("Mühendislik Fakültesi") >> nth=0').catch(() => {}); await p.waitForTimeout(400); await p.screenshot({ path: `${out}/09-sinav-provasi-kapsam.png` });
   await p.goto(BASE + '/#/canli'); await p.waitForSelector('.roomcard'); await p.waitForTimeout(3500); await p.screenshot({ path: `${out}/02-canli-izleme.png` });
   await p.goto(BASE + '/#/salonlar'); await p.waitForSelector('.roomcard'); await p.waitForTimeout(1500); await p.screenshot({ path: `${out}/03-kapasite-panosu.png` });
   await p.goto(BASE + '/#/gozetmenler'); await p.waitForSelector('.hist'); await p.waitForTimeout(1500); await p.screenshot({ path: `${out}/04-gozetmen-atama.png` });

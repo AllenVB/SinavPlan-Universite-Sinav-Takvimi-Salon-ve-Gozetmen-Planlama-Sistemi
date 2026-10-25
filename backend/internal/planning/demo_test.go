@@ -89,12 +89,34 @@ func TestSeedDemoExamBuildsTheDescribedScenario(t *testing.T) {
 		t.Fatal("demo oturumu şu an sürüyor olmalı")
 	}
 	var present, absent, pending int
-	one(&present, `SELECT count(*) FROM attendance_state WHERE status = 'present'`)
-	one(&absent, `SELECT count(*) FROM attendance_state WHERE status = 'absent'`)
+	one(&present, `SELECT count(*) FROM attendance_state WHERE exam_id = $1 AND status = 'present'`, demoExam)
+	one(&absent, `SELECT count(*) FROM attendance_state WHERE exam_id = $1 AND status = 'absent'`, demoExam)
 	one(&pending, `SELECT count(*) FROM excuses WHERE status = 'pending'`)
 	if present != enrolled*2/3 || absent < 1 || present+absent >= enrolled || pending != 1 {
 		t.Fatalf("yoklama: %d geldi, %d gelmedi (kayıtlı %d), bekleyen mazeret %d", present, absent, enrolled, pending)
 	}
+
+	// demo oturumundan ÖNCEKİ oturumların yoklaması dolu (panel sıfır yüzde göstermesin); sonrakilerde yok
+	var pastExams, pastPresent, pastAll, futureMarks int
+	one(&pastExams, `SELECT count(DISTINCT se.exam_id) FROM schedule_exams se JOIN slots sl ON sl.id = se.slot_id
+		JOIN slots d ON d.id = (SELECT slot_id FROM schedule_exams WHERE schedule_id = $1 AND exam_id = $2)
+		WHERE se.schedule_id = $1 AND sl.starts_at < d.starts_at`, sched, demoExam)
+	one(&pastAll, `SELECT count(*) FROM attendance_state a JOIN schedule_exams se ON se.exam_id = a.exam_id AND se.schedule_id = $1
+		JOIN slots sl ON sl.id = se.slot_id JOIN slots d ON d.id = (SELECT slot_id FROM schedule_exams WHERE schedule_id = $1 AND exam_id = $2)
+		WHERE a.exam_id <> $2 AND sl.starts_at < d.starts_at`, sched, demoExam)
+	one(&pastPresent, `SELECT count(*) FROM attendance_state a JOIN schedule_exams se ON se.exam_id = a.exam_id AND se.schedule_id = $1
+		JOIN slots sl ON sl.id = se.slot_id JOIN slots d ON d.id = (SELECT slot_id FROM schedule_exams WHERE schedule_id = $1 AND exam_id = $2)
+		WHERE a.exam_id <> $2 AND sl.starts_at < d.starts_at AND a.status = 'present'`, sched, demoExam)
+	one(&futureMarks, `SELECT count(*) FROM attendance_state a JOIN schedule_exams se ON se.exam_id = a.exam_id AND se.schedule_id = $1
+		JOIN slots sl ON sl.id = se.slot_id JOIN slots d ON d.id = (SELECT slot_id FROM schedule_exams WHERE schedule_id = $1 AND exam_id = $2)
+		WHERE sl.starts_at >= d.starts_at AND a.exam_id <> $2`, sched, demoExam)
+	if pastExams > 0 && (pastAll == 0 || pastPresent*100/pastAll < 85) {
+		t.Fatalf("geçmiş oturumlar: %d sınav, %d kayıt, %d geldi (≥%%85 beklenir)", pastExams, pastAll, pastPresent)
+	}
+	if futureMarks != 0 {
+		t.Fatalf("sonraki oturumlarda yoklama olmamalı: %d", futureMarks)
+	}
+	t.Logf("geçmiş oturum: %d sınav, %d yoklama kaydı, %d geldi", pastExams, pastAll, pastPresent)
 
 	// ikinci çağrı idempotent
 	if err := planning.SeedDemoExam(ctx, pool, now.Add(time.Hour), log); err != nil {

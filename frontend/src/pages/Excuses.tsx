@@ -3,6 +3,7 @@ import { all, get, idemKey, post, fmtDateTime } from '../api'
 import { useAuth } from '../auth'
 import { Async, Card, Empty, ErrorBox, Field, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 import { hasRole } from './common'
+import { Conflicts } from './Conflicts'
 
 type Excuse = { id: number; kind: string; exam_id?: number; slot_id?: number; reason: string; status: 'pending' | 'approved' | 'rejected'; decision_note?: string; created_at: string; person?: string; target?: string }
 const ST = { pending: ['warn', 'Bekliyor'], approved: ['ok', 'Onaylandı'], rejected: ['err', 'Reddedildi'] } as const
@@ -11,6 +12,19 @@ const KIND_TR: Record<string, string> = { student: 'Öğrenci', invigilator: 'G�
 export function Excuses() {
   const { user } = useAuth()
   return hasRole(user!.roles, 'student_affairs') || hasRole(user!.roles, 'secretary') ? <Desk /> : <Mine student={hasRole(user!.roles, 'student')} />
+}
+
+/** Menü tek öğedir: karar yetkilisi için Mazeretler + Çakışmalar sekmeleri; diğer roller yalnız mazeret ekranını görür. */
+export function ExcuseDesk({ initialTab = 'mazeret' }: { initialTab?: 'mazeret' | 'cakisma' }) {
+  const { user } = useAuth()
+  const [tab, setTab] = useState(initialTab)
+  if (!(hasRole(user!.roles, 'student_affairs') || hasRole(user!.roles, 'secretary'))) return <Excuses />
+  return (
+    <>
+      <div className="noprint" style={{ marginBottom: 12 }}><Tabs value={tab} onChange={setTab} items={[['mazeret', 'Mazeretler'], ['cakisma', 'Çakışmalar']]} /></div>
+      {tab === 'mazeret' ? <Excuses /> : <Conflicts />}
+    </>
+  )
 }
 
 function Desk() {

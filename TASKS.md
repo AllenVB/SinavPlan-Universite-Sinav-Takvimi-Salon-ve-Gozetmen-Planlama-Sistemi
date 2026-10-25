@@ -186,3 +186,19 @@ Commit yazarı Claude (sizin hesabınıza bağlı değil; karar: böyle kalsın)
 
 ### Önerilen sıra
 19.1 → 19.2 → 19.6 → 19.3 → 19.4 → 19.5 → 19.7 → (zaman varsa) 20.1–20.6 → teslim kontrol listesi. Her adımdan sonra `go test ./...`, `make verify`, CI yeşil olmadan ilerleme.
+
+
+## Durum güncellemesi (25 Ekim 2026, akşam)
+
+**Tamam:** 19.1–19.7, 20.1–20.6. Faz 21 yapılmadı (zaman/istek).
+
+| Doğrulama | Sonuç |
+|---|---|
+| `go test ./...` | 184 PASS, 0 FAIL (gerçek PostgreSQL) |
+| `make verify` | 25 satır (26 kimlik) hepsi PASS |
+| CI (main, 6372afd) | test, lint, frontend, docker, **soğuk kurulum** yeşil; compose up --build ≈ 70 sn, verify ≈ 25 sn (GitHub koşucusu) |
+| UI duman | pages 17, flows 8, features 15, checkin 6, live 9, qr-roundtrip 5, simple 18 — hepsi PASS |
+| k6 | 50.621 istek, hata %0, p95 70,2 ms, p99 106,3 ms |
+
+**Doğrulanmayanlar:** Windows'ta soğuk kurulum; gerçek kamerayla QR okuma (yalnız sahte aygıt); Faz 20 sonrası CI koşusu push sonrası kontrol edilecek.
+**Bilinen notlar:** `make verify` yayındaki çizelgeyi değiştirir → `checkin`/`live`/`screens` için önce `make reset-demo`; `checkin.cjs` aynı demo verisinde ikinci koşuda başarısız olur (öğrenci zaten yoklamada).

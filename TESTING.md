@@ -38,6 +38,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | FAK-1 | `GET /faculties`, takvim satırları, `POST /schedules/simulate` + `scope` | 4 fakülte/15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi, diğerleri 4–6; prova kapsamı 300→60→20→5 sınav; geçersiz kapsam 422 | `make verify` (FAK-1) |
 | L-1 | `GET /schedules/{id}/live`, `/live/events`, `/activity?after_id=` | oturan = oturma planı; gelen/gelmedi = sınav bazlı yoklama uçlarının toplamı; her salonda gözetmen; roller 403 | `make verify` (L-1) |
 | Q-1 | `POST /me/exams/{id}/card` ×2 | jeton ömrü ≤ QR_TTL; yenileme eski jetonu iptal eder (409 `qr_expired`), güncel 200 | `make verify` (Q-1) |
+| UI-SADE | menü ≤7 öğe + gruplar, başlangıç rehberi, takvim sekmeleri, Gelişmiş ayarlar kapalı, Öğretim üyesi sütunu/arama | 18 kontrol PASS | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/simple.cjs` |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
 | UI-CHK | tarayıcıda yoklama: gözetmen "Yeni QR oluştur" → öğrenci kodu girer | gözetmen sayacı artar; yanlış kod hata verir | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/checkin.cjs` (demo verisi ve süren oturum gerekir) |
 
@@ -77,7 +78,7 @@ gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin s
 Canlılık ve dinamik QR duman testi (`deploy/ui-smoke/live.cjs`; API'de `QR_TTL=20s` gerekir): salon kartları çizilir, canlı veri 11 sn'de ≥3 kez yenilenir, "Son güncelleme" göstergesi var, QR jetonu kendiliğinden yenilenir ve eskisi 409 olur, tablet kamera akışı (sahte aygıt) açılır. `qr-roundtrip.cjs`: arayüzün ürettiği QR, tabletin kullandığı çözücüyle (jsQR) aynen çözülür (40–260 karakterlik jetonlar). `screens.cjs` README ekran görüntülerini üretir.
 
 Otomatik duman testi (Playwright gerekir): `NODE_PATH=$(npm root -g) UI_URL=http://localhost:3000 node deploy/ui-smoke/pages.cjs` ve `flows.cjs`
-(5 rolün tüm ekranları hatasız açılır; giriş hatası, kart, koltuk haritası, içe aktarma, tablet senkronu). Son koşu (25 Ekim 2026, Vite geliştirme sunucusu + `docker compose` API): `pages` 17/17 ekran, `flows` 8/8, `features` 15/15, `checkin` 6/6, `live` 9/9 (`QR_TTL=20s` ile), `qr-roundtrip` 5/5. `checkin`/`live` taze seed ister (`make verify` yayındaki çizelgeyi değiştirir → önce `make reset-demo`).
+(5 rolün tüm ekranları hatasız açılır; giriş hatası, kart, koltuk haritası, içe aktarma, tablet senkronu). Son koşu (25 Ekim 2026, Vite geliştirme sunucusu + `docker compose` API): `pages` 17/17 ekran, `flows` 8/8, `features` 15/15, `checkin` 6/6, `live` 9/9 (`QR_TTL=20s` ile), `qr-roundtrip` 5/5, `simple` 18/18 (Faz 20). `checkin`/`live` taze seed ister (`make verify` yayındaki çizelgeyi değiştirir → önce `make reset-demo`).
 
 ## Tekrarlanabilirlik ve sınırlar
 

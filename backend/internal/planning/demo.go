@@ -231,11 +231,53 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 	if _, err := store.SyncAttendance(ctx, pool, events, omer); err != nil {
 		return err
 	}
+	// 5b) demo oturumundan ÖNCEKİ oturumlar bitmiş sayılır: panel/izleme ekranları sıfır yüzde göstermesin.
+	// Belirlenimli: (öğrenci, sınav) çiftinden türeyen sayıyla ~%92 geldi, ~%4 gelmedi, kalanı işaretsiz.
+	// Sıkı eşit starts_at kullanılır: demo oturumunun kendisi (yukarıda orantılı girildi) dışarıda kalır.
+	prows, qerr := pool.Query(ctx, `
+		SELECT sa.exam_id, sa.student_id
+		FROM seat_assignments sa
+		JOIN slots sl ON sl.id = sa.slot_id
+		WHERE sa.schedule_id = $1 AND sa.exam_id <> $2 AND sl.starts_at < $3
+		ORDER BY sa.exam_id, sa.student_id`, sid, exam, startsAt.Add(delta))
+	if qerr != nil {
+		return qerr
+	}
+	var past []attendance.Event
+	for prows.Next() {
+		var ex, st int64
+		if err := prows.Scan(&ex, &st); err != nil {
+			prows.Close()
+			return err
+		}
+		status := ""
+		switch h := (st*31 + ex*17) % 100; {
+		case h < 92:
+			status = "present"
+		case h < 96:
+			status = "absent"
+		default:
+			continue
+		}
+		id, _ := uuid.NewV7()
+		past = append(past, attendance.Event{ID: id.String(), DeviceID: "tablet-demo-gecmis", ExamID: ex, StudentID: st, Status: status, Source: "manual", HLC: clock.Now()})
+	}
+	prows.Close()
+	if err := prows.Err(); err != nil {
+		return err
+	}
+	for len(past) > 0 {
+		n := min(len(past), store.MaxSyncBatch)
+		if _, err := store.SyncAttendance(ctx, pool, past[:n], omer); err != nil {
+			return err
+		}
+		past = past[n:]
+	}
 	// bekleyen bir mazeret (mazeret ekranı boş kalmasın)
 	if _, err := store.CreateStudentExcuse(ctx, pool, others[len(others)-1], exam, "Hastane raporum var (demo kaydı)"); err != nil {
 		return err
 	}
 	log.Info("demo çizelgesi hazır", slog.String("ders", DemoCourseCode+" "+DemoCourseName), slog.Int("sınav", len(sp.Exams)),
-		slog.Int("öğrenci", len(students)), slog.Int64("çizelge", sid), slog.Int("demo_oturum", demoSlot))
+		slog.Int("öğrenci", len(students)), slog.Int64("çizelge", sid), slog.Int("demo_oturum", demoSlot), slog.Time("demo_baslangic", startsAt.Add(delta)))
 	return nil
 }

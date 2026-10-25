@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { get, idemKey, post, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../auth'
-import { Async, Card, ErrorBox, Empty, Pill, TuneFields, useAction, useAsync } from '../ui'
+import { Async, Card, ErrorBox, Empty, Pill, Tabs, TuneFields, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useExamFilter, useExams, useSchedules, type Exam } from './common'
 import { Compare, ExportButtons, Simulator } from './Tools'
+import { Editor } from './Editor'
 
-export function Calendar() {
+type Tab = 'takvim' | 'uret' | 'prova' | 'karsilastir' | 'duzenle'
+const TAB_FROM_HASH: Record<string, Tab> = { uret: 'uret', prova: 'prova', karsilastir: 'karsilastir', duzenle: 'duzenle' }
+
+export function Calendar({ initialTab }: { initialTab?: Tab }) {
   const { user } = useAuth()
   const sch = useSchedules()
   const secretary = hasRole(user!.roles, 'secretary')
+  // Sekmeler yalnız sekretere: Takvim / Üret / Prova / Karşılaştır / Düzenle. Diğer roller yalnız takvimi görür.
+  const [tab, setTab] = useState<Tab>(() => (secretary ? initialTab ?? TAB_FROM_HASH[new URLSearchParams(location.hash.split('?')[1] ?? '').get('tab') ?? ''] ?? 'takvim' : 'takvim'))
   const exams = useExams(sch.sel)
   const [q, setQ] = useState('')
   const filt = useExamFilter()
@@ -30,7 +36,7 @@ export function Calendar() {
           (!day || dayKey(e) === day) &&
           (!hour || fmtTime(e.starts_at) === hour) &&
           (!kind || (kind === 'lab') === e.requires_lab) &&
-          `${e.course_code} ${e.course_name} ${e.department_name}`.toLowerCase().includes(q.toLowerCase()),
+          `${e.course_code} ${e.course_name} ${e.department_name} ${e.lecturer_name ?? ''}`.toLowerCase().includes(q.toLowerCase()),
       ),
     [exams.data, q, filt.match, day, hour, kind],
   )
@@ -48,6 +54,7 @@ export function Calendar() {
   })
   const m = sch.current?.metrics
 
+  if (secretary && tab === 'duzenle') return <><CalTabs tab={tab} setTab={setTab} /><Editor /></>
   return (
     <>
       <div className="head">
@@ -64,11 +71,15 @@ export function Calendar() {
           )}
         </div>
       </div>
+      {secretary && <CalTabs tab={tab} setTab={setTab} />}
       {publish.error && <ErrorBox error={publish.error} />}
+      {secretary && tab === 'uret' && <div className="noprint"><Generator onDone={() => (sch.list.reload(), sch.setSel(null))} /></div>}
+      {secretary && tab === 'prova' && <div className="noprint"><Simulator periodId={sch.current?.period_id} exams={exams.data} /></div>}
+      {secretary && tab === 'karsilastir' && (sch.list.data && sch.list.data.length > 1
+        ? <div className="noprint"><Compare schedules={sch.list.data} current={sch.sel} /></div>
+        : <Card title="Sürüm karşılaştırma"><Empty title="Karşılaştırılacak sürüm yok" hint={'En az iki sürüm gerekir; "Üret" sekmesinden yenisini oluşturun.'} /></Card>)}
+      {tab === 'takvim' && (<>
       <div className="noprint"><ExportButtons schedule={sch.sel} /></div>
-      {secretary && <div className="noprint"><Generator onDone={() => (sch.list.reload(), sch.setSel(null))} /></div>}
-      {secretary && <div className="noprint"><Simulator periodId={sch.current?.period_id} exams={exams.data} /></div>}
-      {secretary && sch.list.data && sch.list.data.length > 1 && <div className="noprint"><Compare schedules={sch.list.data} current={sch.sel} /></div>}
 
       {m && (
         <div className="grid g4">
@@ -82,7 +93,7 @@ export function Calendar() {
       <Card title={`Sınav oturumları (${filtered.length}${exams.data && filtered.length !== exams.data.length ? ` / ${exams.data.length}` : ''})`}>
         <div className="row noprint" style={{ marginBottom: 12 }}>
           {filt.element}
-          <input className="input" style={{ width: 220 }} placeholder="Ders ara…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" style={{ width: 220 }} placeholder="Ders veya hoca ara…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} />
           <select aria-label="Gün" value={day} onChange={(e) => setDay(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Tüm günler</option>
             {days.map(([d, at]) => <option key={d} value={String(d)}>{fmtDate(at)}</option>)}
@@ -108,7 +119,7 @@ export function Calendar() {
               ) : (
                 <div className="tablewrap">
                   <table>
-                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Bölüm</th><th>Sınıf</th><th>Öğrenci</th><th>Salon</th><th>Tür</th></tr></thead>
+                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Öğretim üyesi</th><th>Bölüm</th><th>Sınıf</th><th>Öğrenci</th><th>Salon</th><th>Tür</th></tr></thead>
                     <tbody>
                       {byDay.flatMap(([, list]) =>
                         list.map((e, i) => (
@@ -116,6 +127,7 @@ export function Calendar() {
                             <td>{i === 0 ? fmtDate(e.starts_at) : ''}</td>
                             <td>{fmtTime(e.starts_at)}–{fmtTime(e.ends_at)}</td>
                             <td><b>{e.course_code}</b> {e.course_name}</td>
+                            <td className="small">{e.lecturer_name || '—'}</td>
                             <td className="small">{e.department_name}</td>
                             <td><Pill>{e.year}. sınıf</Pill></td>
                             <td>{e.students}</td>
@@ -132,7 +144,16 @@ export function Calendar() {
           </Async>
         )}
       </Card>
+      </>)}
     </>
+  )
+}
+
+function CalTabs({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  return (
+    <div className="noprint" style={{ margin: '4px 0 12px' }}>
+      <Tabs value={tab} onChange={setTab} items={[['takvim', 'Takvim'], ['uret', 'Üret'], ['prova', 'Prova'], ['karsilastir', 'Karşılaştır'], ['duzenle', 'Düzenle']]} />
+    </div>
   )
 }
 

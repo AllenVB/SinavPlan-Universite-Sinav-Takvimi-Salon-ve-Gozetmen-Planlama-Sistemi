@@ -258,23 +258,27 @@ export type Quality = { label: string; iterations: number }
  * dener) ve "Hesaplama kalitesi" (daha yüksek = daha uzun sürer, daha rahat takvim). API'deki seed/iterations alanlarına eşlenir.
  */
 export function TuneFields({ seed, setSeed, quality, setQuality, presets, idPrefix }: { seed: string; setSeed: (v: string) => void; quality: number; setQuality: (v: number) => void; presets: Quality[]; idPrefix: string }) {
+  // Varsayılan akış tek düğmedir; ince ayarlar kapalı başlayan "Gelişmiş ayarlar" altındadır.
   return (
-    <>
-      <Field label="Varyasyon no" id={`${idPrefix}-seed`}>
-        <div className="row" style={{ flexWrap: 'nowrap' }}>
-          <input id={`${idPrefix}-seed`} className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 90 }} aria-describedby={`${idPrefix}-help`} />
-          <button type="button" className="btn sm" title="Rastgele bir numara seç" onClick={() => setSeed(String(1 + Math.floor(Math.random() * 999)))}>Rastgele</button>
-        </div>
-      </Field>
-      <Field label="Hesaplama kalitesi" id={`${idPrefix}-q`}>
-        <select id={`${idPrefix}-q`} value={quality} onChange={(e) => setQuality(Number(e.target.value))} style={{ width: 'auto' }}>
-          {presets.map((p) => <option key={p.iterations} value={p.iterations}>{p.label}</option>)}
-        </select>
-      </Field>
-      <p id={`${idPrefix}-help`} className="small muted" style={{ flexBasis: '100%', margin: 0 }}>
-        <b>Varyasyon no:</b> aynı numara her zaman aynı takvimi üretir; farklı numara aynı kurallara uyan başka bir çözüm dener.{' '}
-        <b>Hesaplama kalitesi:</b> yükseldikçe hesap uzar, takvim öğrenciler için daha rahat (daha düşük rahatsızlık puanı) olur.
-      </p>
-    </>
+    <details className="adv">
+      <summary>Gelişmiş ayarlar</summary>
+      <div className="row" style={{ alignItems: 'flex-end' }}>
+        <Field label="Varyasyon no" id={`${idPrefix}-seed`}>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input id={`${idPrefix}-seed`} className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 90 }} aria-describedby={`${idPrefix}-help`} />
+            <button type="button" className="btn sm" title="Rastgele bir numara seç" onClick={() => setSeed(String(1 + Math.floor(Math.random() * 999)))}>Rastgele</button>
+          </div>
+        </Field>
+        <Field label="Hesaplama kalitesi" id={`${idPrefix}-q`}>
+          <select id={`${idPrefix}-q`} value={quality} onChange={(e) => setQuality(Number(e.target.value))} style={{ width: 'auto' }}>
+            {presets.map((p) => <option key={p.iterations} value={p.iterations}>{p.label}</option>)}
+          </select>
+        </Field>
+        <p id={`${idPrefix}-help`} className="small muted" style={{ flexBasis: '100%', margin: 0 }}>
+          <b>Varyasyon no:</b> aynı numara her zaman aynı takvimi üretir; farklı numara aynı kurallara uyan başka bir çözüm dener.{' '}
+          <b>Hesaplama kalitesi:</b> yükseldikçe hesap uzar, takvim öğrenciler için daha rahat (daha düşük rahatsızlık puanı) olur.
+        </p>
+      </div>
+    </details>
   )
 }

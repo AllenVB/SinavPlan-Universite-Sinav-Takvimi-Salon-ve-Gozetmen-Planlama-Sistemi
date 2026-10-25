@@ -226,3 +226,23 @@ tr.tone-err:hover td { background: #ffecea; }
 .roomgrid .wall.v { writing-mode: vertical-rl; transform: rotate(180deg); }
 .roomgrid .doormark { display: grid; place-items: center; font-size: .625rem; font-weight: 800; letter-spacing: .08em; color: #fff; background: var(--tertiary, #b45309); border-radius: 4px; z-index: 1; }
 .roomgrid .doormark.v { writing-mode: vertical-rl; transform: rotate(180deg); }
+
+/* Yan menü grupları (Faz 20.1) */
+.navgroup { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.navhead { padding: 4px 12px; font-size: .6875rem; letter-spacing: .06em; color: var(--on-var); opacity: .75; }
+.bottomnav .navgroup { display: contents; }
+.bottomnav .navhead { display: none; }
+
+/* Gelişmiş ayarlar (Faz 20.4) ve başlangıç rehberi (20.2) */
+details.adv { flex-basis: 100%; }
+details.adv > summary { cursor: pointer; font-size: .8125rem; font-weight: 600; color: var(--primary); }
+details.adv[open] > summary { margin-bottom: 10px; }
+.guide { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.guide li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--outline-var); border-radius: 10px; background: var(--card); }
+.guide li.done { background: var(--low); }
+.guide .mark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .8125rem; border: 2px solid var(--outline-var); color: var(--on-var); }
+.guide li.done .mark { border-color: var(--ok-solid); background: var(--ok-solid); color: #fff; }
+.guide .t { font-weight: 600; font-size: .875rem; }
+.guide .d { font-size: .8125rem; color: var(--on-var); margin-top: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tabs { max-width: 100%; flex-wrap: wrap; }

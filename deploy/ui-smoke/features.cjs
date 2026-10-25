@@ -25,6 +25,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     await p.waitForTimeout(300); const rows = await p.$$eval('tbody tr', (e) => e.length); ok(rows === 5 && rows < total, `F16: süzgeç tabloyu daralttı (${total} → ${rows})`);
     ok((await p.textContent('tbody')).includes('Hemşirelik'), 'F16: bölüm sütunu görünüyor'); await p.click('button:has-text("Süzgeci temizle")');
     for (const [label, ext] of [['Excel', '.xlsx'], ['CSV', '.csv'], ['iCal', '.ics']]) { const [d] = await Promise.all([p.waitForEvent('download'), p.click(`button:has-text("${label}")`)]); ok(d.suggestedFilename().endsWith(ext), `X-2/3: ${label} indirildi (${d.suggestedFilename()})`); }
+    await p.click('.tabs button:has-text("Prova")'); // Faz 20.3: Takvim / Üret / Prova / Karşılaştır sekmeleri
     await p.click('button:has-text("Provayı çalıştır")'); await p.waitForSelector('text=Sert ihlal yok', { timeout: 30000 }); ok(true, 'X-4: tüm kapsamda prova sonucu (sert ihlal yok)');
     // Faz 16: fakülte → bölüm → sınıf kapsamı: Mühendislik, yalnız Yazılım, yalnız 1. sınıf
     await p.click('button:has-text("Mühendislik Fakültesi")'); await p.waitForSelector('text=2 · Bölümler');
