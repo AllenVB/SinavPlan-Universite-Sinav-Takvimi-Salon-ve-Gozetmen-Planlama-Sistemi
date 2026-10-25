@@ -160,3 +160,49 @@ jobs:
       - name: Derleme
         working-directory: frontend
         run: npm run build
+
+  # "Soğuk kurulum": değerlendirici temiz bir makinede README'deki iki komutu çalıştırır
+  # (cp .env.example .env && docker compose up --build -d). Belge: 5 dk içinde hazır olmalı.
+  # Derleme önbelleği kullanılmaz; süre özet sayfasına yazılır, 300 sn aşılırsa uyarı verilir.
+  cold-start:
+    name: Soğuk kurulum (compose up + make verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: compose up --build (önbelleksiz), sağlıklı olana dek bekle
+        run: |
+          cp .env.example .env
+          start=$(date +%s)
+          docker compose up --build -d
+          # migrate ve seed bitmeli, api ve frontend sağlıklı olmalı (en çok 10 dk)
+          for i in $(seq 1 300); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1 && curl -fsS http://localhost:3000/ >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8080/health
+          curl -fsS -o /dev/null http://localhost:3000/
+          echo "UP_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          docker compose ps
+
+      - name: make verify
+        run: |
+          start=$(date +%s)
+          make verify | tee verify.out
+          echo "VERIFY_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
+      - name: Süre özeti
+        if: always()
+        run: |
+          {
+            echo "### Soğuk kurulum"
+            echo "- \`docker compose up --build -d\` → api + frontend hazır: **${UP_SECONDS:-?} sn** (belge hedefi: ≤ 300 sn)"
+            echo "- \`make verify\`: **${VERIFY_SECONDS:-?} sn**"
+            [ -f verify.out ] && { echo '```'; grep -E '\| (PASS|FAIL)' verify.out | awk -F'|' '{print $1 "|" $2}' ; echo '```'; }
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${UP_SECONDS:-0}" -gt 300 ]; then echo "::warning::kurulum ${UP_SECONDS} sn sürdü (hedef 300 sn)"; fi
+
+      - name: Hata ayıklama günlükleri
+        if: failure()
+        run: docker compose logs --no-color --tail=80
