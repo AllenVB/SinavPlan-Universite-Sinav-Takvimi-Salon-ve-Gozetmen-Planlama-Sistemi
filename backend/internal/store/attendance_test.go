@@ -280,11 +280,6 @@ func TestQRForgedRevokedExpired(t *testing.T) {
 
 // --- Toplu salon değişikliği ------------------------------------------------------
 
-type roomLoad struct {
-	slot, room int64
-	students   int
-}
-
 func occupancy(t *testing.T, env *testdb.Env, schedule int64) map[[2]int64]int {
 	rows, err := env.App.Pool.Query(context.Background(),
 		`SELECT slot_id, room_id, count(*) FROM seat_assignments WHERE schedule_id=$1 GROUP BY 1,2`, schedule)

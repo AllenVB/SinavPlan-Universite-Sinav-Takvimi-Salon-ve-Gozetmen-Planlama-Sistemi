@@ -197,8 +197,6 @@ func (p *problem) studentExamList(s int) []int32 {
 	return out
 }
 
-func (p *problem) day(slot int) int { return slot / p.sessions }
-
 // edges, çatışma grafındaki kenar sayısı.
 func (p *problem) edges() int {
 	t := 0

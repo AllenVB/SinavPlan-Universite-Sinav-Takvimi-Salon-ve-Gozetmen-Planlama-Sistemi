@@ -51,7 +51,7 @@ func checkT1(ctx context.Context, e *env, f *failures) string {
 }
 
 // T-2: salon kapasitesi, lab/klasik uyumu, salon payları ile oturma planının tutarlılığı.
-func checkT2(ctx context.Context, e *env, f *failures) string {
+func checkT2(_ context.Context, e *env, f *failures) string {
 	if !needSnap(e, f) {
 		return ""
 	}
@@ -88,7 +88,7 @@ func checkT2(ctx context.Context, e *env, f *failures) string {
 }
 
 // T-3: komşu koltukta aynı sınav yok, koltuk tekil, engelli öğrenci erişilebilir koltukta.
-func checkT3(ctx context.Context, e *env, f *failures) string {
+func checkT3(_ context.Context, e *env, f *failures) string {
 	if !needSnap(e, f) {
 		return ""
 	}
@@ -163,7 +163,7 @@ func checkF4(ctx context.Context, e *env, f *failures) string {
 }
 
 // T-4: gözetmen kısıtları + adalet.
-func checkT4(ctx context.Context, e *env, f *failures) string {
+func checkT4(_ context.Context, e *env, f *failures) string {
 	if !needSnap(e, f) {
 		return ""
 	}

@@ -116,7 +116,7 @@ func TestImportCSVRowErrorsUpsertAndIdempotency(t *testing.T) {
 	if code != http.StatusOK || r["created"].(float64) != 1 || len(r["errors"].([]any)) != 1 {
 		t.Fatalf("dersler: %v", r)
 	}
-	code, r = do(t, s, http.MethodPost, "/imports/sections", sec, "text/csv", "course_code,section_code,lecturer_email\nTST101,A,hoca@sinavplan.test\nTST101,B,yok@x.com\n")
+	_, r = do(t, s, http.MethodPost, "/imports/sections", sec, "text/csv", "course_code,section_code,lecturer_email\nTST101,A,hoca@sinavplan.test\nTST101,B,yok@x.com\n")
 	if r["created"].(float64) != 1 || len(r["errors"].([]any)) != 1 {
 		t.Fatalf("şubeler: %v", r)
 	}

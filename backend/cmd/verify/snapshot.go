@@ -109,7 +109,7 @@ func (sn *snapshot) roomStudents() map[dutyKey]int {
 }
 
 // checkInvigilation, T-4 kısıtlarını görev listesinden bağımsızca doğrular.
-func (sn *snapshot) checkInvigilation(f *failures) (min, max int) {
+func (sn *snapshot) checkInvigilation(f *failures) (lo, hi int) {
 	perUserSlot := map[[2]int64]int{}
 	type ds struct{ day, sess int64 }
 	byUser := map[int64][]ds{}
@@ -147,15 +147,15 @@ func (sn *snapshot) checkInvigilation(f *failures) (min, max int) {
 	}
 	first := true
 	for _, n := range load {
-		if first || n < min {
-			min = n
+		if first || n < lo {
+			lo = n
 		}
-		if first || n > max {
-			max = n
+		if first || n > hi {
+			hi = n
 		}
 		first = false
 	}
-	return min, max
+	return lo, hi
 }
 
 // fingerprint, çizelgenin kimlik numaralarından bağımsız içeriğinin özetidir: iki

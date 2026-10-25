@@ -80,7 +80,7 @@ func checkX4(ctx context.Context, e *env, f *failures) string {
 		return ""
 	}
 	res := obj(r1.body, "result")
-	f.check(boolean(r1.body, "saved") == false, "saved=true döndü")
+	f.check(!boolean(r1.body, "saved"), "saved=true döndü")
 	f.check(num(res, "violations") == 0 && num(res, "unplaced") == 0, "sert ihlal=%d yerleşemeyen=%d", num(res, "violations"), num(res, "unplaced"))
 	r2, _ := e.a.post(ctx, "/schedules/simulate", sec, body)
 	f.check(num(obj(r2.body, "result"), "penalty") == num(res, "penalty"), "aynı girdi farklı ceza: %d / %d", num(res, "penalty"), num(obj(r2.body, "result"), "penalty"))
@@ -377,7 +377,7 @@ func checkFak1(ctx context.Context, e *env, f *failures) string {
 	f.check(num(obj(one.body, "result"), "violations") == 0, "kapsamlı prova ihlalli")
 	bad, _ := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{9999}})
 	f.check(bad.code == 422, "olmayan bölüm: HTTP %d (422)", bad.code)
-	return fmt.Sprintf("4 fakülte, 15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi; prova kapsamı 300→60→20→5 sınav, ihlal 0")
+	return "4 fakülte, 15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi; prova kapsamı 300→60→20→5 sınav, ihlal 0"
 }
 
 // CHK-1: gözetmen "Yeni QR oluştur" → öğrenci QR/6 haneli kodla kendini yoklamaya yazar.

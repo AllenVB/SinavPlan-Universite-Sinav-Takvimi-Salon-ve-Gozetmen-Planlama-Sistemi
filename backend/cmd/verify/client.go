@@ -75,17 +75,6 @@ func (a *api) csv(ctx context.Context, path, token, data string) (resp, error) {
 	return a.do(ctx, http.MethodPost, path, token, "text/csv", strings.NewReader(data))
 }
 
-func (a *api) login(ctx context.Context, email, password string) (string, error) {
-	r, err := a.post(ctx, "/auth/login", "", M{"email": email, "password": password})
-	if err != nil {
-		return "", err
-	}
-	if r.code != 200 {
-		return "", fmt.Errorf("%s girişi: HTTP %d", email, r.code)
-	}
-	return str(r.body, "access_token"), nil
-}
-
 // all, keyset sayfalı bir listeyi sonuna kadar okur (next_cursor / after).
 func (a *api) all(ctx context.Context, path, token string) ([]M, error) {
 	var out []M

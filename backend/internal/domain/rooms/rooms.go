@@ -162,15 +162,6 @@ type roomState struct {
 
 func (rs *roomState) used() bool { return len(rs.groups) > 0 }
 
-func (rs *roomState) current(exam int64) int {
-	for _, g := range rs.groups {
-		if g.exam == exam {
-			return g.count
-		}
-	}
-	return 0
-}
-
 // fits, sınavdan k öğrenci (d'si erişilebilir koltuklu) eklendikten sonra salonun
 // etkin kapasite kurallarının sağlanıp sağlanmadığını söyler:
 //

@@ -28,7 +28,7 @@ func Index(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Asset, gömülü Swagger UI dosyalarını sunar (yalnızca listelenen üç dosya).
-func Asset(w http.ResponseWriter, r *http.Request, name string) bool {
+func Asset(w http.ResponseWriter, _ *http.Request, name string) bool {
 	switch name {
 	case "swagger-ui-bundle.js":
 		w.Header().Set("Content-Type", "application/javascript")

@@ -234,7 +234,10 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 			}
 		}
 		table, cols = "tmp_students", []string{"student_no", "full_name", "department_id", "disability_flag"}
-		_, err = tx.Exec(ctx, `CREATE TEMP TABLE tmp_students (student_no text, full_name text, department_id bigint, disability_flag boolean) ON COMMIT DROP`)
+		// Bu durumda `err` yukarıda yeni bir değişken olarak tanımlandı; dış err'e atanmazsa hata sessizce kaybolur.
+		if _, err := tx.Exec(ctx, `CREATE TEMP TABLE tmp_students (student_no text, full_name text, department_id bigint, disability_flag boolean) ON COMMIT DROP`); err != nil {
+			return rep, err
+		}
 		upsert = `INSERT INTO students (student_no, full_name, department_id, disability_flag)
 			SELECT student_no, full_name, department_id, disability_flag FROM tmp_students
 			ON CONFLICT (student_no) DO UPDATE SET full_name = EXCLUDED.full_name, department_id = EXCLUDED.department_id,
