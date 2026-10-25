@@ -34,6 +34,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | X-4 | `POST /schedules/simulate` | `saved=false`, sürüm sayısı değişmez, aynı girdi aynı ceza | `make verify` (X-4) |
 | X-5/X-7 | `POST /schedules/{id}/exams/{e}/move`, `GET /schedules/compare` | çakışan taşıma 422 (sürüm yok); geçerli taşıma yeni taslak, ihlal 0, yalnız 1 sınav farklı; karşılaştırma 1 | `make verify` (X-5/X-7) |
 | X-6 | `GET /activity` | denetim kaydından, yeniden eskiye; öğrenci/hoca/gözetmen 403 | `make verify` (X-6) |
+| FAK-1 | `GET /faculties`, takvim satırları, `POST /schedules/simulate` + `scope` | 4 fakülte/15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi, diğerleri 4–6; prova kapsamı 300→60→20→5 sınav; geçersiz kapsam 422 | `make verify` (FAK-1) |
 | L-1 | `GET /schedules/{id}/live`, `/live/events`, `/activity?after_id=` | oturan = oturma planı; gelen/gelmedi = sınav bazlı yoklama uçlarının toplamı; her salonda gözetmen; roller 403 | `make verify` (L-1) |
 | Q-1 | `POST /me/exams/{id}/card` ×2 | jeton ömrü ≤ QR_TTL; yenileme eski jetonu iptal eder (409 `qr_expired`), güncel 200 | `make verify` (Q-1) |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
@@ -43,7 +44,7 @@ Birim/entegrasyon testleri (gerçek PostgreSQL ister): `make test` (yarış dede
 
 ## Verify'ın yakaladığı gerçek hata
 
-İlk koşuda T-1, `GET /schedules/{id}/conflicts` uç noktasının 9.165 satır döndürdüğünü, bağımsız hesabın 9.180 çıkardığını
+İlk koşuda T-1, `GET /schedules/{id}/conflicts` uç noktasının 9.165 satır (o günkü veri kümesinde) döndürdüğünü, bağımsız hesabın 9.180 çıkardığını
 gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin sayfa sınırına denk gelen ikinci günü atlanıyordu.
 İmleç `(öğrenci, gün)` çiftine çevrildi (`store.ConflictCursor`); aynı kontrol artık 9.180 = 9.180 ile geçiyor.
 

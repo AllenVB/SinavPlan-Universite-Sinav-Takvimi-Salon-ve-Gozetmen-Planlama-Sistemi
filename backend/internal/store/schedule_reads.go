@@ -90,6 +90,12 @@ type CalendarExam struct {
 	Students        int       `json:"students"`
 	Rooms           int       `json:"rooms"`
 	RequiresLab     bool      `json:"requires_lab"`
+	// Fakülte → bölüm → sınıf: takvimi anlaşılır kılar (süzme/gruplama).
+	DepartmentID   int64  `json:"department_id"`
+	DepartmentCode string `json:"department_code"`
+	DepartmentName string `json:"department_name"`
+	FacultyName    string `json:"faculty_name"`
+	Year           int16  `json:"year"`
 }
 
 // ScheduleExams, çizelgedeki sınavları (sınav kimliğiyle keyset) döner.
@@ -98,15 +104,16 @@ func ScheduleExams(ctx context.Context, pool *pgxpool.Pool, scheduleID, after in
 		SELECT e.id, c.code, c.name, sl.id, sl.day_index, sl.session_index, sl.starts_at, sl.ends_at, e.duration_minutes,
 		       coalesce((SELECT sum(seat_count) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id), 0)::int,
 		       (SELECT count(*) FROM room_assignments ra WHERE ra.schedule_id = se.schedule_id AND ra.exam_id = e.id)::int,
-		       e.requires_lab
+		       e.requires_lab, d.id, d.code, d.name, coalesce(f.name, ''), c.year
 		FROM schedule_exams se JOIN exams e ON e.id = se.exam_id JOIN courses c ON c.id = e.course_id JOIN slots sl ON sl.id = se.slot_id
+		JOIN departments d ON d.id = c.department_id LEFT JOIN faculties f ON f.id = d.faculty_id
 		WHERE se.schedule_id = $1 AND e.id > $2 ORDER BY e.id LIMIT $3`, scheduleID, after, limit)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (CalendarExam, error) {
 		var x CalendarExam
-		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms, &x.RequiresLab)
+		err := r.Scan(&x.ExamID, &x.CourseCode, &x.CourseName, &x.SlotID, &x.Day, &x.Session, &x.StartsAt, &x.EndsAt, &x.DurationMinutes, &x.Students, &x.Rooms, &x.RequiresLab, &x.DepartmentID, &x.DepartmentCode, &x.DepartmentName, &x.FacultyName, &x.Year)
 		return x, err
 	})
 }

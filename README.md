@@ -95,6 +95,22 @@ flowchart LR
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
 Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipografi sistemi ve düzenine göre 11 ekrana entegre edildi (ADR-013). Tarayıcı aynı kaynağa konuşur: nginx `/api/` isteklerini API'ye vekiller, bu yüzden CORS gerekmez.
 
+## Fakülte yapısı (Faz 16)
+
+Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm, her bölümde 1–4. sınıf, her sınıfta 5 ders = 300 sınav**; 8.000 öğrenci, 23 öğretim üyesi.
+
+| Fakülte | Bölümler | Öğretim üyeleri |
+|---|---|---|
+| Mühendislik Fakültesi | Yazılım Mühendisliği, Elektrik Mühendisliği, Bilgisayar Mühendisliği | 8: Fahrettin Burak DEMİR, Ömer ASLAN, Abdullah Elen, Buket Toptaş, Serhat KILIÇARSLAN, Süleyman Gökhan TAŞKIN, Mehmet Ali Şimşek, Murat TOPTAŞ |
+| İktisadi ve İdari Bilimler Fakültesi | Yönetim Bilişim Sistemleri, Ekonometri, Maliye, Tarih, Uluslararası İlişkiler | 6 (rastgele ad) |
+| Sağlık Bilimleri Fakültesi | Hemşirelik, Eczacılık, Ebelik, Hasta Bakım | 6 (rastgele ad) |
+| Spor Bilimleri Fakültesi | Beden Eğitimi ve Spor Öğretmenliği, Antrenörlük Eğitimi, Spor Yöneticiliği | 5 (rastgele ad) |
+
+- Ders adları bölümlere özgüdür (örn. BLM201 *Veri Yapıları*, HEM301 *Doğum ve Kadın Sağlığı Hemşireliği*). Öğrenci kendi bölüm-sınıfının 5 dersini alır; 2. sınıf ve üstündekilerin ~%30'u aynı bölümün alt sınıflarından 1–2 ders **alttan** alır (çakışmaları gerçekçi kılar).
+- Öğretim üyeleri fakülte düzeyindedir: bir fakültenin tüm bölümlerinin derslerini verebilir (demo öğretim üyesi hesabı `hoca@sinavplan.test` = Fahrettin Burak DEMİR). Varsayım: "her bölüme 8 hoca" isteği, Mühendislik için verilen 8 adlı havuzun fakültenin 3 bölümünde paylaşılması, diğer fakültelerde 4–6 hoca olarak uygulandı.
+- **Ekranlarda:** Ana panel "Fakülteler ve bölümler" kartı; Takvim, Oturma planı ve Editör ekranlarında **Fakülte → Bölüm → Sınıf** süzgeci; **Sınav provası** fakülte → bölümler → sınıflar seçilerek yalnızca o kapsam için çalışır.
+- **Mevcut veritabanı için:** veri kümesi değiştiği için eski bir kurulum varsa `docker compose down -v` ve `docker compose up --build -d` (tüm demo verisi silinir). Aksi halde seed, "farklı veri kümesi" uyarısı verir.
+
 ## Ekranlar
 
 | | |
@@ -102,6 +118,8 @@ Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipogra
 | ![Ana panel](docs/screens/01-ana-panel.png) | ![Canlı izleme](docs/screens/02-canli-izleme.png) |
 | ![Kapasite panosu](docs/screens/03-kapasite-panosu.png) | ![Gözetmen atama](docs/screens/04-gozetmen-atama.png) |
 | ![Sürükle-bırak editör](docs/screens/05-surukle-birak-editor.png) | ![Gözetmen tableti](docs/screens/06-gozetmen-tableti.png) |
+
+| ![Takvim: fakülte → bölüm → sınıf süzgeci](docs/screens/08-takvim-fakulte-bolum-sinif.png) | ![Sınav provası: kapsam seçimi](docs/screens/09-sinav-provasi-kapsam.png) |
 
 Öğrenci (mobil, dinamik QR): ![Öğrenci](docs/screens/07-ogrenci-dinamik-qr.png)
 
@@ -130,11 +148,11 @@ Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipogra
 
 | Görev | Sonuç |
 |---|---|
-| T-1 takvim | 0 sert ihlal, ~10 sn; ceza 16.851 → 8.407 (başlangıç → SA) |
-| T-2/T-3 | 52.033 / 52.033 öğrenci-sınav çifti oturtuldu, 0 ihlal; 1.151 engelli öğrenci erişilebilir koltukta |
-| T-4 | 1.092 görev; gözetmen yükü min 10 / max 11 (fark 1 = ideal) |
+| T-1 takvim | 0 sert ihlal, ~3 sn; ceza 1.972 → 1.062 (başlangıç → SA); ardışık gün çifti 0 |
+| T-2/T-3 | 42.715 / 42.715 öğrenci-sınav çifti oturtuldu, 0 ihlal; 877 engelli öğrenci erişilebilir koltukta |
+| T-4 | 929 görev; gözetmen yükü min 9 / max 10 (fark 1 = ideal) |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | 171 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
+| Testler | 178 test, `-race` temiz; domain kapsamı: scheduling %96,1 · rooms %97,9 · seating %100 · invigilation %97 · attendance %100 |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 
@@ -207,11 +225,11 @@ Tam plan: [duties_by_user.txt](duties_by_user.txt)
 
 ### 1. En zorlandığın görev ve elenen alternatifler
 
-*Taslak veri:* T-2/T-3. T-2 doğrulayıcısı geçerken T-3 52.033 çiftten 110'unu oturtamadı. Önce ileri bakışlı ve çok başlangıçlı doldurma sırası denendi (etkisiz, geri alındı). Kök neden: payı `Single` kapasitesine eşit olan bir sınav tek bir koltuk eşlik sınıfına zorlanıyor, başka bir sınavın engelli öğrencisi bu koltuklardan birini alınca yer kalmıyor. Çözüm kuralı: `pay ≤ Single − diğer sınavların engelli sayısı` (ADR-008); sonuç 0 oturtulamayan ve regresyon testleri. Elenen alternatifler: T-1 için ILP (çözücü bağımlılığı, 60 sn garantisi yok) ve süre bazlı durma (makineler arası farklı sonuç) — ADR-007.
+*Taslak veri:* T-2/T-3. T-2 doğrulayıcısı geçerken T-3 (o günkü veri kümesinde) 52.033 çiftten 110'unu oturtamadı. Önce ileri bakışlı ve çok başlangıçlı doldurma sırası denendi (etkisiz, geri alındı). Kök neden: payı `Single` kapasitesine eşit olan bir sınav tek bir koltuk eşlik sınıfına zorlanıyor, başka bir sınavın engelli öğrencisi bu koltuklardan birini alınca yer kalmıyor. Çözüm kuralı: `pay ≤ Single − diğer sınavların engelli sayısı` (ADR-008); sonuç 0 oturtulamayan ve regresyon testleri. Elenen alternatifler: T-1 için ILP (çözücü bağımlılığı, 60 sn garantisi yok) ve süre bazlı durma (makineler arası farklı sonuç) — ADR-007.
 
 ### 2. Bilinen sınırlama
 
-*Taslak veri:* (a) Salon sayısı en iyi değil: 674 (slot, salon) kullanımı, gevşek alt sınır 435; kutulama sezgisel (Best-Fit Decreasing + bölme + birleştirme). (b) `Reassign` zincir uzunluğunu 3 ile sınırlar; daha derin takas gerektiren çok sıkışık planlarda "doldurulamadı" döner ve bunu raporlar. (c) Yazma yükü testi tek makinede; çok düğümlü senaryo sınanmadı. (d) CI GitHub'da henüz çalıştırılmadı; Windows'ta denenmedi.
+*Taslak veri:* (a) Salon sayısı en iyi değil: 558 (slot, salon) kullanımı, gevşek alt sınır 366; kutulama sezgisel (Best-Fit Decreasing + bölme + birleştirme). (b) `Reassign` zincir uzunluğunu 3 ile sınırlar; daha derin takas gerektiren çok sıkışık planlarda "doldurulamadı" döner ve bunu raporlar. (c) Yazma yükü testi tek makinede; çok düğümlü senaryo sınanmadı. (d) CI GitHub'da henüz çalıştırılmadı; Windows'ta denenmedi.
 
 ### 3. Dizinler: dizinsiz / dizinli fark
 
@@ -228,7 +246,7 @@ Ayrıca kendi hatam: tırnaksız bir heredoc `make reset-demo`'yu yanlışlıkla
 make prove-t1
 ```
 
-Çözücüden bağımsız `Validate` (sıfırdan hesaplar) 0 sert ihlal raporlar: aynı slotta çakışan sınav yok, öğrenci başına günde ≤2 sınav. Ceza 16.851 → 8.407. Aynı tohum aynı sonucu verir (determinizm testi + `make verify` F-3: aynı tohumla iki üretim özdeş). Uçtan uca: `make verify` T-1 satırı, API verisinden bağımsız hesapla `/conflicts` uç noktasıyla 9.180 = 9.180 eşleşir. Çözümsüz girdi için çözümsüzlük raporu (klik > slot, aşırı yüklü öğrenci) testlerle sınanır.
+Çözücüden bağımsız `Validate` (sıfırdan hesaplar) 0 sert ihlal raporlar: aynı slotta çakışan sınav yok, öğrenci başına günde ≤2 sınav. Ceza 1.972 → 1.062. Aynı tohum aynı sonucu verir (determinizm testi + `make verify` F-3: aynı tohumla iki üretim özdeş). Uçtan uca: `make verify` T-1 satırı, API verisinden bağımsız hesapla `/conflicts` uç noktasıyla 9.180 = 9.180 eşleşir. Çözümsüz girdi için çözümsüzlük raporu (klik > slot, aşırı yüklü öğrenci) testlerle sınanır.
 
 ## Bilinen sınırlar ve yapılmayanlar
 

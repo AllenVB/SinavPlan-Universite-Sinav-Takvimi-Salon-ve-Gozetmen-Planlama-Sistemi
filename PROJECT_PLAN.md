@@ -94,6 +94,10 @@ yok → kısa aralıklı yoklama (polling) ile canlılık, artımlı uçlarla ma
 
 Bu fazların hiçbiri P0'ı etkilemez; gecikme olursa sırayla düşer: 15 → 14'ün kamera kısmı → 13'ün denetim tablosu.
 
+### Faz 16 — Fakülte yapısı (kullanıcı isteği) ✅
+
+4 fakülte / 15 bölüm / 1–4. sınıf × 5 ders, adlı Mühendislik hocaları, fakülte → bölüm → sınıf süzgeci ve kapsamlı sınav provası. Kabul: `make verify` FAK-1, `simdata` yapı testleri, HTTP kapsam testleri, UI duman (F16). Ayrıntı ve varsayımlar: ADR-016.
+
 ## 3. Kritik yol
 
 ```

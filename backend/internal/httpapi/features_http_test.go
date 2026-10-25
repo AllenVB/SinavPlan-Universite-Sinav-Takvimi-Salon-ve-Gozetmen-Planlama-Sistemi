@@ -347,3 +347,95 @@ func TestMoveExamValidatesAndCreatesDerivedDraft(t *testing.T) {
 		t.Fatalf("eksik parametre: %d", c)
 	}
 }
+
+func TestFacultiesEndpointForEveryRole(t *testing.T) {
+	f := newFeatureFixture(t)
+	for name, tok := range map[string]string{"sekreter": f.sec, "hoca": f.lec, "gözetmen": f.inv, "öğrenci": f.stu, "öğrenci işleri": f.aff} {
+		code, out := do(t, f.s, http.MethodGet, "/faculties", tok, "", "")
+		items, _ := out["items"].([]any)
+		if code != 200 || len(items) == 0 {
+			t.Fatalf("%s: %d %v", name, code, out)
+		}
+	}
+	if c, _ := do(t, f.s, http.MethodGet, "/faculties", "", "", ""); c != 401 {
+		t.Fatalf("kimliksiz 401: %d", c)
+	}
+	_, out := do(t, f.s, http.MethodGet, "/faculties", f.sec, "", "")
+	first := out["items"].([]any)[0].(map[string]any)
+	if first["name"] != "Mühendislik Fakültesi" || len(first["lecturers"].([]any)) != 8 {
+		t.Fatalf("ilk fakülte Mühendislik ve 8 öğretim üyeli olmalı: %v", first)
+	}
+}
+
+func TestSimulateScopeFacultyDepartmentsYears(t *testing.T) {
+	f := newFeatureFixture(t)
+	_, fac := do(t, f.s, http.MethodGet, "/faculties", f.sec, "", "")
+	items := fac["items"].([]any)
+	f1 := items[0].(map[string]any)
+	d1 := f1["departments"].([]any)[0].(map[string]any)
+	d2 := f1["departments"].([]any)[1].(map[string]any)
+	other := items[1].(map[string]any)["departments"].([]any)[0].(map[string]any)
+	body := func(sc map[string]any) string {
+		return j(map[string]any{"period_id": f.period, "seed": 3, "iterations": 3000, "scope": sc})
+	}
+	run := func(sc map[string]any) (int, map[string]any) {
+		return do(t, f.s, http.MethodPost, "/schedules/simulate", f.sec, "application/json", body(sc))
+	}
+	count := func(out map[string]any) float64 { return out["scope"].(map[string]any)["exams"].(float64) }
+
+	_, all := run(map[string]any{})
+	_, oneFac := run(map[string]any{"faculty_id": f1["id"]})
+	_, oneDept := run(map[string]any{"faculty_id": f1["id"], "department_ids": []any{d1["id"]}})
+	_, twoYears := run(map[string]any{"faculty_id": f1["id"], "department_ids": []any{d1["id"]}, "years": []int{1, 2}})
+	_, oneYear := run(map[string]any{"faculty_id": f1["id"], "department_ids": []any{d1["id"]}, "years": []int{3}})
+	if !(count(all) > count(oneFac) && count(oneFac) > count(oneDept) && count(oneDept) > count(twoYears) && count(twoYears) > count(oneYear)) {
+		t.Fatalf("kapsam daraldıkça sınav sayısı azalmalı: %v > %v > %v > %v > %v", count(all), count(oneFac), count(oneDept), count(twoYears), count(oneYear))
+	}
+	// 1 bölüm × 1 sınıf = bölümün o sınıftaki ders sayısı (2 veya 5)
+	if n := count(oneYear); n < 1 || n > 5 {
+		t.Fatalf("1 bölüm 1 sınıf: %v sınav", n)
+	}
+	sc := oneYear["scope"].(map[string]any)
+	if len(sc["departments"].([]any)) != 1 || sc["departments"].([]any)[0] != d1["name"] || sc["faculty"] != f1["name"] || sc["students"].(float64) <= 0 {
+		t.Fatalf("kapsam özeti: %v", sc)
+	}
+	if oneYear["result"].(map[string]any)["violations"].(float64) != 0 {
+		t.Fatal("kapsamlı prova da sert ihlalsiz olmalı")
+	}
+	// yayındaki sürümle kıyas yalnız tam kapsamda
+	if _, ok := oneDept["published"]; ok {
+		t.Fatal("kısmi kapsamda yayındakiyle kıyas verilmemeli")
+	}
+	// geçersiz kapsamlar
+	bad := map[string]map[string]any{
+		"olmayan fakülte":         {"faculty_id": 9999},
+		"başka fakültenin bölümü": {"faculty_id": f1["id"], "department_ids": []any{other["id"]}},
+		"olmayan bölüm":           {"department_ids": []any{9999}},
+		"sınıf 5":                 {"years": []int{5}},
+		"sınıf 0":                 {"years": []int{0}},
+	}
+	for name, sc := range bad {
+		if c, _ := run(sc); c != 422 {
+			t.Fatalf("%s: HTTP %d (422 bekleniyordu)", name, c)
+		}
+	}
+	// iki bölüm birlikte
+	_, two := run(map[string]any{"faculty_id": f1["id"], "department_ids": []any{d1["id"], d2["id"]}})
+	if count(two) <= count(oneDept) || len(two["scope"].(map[string]any)["departments"].([]any)) != 2 {
+		t.Fatalf("iki bölüm: %v", two["scope"])
+	}
+	if c, _ := do(t, f.s, http.MethodPost, "/schedules/simulate", f.stu, "application/json", body(map[string]any{})); c != 403 {
+		t.Fatalf("öğrenci simüle edemez: %d", c)
+	}
+}
+
+func TestCalendarRowsCarryFacultyDepartmentYear(t *testing.T) {
+	f := newFeatureFixture(t)
+	_, cal := do(t, f.s, http.MethodGet, "/schedules/"+f.sid+"/exams?limit=200", f.sec, "", "")
+	for _, it := range cal["items"].([]any) {
+		m := it.(map[string]any)
+		if m["faculty_name"] == "" || m["department_name"] == "" || m["department_code"] == "" || m["year"].(float64) < 1 || m["year"].(float64) > 4 {
+			t.Fatalf("takvim satırında fakülte/bölüm/sınıf eksik: %v", m)
+		}
+	}
+}

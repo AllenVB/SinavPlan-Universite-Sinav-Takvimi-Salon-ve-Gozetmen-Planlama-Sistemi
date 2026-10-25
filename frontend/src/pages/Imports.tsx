@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { request } from '../api'
 import { Card, ErrorBox, Pill, Tabs, useAction } from '../ui'
+import { useFaculties } from './common'
 
 type Kind = 'students' | 'courses' | 'sections' | 'enrollments'
 type Report = { kind: string; rows: number; valid: number; created: number; updated: number; unchanged: number; errors: { line: number; field?: string; message: string }[]; errors_truncated?: boolean }
@@ -16,6 +17,7 @@ export function Imports() {
   const [kind, setKind] = useState<Kind>('students')
   const [text, setText] = useState('')
   const [file, setFile] = useState('')
+  const fac = useFaculties()
   const act = useAction(() => request<Report>('POST', `/imports/${kind}`, text, { ctype: 'text/csv' }))
   const r = act.result
   const onFile = async (f?: File) => {
@@ -28,6 +30,7 @@ export function Imports() {
     <>
       <div className="head"><div><div className="caps">Veri yönetimi</div><h1>Veri içe aktarma</h1><p className="muted">CSV yükleyin; geçerli satırlar yazılır, hatalı satırlar satır numarasıyla raporlanır. Aynı dosyayı tekrar yüklemek yeni kayıt oluşturmaz.</p></div></div>
       <Card title="CSV yükle" aside={<Tabs value={kind} onChange={(k) => (setKind(k), act.reset())} items={(Object.keys(NAME) as Kind[]).map((k) => [k, NAME[k]])} />}>
+        <details style={{ marginBottom: 8 }}><summary className="small muted">Geçerli bölüm kodları</summary><div className="small" style={{ marginTop: 6 }}>{fac.data?.map((f) => <div key={f.id}><b>{f.name}:</b> {f.departments.map((d) => `${d.code} (${d.name})`).join(', ')}</div>)}</div></details>
         <p className="small muted">Beklenen başlık: <span className="mono">{HEAD[kind]}</span></p>
         <div className="row" style={{ margin: '12px 0' }}>
           <input type="file" accept=".csv,text/csv" aria-label="CSV dosyası" onChange={(e) => void onFile(e.target.files?.[0])} />

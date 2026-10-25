@@ -1,7 +1,7 @@
 import { useMemo, useState, type DragEvent } from 'react'
 import { fmtShort, fmtTime, get, post } from '../api'
 import { Async, Card, Empty, ErrorBox, Field, Pill, useAction, useAsync } from '../ui'
-import { ScheduleSelect, useExams, useSchedules, type Exam } from './common'
+import { examLabel, ScheduleSelect, useExamFilter, useExams, useSchedules, type Exam } from './common'
 
 type Slot = { id: number; day: number; session: number; starts_at: string; ends_at: string }
 type Check = { ok: boolean; violations: { kind: string; detail: string }[]; violation_count: number; penalty_before: number; penalty_after: number }
@@ -20,6 +20,7 @@ export function Editor() {
   const exams = useExams(sch.sel)
   const slots = useAsync(async () => (sch.current ? ((await get<{ items: Slot[] }>(`/periods/${sch.current.period_id}/slots`)).items) : []), [sch.current?.period_id])
   const [q, setQ] = useState('')
+  const filt = useExamFilter()
   const [drag, setDrag] = useState<Exam | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
@@ -34,7 +35,8 @@ export function Editor() {
     exams.data?.forEach((e) => m.set(e.slot_id, [...(m.get(e.slot_id) ?? []), e]))
     return m
   }, [exams.data])
-  const match = (e: Exam) => !q || `${e.course_code} ${e.course_name}`.toLowerCase().includes(q.toLowerCase())
+  const match = (e: Exam) => filt.match(e) && (!q || `${e.course_code} ${e.course_name} ${e.department_name}`.toLowerCase().includes(q.toLowerCase()))
+  const focus = !!q || filt.active
 
   const check = useAction(async (exam: Exam, slot: Slot) => {
     const c = await post<Check>(`/schedules/${sch.sel}/exams/${exam.exam_id}/move`, { slot_id: slot.id, dry_run: true })
@@ -60,7 +62,7 @@ export function Editor() {
     <>
       <div className="head">
         <div><div className="caps">Takvim düzenleme</div><h1>Sürükle-bırak editör</h1><p className="muted">Bir sınavı başka oturuma sürükleyin. Sert kısıtlar bozuluyorsa taşıma reddedilir; uygunsa salon, oturma ve gözetmen planı yeniden kurulur ve <b>yeni bir taslak sürüm</b> oluşur (mevcut sürüm değişmez).</p></div>
-        <div className="actions"><ScheduleSelect s={sch} /><input className="input" style={{ width: 200 }} placeholder="Ders ara / vurgula…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="actions"><ScheduleSelect s={sch} />{filt.element}<input className="input" style={{ width: 200 }} placeholder="Ders ara / vurgula…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
       {done && <div className="alert ok" role="status"><div><b>Sürüm {done.version} (taslak) oluşturuldu.</b> Ceza {done.before.toLocaleString('tr-TR')} → {done.after.toLocaleString('tr-TR')}. Karşılaştırmak için Sınav takvimi ekranındaki "Sürüm karşılaştırma"yı kullanın.</div></div>}
       {check.error && <ErrorBox error={check.error} />}
@@ -102,7 +104,7 @@ export function Editor() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 130, overflowY: 'auto', marginTop: 4 }}>
                               {list.map((e) => (
                                 <span key={e.exam_id} draggable onDragStart={(ev) => { setDrag(e); ev.dataTransfer.setData('text/plain', String(e.exam_id)); ev.dataTransfer.effectAllowed = 'move' }} onDragEnd={() => { setDrag(null); setOver(null) }}
-                                  title={`${e.course_name} · ${e.students} öğrenci`} className="pill info" style={{ cursor: 'grab', opacity: q && !match(e) ? 0.25 : 1, outline: q && match(e) ? '2px solid var(--tertiary)' : undefined }}>{e.course_code}</span>
+                                  title={`${examLabel(e)} · ${e.students} öğrenci`} className="pill info" style={{ cursor: 'grab', opacity: focus && !match(e) ? 0.2 : 1, outline: focus && match(e) ? '2px solid var(--tertiary)' : undefined }}>{e.course_code}</span>
                               ))}
                             </div>
                           </td>
@@ -120,7 +122,7 @@ export function Editor() {
       <Card title="Klavye / dokunmatik alternatifi">
         <p className="small muted" style={{ marginBottom: 12 }}>Sürükleyemiyorsanız sınavı ve hedef oturumu listeden seçin.</p>
         <div className="row" style={{ alignItems: 'flex-end' }}>
-          <Field label="Sınav" id="pe"><select id="pe" value={pick.exam} onChange={(e) => setPick({ ...pick, exam: Number(e.target.value) })}><option value={0}>Seçin…</option>{exams.data?.map((e) => <option key={e.exam_id} value={e.exam_id}>{e.course_code} — {e.course_name}</option>)}</select></Field>
+          <Field label="Sınav" id="pe"><select id="pe" value={pick.exam} onChange={(e) => setPick({ ...pick, exam: Number(e.target.value) })}><option value={0}>Seçin…</option>{exams.data?.filter(filt.match).map((e) => <option key={e.exam_id} value={e.exam_id}>{examLabel(e)}</option>)}</select></Field>
           <Field label="Hedef oturum" id="ps"><select id="ps" value={pick.slot} onChange={(e) => setPick({ ...pick, slot: Number(e.target.value) })}><option value={0}>Seçin…</option>{slots.data?.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></Field>
           <button className="btn" disabled={!pick.exam || !pick.slot || check.busy} onClick={() => { const e = exams.data!.find((x) => x.exam_id === pick.exam)!; const s = slots.data!.find((x) => x.id === pick.slot)!; if (e.slot_id !== s.id) void check.run(e, s) }}>Denetle</button>
         </div>

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { all, get, idemKey, post } from '../api'
 import { useAuth } from '../auth'
 import { Async, Bar, Card, Empty, ErrorBox, Field, Pill, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
-import { hasRole, ScheduleSelect, useExams, useRooms, useSchedules, type Room } from './common'
+import { examLabel, hasRole, ScheduleSelect, useExamFilter, useExams, useRooms, useSchedules, type Room } from './common'
 
 type Seat = { row: number; col: number; active: boolean; accessible: boolean }
 type SeatRow = { student_id: number; student_no: string; full_name: string; exam_id: number; room_id: number; seat_row: number; seat_col: number; accessible: boolean; disabled_student: boolean }
@@ -100,6 +100,7 @@ function Plan() {
   const sch = useSchedules()
   const exams = useExams(sch.sel)
   const rooms = useRooms()
+  const filt = useExamFilter()
   const [exam, setExam] = useState<number | null>(null)
   const ex = exams.data?.find((e) => e.exam_id === exam)
   const seating = useAsync(async () => (sch.sel && exam ? all<SeatRow>(`/schedules/${sch.sel}/seating?exam_id=${exam}`) : null), [sch.sel, exam])
@@ -115,9 +116,10 @@ function Plan() {
         <Async s={exams} empty={(d) => d.length === 0}>
           {(list) => (
             <div className="row">
+              {filt.element}
               <select aria-label="Sınav" value={exam ?? ''} onChange={(e) => setExam(e.target.value ? Number(e.target.value) : null)} style={{ maxWidth: 520 }}>
-                <option value="">Sınav seçin…</option>
-                {list.map((e) => <option key={e.exam_id} value={e.exam_id}>{e.course_code} — {e.course_name} ({e.students} öğrenci)</option>)}
+                <option value="">Sınav seçin ({list.filter(filt.match).length})…</option>
+                {list.filter(filt.match).map((e) => <option key={e.exam_id} value={e.exam_id}>{examLabel(e)} · {e.students} öğrenci</option>)}
               </select>
               {ex && <span className="small muted">{ex.rooms} salon · {ex.requires_lab ? 'laboratuvar' : 'klasik'} · oturum {ex.session + 1}</span>}
             </div>

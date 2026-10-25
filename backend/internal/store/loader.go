@@ -39,9 +39,17 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 		return rows.Err()
 	}
 
-	if err := each(`SELECT id, code, name FROM departments ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, code, name FROM faculties ORDER BY id`, nil, func(r pgx.Rows) error {
+		var f simdata.Faculty
+		err := r.Scan(&f.ID, &f.Code, &f.Name)
+		ds.Faculties = append(ds.Faculties, f)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if err := each(`SELECT id, coalesce(faculty_id, 0), code, name FROM departments ORDER BY id`, nil, func(r pgx.Rows) error {
 		var d simdata.Department
-		err := r.Scan(&d.ID, &d.Code, &d.Name)
+		err := r.Scan(&d.ID, &d.FacultyID, &d.Code, &d.Name)
 		ds.Departments = append(ds.Departments, d)
 		return err
 	}); err != nil {

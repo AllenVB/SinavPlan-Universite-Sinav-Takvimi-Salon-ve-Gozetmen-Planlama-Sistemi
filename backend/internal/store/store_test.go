@@ -104,12 +104,13 @@ func TestSeedSetsSequencesSoAppCanInsert(t *testing.T) {
 	ctx := context.Background()
 	app, _ := store.Open(ctx, env.AppDSN)
 	defer app.Close()
-	var id int64
+	var maxID, id int64
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT max(id) FROM departments`).Scan(&maxID)
 	if err := app.Pool.QueryRow(ctx, `INSERT INTO departments(code,name) VALUES ('NEW','Yeni') RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("dizi geride kaldı, çakışma: %v", err)
 	}
-	if id != 8 { // 6 bölüm + ORT = 7; sıradaki 8
-		t.Fatalf("id = %d, beklenen 8", id)
+	if id != maxID+1 {
+		t.Fatalf("id = %d, beklenen %d (seed'in en büyük kimliğinden sonraki)", id, maxID+1)
 	}
 }
 
@@ -245,5 +246,40 @@ func TestSqlcQueriesWorkAsAppRole(t *testing.T) {
 	}
 	if err := use(); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("ikinci kullanım reddedilmeli (satır yok): %v", err)
+	}
+}
+
+// Her bölüm bir fakülteye bağlıdır; Faculties() bölümleri, sayıları ve öğretim üyelerini tutarlı verir.
+func TestFacultiesQueryMatchesSeed(t *testing.T) {
+	env, ds := testdb.Seeded(t)
+	ctx := context.Background()
+	var orphan int
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM departments WHERE faculty_id IS NULL`).Scan(&orphan)
+	if orphan != 0 {
+		t.Fatalf("%d bölüm fakültesiz", orphan)
+	}
+	fs, err := store.Faculties(ctx, env.Owner.Pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fs) != len(ds.Faculties) {
+		t.Fatalf("%d fakülte, seed'de %d", len(fs), len(ds.Faculties))
+	}
+	depts, students, lecturers := 0, 0, 0
+	for _, f := range fs {
+		depts += len(f.Departments)
+		lecturers += len(f.Lecturers)
+		if len(f.Departments) == 0 || len(f.Lecturers) == 0 {
+			t.Fatalf("%s: bölüm/öğretim üyesi yok", f.Name)
+		}
+		for _, d := range f.Departments {
+			students += d.Students
+			if d.Courses == 0 || len(d.Years) == 0 {
+				t.Fatalf("%s: ders/sınıf yok", d.Name)
+			}
+		}
+	}
+	if depts != len(ds.Departments) || students != len(ds.Students) || lecturers != len(ds.Lecturers) {
+		t.Fatalf("toplamlar: %d bölüm/%d, %d öğrenci/%d, %d öğretim üyesi/%d", depts, len(ds.Departments), students, len(ds.Students), lecturers, len(ds.Lecturers))
 	}
 }

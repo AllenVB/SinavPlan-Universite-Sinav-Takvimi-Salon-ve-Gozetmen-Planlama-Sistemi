@@ -180,6 +180,7 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodPost, "/schedules/simulate", Roles(auth.RoleSecretary), s.simulate, slow(45*time.Second))
 	s.handle(r, http.MethodGet, "/schedules/compare", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.compareSchedules)
 	s.handle(r, http.MethodGet, "/activity", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.activity)
+	s.handle(r, http.MethodGet, "/faculties", AllRoles(), s.faculties)
 	s.handle(r, http.MethodGet, "/schedules/{id}/live", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.live)
 	s.handle(r, http.MethodGet, "/schedules/{id}/live/events", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.liveEvents)
 	s.handle(r, http.MethodGet, "/me/exams/{examId}/seatmap", Roles(auth.RoleStudent), s.mySeatMap)

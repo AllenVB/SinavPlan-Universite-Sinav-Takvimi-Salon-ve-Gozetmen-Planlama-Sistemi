@@ -500,4 +500,20 @@ ileride `FOR UPDATE SKIP LOCKED` ile birden çok çalıştırıcıya geçmek kü
 
 **Alternatifler.** SSE (tek örnekte kazanç az, karmaşıklık fazla), sabit uzun ömürlü QR (ekran görüntüsüyle paylaşılabilir), kendi QR çözücüm (hata riski).
 
-**Sonuçlar.** Yeni uçlar OpenAPI'de ve testli; 171 test, 23 doğrulama kimliği. Bilinen sınır: izleme verisi en fazla ~5 sn gecikmeli; sekme gizliyken yenilenmez.
+**Sonuçlar.** Yeni uçlar OpenAPI'de ve testli; 178 test, 24 doğrulama kimliği. Bilinen sınır: izleme verisi en fazla ~5 sn gecikmeli; sekme gizliyken yenilenmez.
+
+## ADR-016 — Fakülte → bölüm → sınıf yapısı, anlaşılır müfredat ve kapsamlı sınav provası
+
+**Bağlam.** Kullanıcı geri bildirimi: arayüz "karışık ve yığın"; çok sayıda genel adlı ders ("Makine Mühendisliği Dersi 209") ve hangi bölümün/fakültenin olduğu belli değil. İstenen yapı: Mühendislik (Yazılım, Elektrik, Bilgisayar), İktisadi ve İdari Bilimler (YBS, Ekonometri, Maliye, Tarih, Uluslararası İlişkiler), Sağlık Bilimleri (Hemşirelik, Eczacılık, Ebelik, Hasta Bakım), Spor Bilimleri (3 bölüm); her bölümde 1–4. sınıf; Mühendislik için 8 adlı hoca, diğerlerinde 4–6 rastgele adlı hoca; sınav provası fakülte → bölüm → sınıf seçilerek yapılsın.
+
+**Karar.**
+- **Şema:** `faculties` tablosu + `departments.faculty_id` (migrasyon 0004; eski kurulumlarda NULL kalabilir). Sınıf, derste (`courses.year`) zaten vardı. Eski "ORT/Ortak Dersler" bölümü ve "Seçmeli Ders N" adları kaldırıldı.
+- **Üretici (`simdata`):** 15 bölüm × 4 sınıf × 5 ders = 300 sınav, ders adları bölüme özgü (`curriculum.go`). Küçük test veri kümeleri için bölüm sayısı sınav sayısından türetilir (`Config.Departments`, 0 = otomatik), böylece mevcut küçük fikstürler çalışmayı sürdürür. Öğrenci kendi bölüm-sınıfının TÜM derslerini alır; 2. sınıf+ öğrencilerin ~%30'u aynı bölümün alt sınıflarından 1–2 ders "alttan" alır — bu olmadan çatışma grafı ayrık kliklere iner ve T-1 anlamsızlaşırdı.
+- **Hocalar fakülte düzeyindedir.** İstekteki "her bölüme 8 hoca" ile "Mühendislik için şu 8 isim" birlikte okunduğunda en tutarlı yorum: Mühendislik'in 8 adlı hocası fakültenin 3 bölümünde ders verir (aynı kişiyi üç ayrı bölümde çoğaltmak yerine); diğer fakültelerde 5–6 rastgele adlı hoca. Ders yalnızca kendi fakültesinin hocasınca verilir (testle denetlenir). `hoca@sinavplan.test` = ilk adlı hoca (Fahrettin Burak DEMİR). **Varsayım kullanıcıya bildirildi; farklı istenirse tek dosyada (`curriculum.go`) değişir.**
+- **API:** `GET /faculties` (bölüm başına öğrenci/ders/sınıf sayıları, hocalar; tüm roller); takvim satırlarına fakülte/bölüm/sınıf alanları; `POST /schedules/simulate` `scope{faculty_id, department_ids, years}` kabul eder (geçersiz kapsam 422; kısmi kapsamda yayındakiyle kıyas verilmez çünkü ceza karşılaştırılamaz).
+- **Sınav provası = kapsamlı simülasyon:** gerçek takvim üretimi (F-3) her zaman tüm dönem sınavlarını kapsar; kapsam yalnızca provada vardır. Sebep: kısmi çizelge, salon/gözetmen/yayın akışlarında ve `schedules` varsayımlarında (dönemdeki tüm sınavlar) tutarsızlık yaratırdı.
+- **Arayüz:** ortak `useExamFilter` (fakülte → bölüm → sınıf kademeli seçim) takvim, oturma planı ve editörde; ana panelde "Fakülteler ve bölümler" kartı; ders seçim listeleri "BLM201 — Veri Yapıları (Bilgisayar Mühendisliği · 2. sınıf)" biçiminde.
+
+**Alternatifler.** Her bölüme ayrı 8 hoca (120 kişi, adları verilen listeyle çelişir), sınıfı ayrı tablo yapmak (gereksiz: `courses.year` yeterli), kısmi takvim üretimi (tutarsızlık riski).
+
+**Sonuçlar.** Veri kümesi değişti → seed özeti ve bazı ölçümler yenilendi (T-1 ceza 1.972→1.062, 929 görev, 42.715 öğrenci-sınav çifti). Eski veritabanıyla uyumsuzluk için seed hata mesajı artık `docker compose down -v` önerir. `make verify` FAK-1 yapıyı ve kapsam sayılarını (300→60→20→5) doğrular.

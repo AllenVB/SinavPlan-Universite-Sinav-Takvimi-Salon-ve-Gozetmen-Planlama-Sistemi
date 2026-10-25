@@ -343,9 +343,10 @@ func (s *Server) periodSlots(w http.ResponseWriter, r *http.Request) error {
 }
 
 type simulateRequest struct {
-	PeriodID   int64 `json:"period_id"`
-	Seed       int64 `json:"seed"`
-	Iterations int   `json:"iterations"`
+	PeriodID   int64          `json:"period_id"`
+	Seed       int64          `json:"seed"`
+	Iterations int            `json:"iterations"`
+	Scope      planning.Scope `json:"scope"`
 }
 
 // MaxSimulateIterations: eşzamanlı (istek içinde) koşu için üst sınır; tam üretim asenkron işle yapılır.
@@ -371,12 +372,22 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return storeError(err)
 	}
-	res, err := planning.Simulate(ds, req.Seed, req.Iterations)
+	scoped, info, err := planning.ApplyScope(ds, req.Scope)
+	var se *planning.ScopeError
+	if errors.As(err, &se) {
+		return Validation(se.Msg, map[string]string{se.Field: se.Msg})
+	}
 	if err != nil {
 		return err
 	}
-	out := map[string]any{"result": res, "saved": false}
-	if sid, err := store.PublishedScheduleID(r.Context(), s.pool); err == nil {
+	res, err := planning.Simulate(scoped, req.Seed, req.Iterations)
+	if err != nil {
+		return err
+	}
+	out := map[string]any{"result": res, "saved": false, "scope": info}
+	full := req.Scope.FacultyID == 0 && len(req.Scope.DepartmentIDs) == 0 && len(req.Scope.Years) == 0
+	// Yayındaki sürümle kıyas yalnızca tam kapsamda anlamlıdır (kısmi kapsamın cezası daha düşüktür).
+	if sid, err := store.PublishedScheduleID(r.Context(), s.pool); full && err == nil {
 		if sc, err := store.GetSchedule(r.Context(), s.pool, sid); err == nil && sc.PeriodID == req.PeriodID {
 			out["published"] = map[string]any{"schedule_id": sc.ID, "version": sc.Version, "metrics": sc.Metrics}
 		}
@@ -515,5 +526,15 @@ func (s *Server) moveExam(w http.ResponseWriter, r *http.Request) error {
 	}
 	WriteJSON(w, http.StatusCreated, map[string]any{"schedule_id": newID, "version": version, "derived_from": sid,
 		"penalty_before": before, "penalty_after": after.Metrics.Penalty})
+	return nil
+}
+
+// faculties: GET /faculties — fakülte → bölümler (sınıf, öğrenci, ders sayısı) → öğretim üyeleri.
+func (s *Server) faculties(w http.ResponseWriter, r *http.Request) error {
+	rows, err := store.Faculties(r.Context(), s.pool)
+	if err != nil {
+		return err
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"items": rows})
 	return nil
 }

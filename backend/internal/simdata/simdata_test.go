@@ -25,7 +25,7 @@ func TestDifferentSeedProducesDifferentData(t *testing.T) {
 // değiştirildiğinde bu sabit güncellenir; commit mesajında belirtilmelidir.
 func TestGoldenHashForSeed42(t *testing.T) {
 	d, _ := Generate(DefaultConfig(42))
-	const golden = "3a4b7adbbf5f25025438d5ad12f07479505553983c09da6aaff9f9124d8f72e5"
+	const golden = "42be509ae360e45bb8389ed80efc51ce8166fd15f2020e1eb88412c7b8ffacbf"
 	if d.Hash() != golden {
 		t.Fatalf("seed=42 özeti değişti: %s", d.Hash())
 	}
@@ -150,5 +150,129 @@ func TestEveryCourseHasStudents(t *testing.T) {
 func TestInvalidConfigRejected(t *testing.T) {
 	if _, err := Generate(Config{Seed: 1}); err == nil {
 		t.Fatal("geçersiz yapılandırma reddedilmeliydi")
+	}
+}
+
+// Fakülte yapısı (kullanıcı isteği): 4 fakülte, 15 bölüm, her bölümde 1–4. sınıf × 5 ders.
+func TestFacultyStructure(t *testing.T) {
+	d, _ := Generate(DefaultConfig(42))
+	if len(d.Faculties) != 4 || len(d.Departments) != 15 {
+		t.Fatalf("%d fakülte, %d bölüm (4 ve 15 bekleniyordu)", len(d.Faculties), len(d.Departments))
+	}
+	want := map[string][]string{
+		"Mühendislik Fakültesi":                {"Yazılım Mühendisliği", "Elektrik Mühendisliği", "Bilgisayar Mühendisliği"},
+		"İktisadi ve İdari Bilimler Fakültesi": {"Yönetim Bilişim Sistemleri", "Ekonometri", "Maliye", "Tarih", "Uluslararası İlişkiler"},
+		"Sağlık Bilimleri Fakültesi":           {"Hemşirelik", "Eczacılık", "Ebelik", "Hasta Bakım"},
+		"Spor Bilimleri Fakültesi":             nil, // 3 bölüm
+	}
+	byFac := map[int64][]string{}
+	for _, dp := range d.Departments {
+		byFac[dp.FacultyID] = append(byFac[dp.FacultyID], dp.Name)
+	}
+	for _, f := range d.Faculties {
+		got, exp := byFac[f.ID], want[f.Name]
+		if f.Name == "Spor Bilimleri Fakültesi" {
+			if len(got) != 3 {
+				t.Fatalf("spor bilimleri 3 bölümlü olmalı: %v", got)
+			}
+			continue
+		}
+		if len(got) != len(exp) {
+			t.Fatalf("%s bölümleri: %v", f.Name, got)
+		}
+		for i := range exp {
+			if got[i] != exp[i] {
+				t.Fatalf("%s bölüm %d: %q (beklenen %q)", f.Name, i, got[i], exp[i])
+			}
+		}
+	}
+	// her bölümde 1–4. sınıf × 5 ders, kodlar benzersiz
+	per := map[[2]int64]int{}
+	seen := map[string]bool{}
+	for _, c := range d.Courses {
+		per[[2]int64{c.DepartmentID, int64(c.Year)}]++
+		if seen[c.Code] || c.Name == "" || c.Year < 1 || c.Year > 4 {
+			t.Fatalf("ders %q geçersiz/yinelenen (yıl %d)", c.Code, c.Year)
+		}
+		seen[c.Code] = true
+	}
+	for dept := int64(1); dept <= 15; dept++ {
+		for y := int64(1); y <= 4; y++ {
+			if per[[2]int64{dept, y}] != 5 {
+				t.Fatalf("bölüm %d sınıf %d: %d ders (5 bekleniyordu)", dept, y, per[[2]int64{dept, y}])
+			}
+		}
+	}
+}
+
+func TestLecturersAsRequested(t *testing.T) {
+	d, _ := Generate(DefaultConfig(42))
+	engNames := []string{"Fahrettin Burak DEMİR", "Ömer ASLAN", "Abdullah Elen", "Buket Toptaş", "Serhat KILIÇARSLAN", "Süleyman Gökhan TAŞKIN", "Mehmet Ali Şimşek", "Murat TOPTAŞ"}
+	user := map[int64]User{}
+	for _, u := range d.Users {
+		user[u.ID] = u
+	}
+	facOf := map[int64]int64{}
+	for _, dp := range d.Departments {
+		facOf[dp.ID] = dp.FacultyID
+	}
+	perFac := map[int64][]string{}
+	for _, l := range d.Lecturers {
+		perFac[facOf[l.DepartmentID]] = append(perFac[facOf[l.DepartmentID]], user[l.UserID].FullName)
+	}
+	eng := perFac[d.Faculties[0].ID]
+	if len(eng) != 8 {
+		t.Fatalf("mühendislik 8 öğretim üyeli olmalı: %v", eng)
+	}
+	for i, n := range engNames {
+		if eng[i] != n {
+			t.Fatalf("mühendislik öğretim üyesi %d: %q (beklenen %q)", i, eng[i], n)
+		}
+	}
+	if user[d.Lecturers[0].UserID].Email != EmailLecturer {
+		t.Fatal("demo öğretim üyesi hesabı ilk öğretim üyesi olmalı")
+	}
+	for _, f := range d.Faculties[1:] {
+		if n := len(perFac[f.ID]); n < 4 || n > 6 {
+			t.Fatalf("%s: %d öğretim üyesi (4–6 bekleniyordu)", f.Name, n)
+		}
+	}
+	// bir ders yalnızca kendi fakültesinin öğretim üyesince verilir
+	lecFac := map[int64]int64{}
+	for _, l := range d.Lecturers {
+		lecFac[l.ID] = facOf[l.DepartmentID]
+	}
+	courseFac := map[int64]int64{}
+	for _, c := range d.Courses {
+		courseFac[c.ID] = facOf[c.DepartmentID]
+	}
+	for _, s := range d.Sections {
+		if lecFac[s.LecturerID] != courseFac[s.CourseID] {
+			t.Fatalf("şube %d: öğretim üyesi başka fakülteden", s.ID)
+		}
+	}
+}
+
+// "Alttan ders": öğrenci yalnızca kendi bölümünün ve kendi sınıfı veya alt sınıfların derslerini alır.
+func TestEnrollmentsStayInOwnDepartmentAndYear(t *testing.T) {
+	d, _ := Generate(DefaultConfig(42))
+	course := map[int64]Course{}
+	for _, c := range d.Courses {
+		course[c.ID] = c
+	}
+	secCourse := map[int64]int64{}
+	for _, s := range d.Sections {
+		secCourse[s.ID] = s.CourseID
+	}
+	maxYear := map[int64]int{}
+	for _, e := range d.Enrollments {
+		c := course[secCourse[e.SectionID]]
+		if c.DepartmentID != d.Students[e.StudentID-1].DepartmentID {
+			t.Fatalf("öğrenci %d başka bölümün dersini aldı", e.StudentID)
+		}
+		maxYear[e.StudentID] = max(maxYear[e.StudentID], c.Year)
+	}
+	if len(maxYear) != len(d.Students) {
+		t.Fatalf("dersi olmayan öğrenci var: %d/%d", len(maxYear), len(d.Students))
 	}
 }

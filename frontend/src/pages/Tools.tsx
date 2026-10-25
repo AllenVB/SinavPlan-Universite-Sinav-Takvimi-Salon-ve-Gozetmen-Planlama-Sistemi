@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { download, get, post, fmtDateTime } from '../api'
 import { Card, ErrorBox, Field, Pill, useAction, useAsync, Async } from '../ui'
-import type { Schedule } from './common'
+import { useFaculties, type Exam, type Schedule } from './common'
 
 /** Dışa aktarma: Excel, CSV, iCal ve tarayıcıdan PDF (yazdırma stili). */
 export function ExportButtons({ schedule }: { schedule: number | null }) {
@@ -19,30 +19,76 @@ export function ExportButtons({ schedule }: { schedule: number | null }) {
   )
 }
 
-type Sim = { result: { penalty: number; construction_penalty: number; iterations: number; duration_ms: number; unplaced: number; violations: number; metrics: { used_slots: number; student_days_with_two_exams: number; students_with_consecutive_day: number } }; published?: { version: number; metrics: { penalty: number } } }
+type Sim = { result: { penalty: number; construction_penalty: number; iterations: number; duration_ms: number; unplaced: number; violations: number; metrics: { used_slots: number; student_days_with_two_exams: number; students_with_consecutive_day: number } }; scope: { faculty?: string; departments: string[]; years: number[]; exams: number; students: number }; published?: { version: number; metrics: { penalty: number } } }
 
-/** Hızlı simülasyon: T-1'i kaydetmeden çalıştırır ve yayındaki sürümle kıyaslar. */
-export function Simulator({ periodId }: { periodId: number | undefined }) {
+const yearLabel = (ys: number[]) => (ys.length === 4 ? 'tüm sınıflar' : ys.map((y) => `${y}.`).join(', ') + ' sınıf')
+
+/** Sınav provası: önce fakülte, sonra bölümler, sonra sınıflar seçilir; yalnızca o kapsamdaki sınavlar denenir. Kaydedilmez. */
+export function Simulator({ periodId, exams }: { periodId: number | undefined; exams: Exam[] | null }) {
+  const fac = useFaculties()
+  const [facId, setFacId] = useState(0) // 0 = tüm fakülteler
+  const [depts, setDepts] = useState<Set<number>>(new Set())
+  const [years, setYears] = useState<Set<number>>(new Set([1, 2, 3, 4]))
   const [seed, setSeed] = useState('7')
   const [iter, setIter] = useState('50000')
-  const sim = useAction(() => post<Sim>('/schedules/simulate', { period_id: periodId, seed: Number(seed), iterations: Number(iter) }))
+  const faculty = fac.data?.find((f) => f.id === facId)
+  const chosenDepts = faculty ? faculty.departments.filter((d) => depts.has(d.id)) : []
+  const scope = { faculty_id: facId || undefined, department_ids: faculty ? chosenDepts.map((d) => d.id) : undefined, years: years.size === 4 ? undefined : [...years].sort() }
+  // seçimin önizlemesi: mevcut takvimden (gerçek veri) kaç sınav kapsama giriyor
+  const inScope = (e: Exam) => (!facId || e.faculty_name === faculty?.name) && (!faculty || chosenDepts.length === 0 || chosenDepts.some((d) => d.id === e.department_id)) && years.has(e.year)
+  const preview = exams?.filter(inScope).length ?? null
+  const sim = useAction(() => post<Sim>('/schedules/simulate', { period_id: periodId, seed: Number(seed), iterations: Number(iter), scope }))
   const r = sim.result
   const better = r?.published ? r.result.penalty - r.published.metrics.penalty : null
+  const pickFaculty = (id: number) => { setFacId(id); setDepts(new Set(fac.data?.find((f) => f.id === id)?.departments.map((d) => d.id) ?? [])); sim.reset() }
+  const toggle = <T,>(set: Set<T>, v: T, put: (s: Set<T>) => void) => { const n = new Set(set); n.has(v) ? n.delete(v) : n.add(v); put(n); sim.reset() }
+  const summary = [faculty?.name ?? 'Tüm fakülteler', faculty ? (chosenDepts.length === faculty.departments.length ? 'tüm bölümler' : chosenDepts.map((d) => d.name).join(', ') || 'bölüm seçilmedi') : null, yearLabel([...years].sort())].filter(Boolean).join(' · ')
   return (
-    <Card title="Hızlı simülasyon" aside={<Pill>Kaydedilmez</Pill>}>
-      <p className="small muted" style={{ marginBottom: 12 }}>Farklı bir tohum/iterasyonla takvimi (T-1) hesaplar; hiçbir sürüm oluşturmaz. Beğendiğiniz ayarla "Takvimi oluştur"u kullanın.</p>
+    <Card title="Sınav provası" aside={<Pill>Kaydedilmez</Pill>}>
+      <p className="small muted" style={{ marginBottom: 12 }}>Gerçek takvimi oluşturmadan önce denemek için: <b>1.</b> fakülteyi, <b>2.</b> bölümleri, <b>3.</b> sınıfları seçin. Yalnızca seçilen kapsamdaki sınavlar için takvim hesaplanır; hiçbir sürüm oluşmaz.</p>
+
+      <div className="caps" style={{ marginBottom: 6 }}>1 · Fakülte</div>
+      <div className="row" style={{ marginBottom: 14 }}>
+        <button className="btn" aria-pressed={facId === 0} onClick={() => pickFaculty(0)} style={facId === 0 ? { borderColor: 'var(--primary)', background: 'var(--primary-fixed)' } : undefined}>Tüm fakülteler</button>
+        {fac.data?.map((f) => <button key={f.id} className="btn" aria-pressed={facId === f.id} onClick={() => pickFaculty(f.id)} style={facId === f.id ? { borderColor: 'var(--primary)', background: 'var(--primary-fixed)' } : undefined}>{f.name}</button>)}
+      </div>
+
+      {faculty && (
+        <>
+          <div className="row between"><div className="caps" style={{ marginBottom: 6 }}>2 · Bölümler</div><button className="btn sm" onClick={() => { setDepts(chosenDepts.length === faculty.departments.length ? new Set() : new Set(faculty.departments.map((d) => d.id))); sim.reset() }}>{chosenDepts.length === faculty.departments.length ? 'Hiçbirini seçme' : 'Tümünü seç'}</button></div>
+          <div className="row" style={{ marginBottom: 14 }}>
+            {faculty.departments.map((d) => (
+              <label key={d.id} className="row card" style={{ padding: '8px 12px', gap: 8, borderColor: depts.has(d.id) ? 'var(--primary)' : undefined }}>
+                <input type="checkbox" checked={depts.has(d.id)} onChange={() => toggle(depts, d.id, setDepts)} />
+                <span><b>{d.name}</b><div className="small muted">{d.students} öğrenci · {d.courses} ders</div></span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="caps" style={{ marginBottom: 6 }}>{faculty ? '3' : '2'} · Sınıflar</div>
+      <div className="row" style={{ marginBottom: 14 }}>
+        {[1, 2, 3, 4].map((y) => <label key={y} className="row card" style={{ padding: '8px 14px', gap: 8, borderColor: years.has(y) ? 'var(--primary)' : undefined }}><input type="checkbox" checked={years.has(y)} onChange={() => toggle(years, y, setYears)} /> {y}. sınıf</label>)}
+      </div>
+
+      <div className="banner info" style={{ marginBottom: 12 }}>
+        <div style={{ flex: 1 }}><b>Kapsam:</b> {summary}<div className="small">{preview === null ? '' : preview === 0 ? 'Bu seçimde sınav yok.' : `${preview} sınav provaya girecek.`}</div></div>
+      </div>
+
       <div className="row" style={{ alignItems: 'flex-end' }}>
-        <Field label="Tohum" id="ss"><input id="ss" className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 100 }} /></Field>
-        <Field label="İterasyon (≤300.000)" id="si"><input id="si" className="input" inputMode="numeric" value={iter} onChange={(e) => setIter(e.target.value)} style={{ width: 150 }} /></Field>
-        <button className="btn primary" disabled={sim.busy || !periodId || !Number(iter)} onClick={() => void sim.run()}>{sim.busy ? 'Hesaplanıyor…' : 'Simüle et'}</button>
+        <Field label="Tohum" id="ss"><input id="ss" className="input" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} style={{ width: 90 }} /></Field>
+        <Field label="İterasyon (≤300.000)" id="si"><input id="si" className="input" inputMode="numeric" value={iter} onChange={(e) => setIter(e.target.value)} style={{ width: 140 }} /></Field>
+        <button className="btn primary" disabled={sim.busy || !periodId || !Number(iter) || preview === 0 || (!!faculty && chosenDepts.length === 0) || years.size === 0} onClick={() => void sim.run()}>{sim.busy ? 'Hesaplanıyor…' : 'Provayı çalıştır'}</button>
       </div>
       {sim.error && <div style={{ marginTop: 12 }}><ErrorBox error={sim.error} /></div>}
       {r && (
         <div style={{ marginTop: 12 }}>
           <div className="row">
             <Pill kind={r.result.violations === 0 && r.result.unplaced === 0 ? 'ok' : 'err'}>{r.result.violations === 0 && r.result.unplaced === 0 ? 'Sert ihlal yok' : `${r.result.violations} ihlal, ${r.result.unplaced} yerleşemeyen`}</Pill>
-            <span>Ceza <b>{r.result.penalty.toLocaleString('tr-TR')}</b> · {r.result.metrics.used_slots} slot · aynı gün 2 sınav {r.result.metrics.student_days_with_two_exams.toLocaleString('tr-TR')} · {(r.result.duration_ms / 1000).toFixed(1)} sn</span>
+            <span><b>{r.scope.exams}</b> sınav · <b>{r.scope.students.toLocaleString('tr-TR')}</b> öğrenci · ceza <b>{r.result.penalty.toLocaleString('tr-TR')}</b> · {r.result.metrics.used_slots} oturum · aynı gün 2 sınav {r.result.metrics.student_days_with_two_exams.toLocaleString('tr-TR')} · {(r.result.duration_ms / 1000).toFixed(1)} sn</span>
           </div>
+          <p className="small muted" style={{ marginTop: 6 }}>{r.scope.faculty ?? 'Tüm fakülteler'} · {r.scope.departments.join(', ')} · {yearLabel(r.scope.years)}</p>
           {r.published && better !== null && (
             <p className="small" style={{ marginTop: 8 }}>
               Yayındaki sürüm {r.published.version}: ceza {r.published.metrics.penalty.toLocaleString('tr-TR')} →{' '}

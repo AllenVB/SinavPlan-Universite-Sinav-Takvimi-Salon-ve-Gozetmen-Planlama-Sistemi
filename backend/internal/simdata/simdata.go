@@ -14,10 +14,12 @@ import (
 
 // Config, üretilecek veri kümesinin boyutunu belirler.
 type Config struct {
-	Seed           int64
-	Exams          int
-	Students       int
-	Rooms          int
+	Seed     int64
+	Exams    int
+	Students int
+	Rooms    int
+	// Departments: kullanılacak bölüm sayısı (1–15, fakülte sırasıyla). 0 = otomatik (sınav sayısına göre).
+	Departments    int
 	Days           int // sınav dönemi gün sayısı
 	SessionsPerDay int
 	DisabilityRate float64
@@ -25,14 +27,28 @@ type Config struct {
 
 // DefaultConfig, proje.md'deki ölçeği verir: 300 sınav / 8.000 öğrenci / 60 salon.
 func DefaultConfig(seed int64) Config {
-	return Config{Seed: seed, Exams: 300, Students: 8000, Rooms: 60,
+	return Config{Seed: seed, Exams: 300, Students: 8000, Rooms: 60, Departments: 15,
 		Days: 15, SessionsPerDay: 3, DisabilityRate: 0.02}
 }
 
 const (
-	numDepartments = 6 // öğrencilerin bağlı olduğu bölümler; ayrıca "ORT" ortak dersler bölümü eklenir
-	numYears       = 4
+	numYears       = 4 // her bölümde 1–4. sınıf
+	coursesPerYear = 5 // her sınıfta 5 ders (curriculum.go)
 )
+
+// usedDepartments, üretimde kullanılacak bölüm sayısı: açıkça verilmişse o, yoksa sınav sayısına
+// göre (küçük test veri kümeleri az bölümle çalışır; her bölüm-sınıfta en az 2 ders kalır).
+func (c Config) usedDepartments() int {
+	n := c.Departments
+	if n <= 0 {
+		n = c.Exams / 8
+	}
+	total := 0
+	for _, f := range faculties {
+		total += len(f.Depts)
+	}
+	return max(1, min(n, total))
+}
 
 // Demo hesapları (parola DEMO_PASSWORD env'inden gelir).
 const (
@@ -43,9 +59,14 @@ const (
 	EmailStudent        = "ogrenci@sinavplan.test"
 )
 
-type Department struct {
+type Faculty struct {
 	ID         int64
 	Code, Name string
+}
+
+type Department struct {
+	ID, FacultyID int64
+	Code, Name    string
 }
 
 type User struct {
@@ -113,6 +134,7 @@ type Exam struct {
 // Dataset, üretilen tüm tabloları tutar. Kimlikler 1'den başlayarak ardışıktır.
 type Dataset struct {
 	Config      Config
+	Faculties   []Faculty
 	Departments []Department
 	Users       []User
 	Lecturers   []Lecturer
@@ -134,11 +156,6 @@ var (
 	lastNames = []string{"Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım", "Öztürk", "Aydın", "Özdemir",
 		"Arslan", "Doğan", "Kılıç", "Aslan", "Çetin", "Kara", "Koç", "Kurt", "Özkan", "Şimşek",
 		"Polat", "Korkmaz", "Erdoğan", "Güneş", "Aksoy", "Tekin", "Bozkurt", "Acar", "Yavuz", "Uçar"}
-	deptNames = [numDepartments][2]string{
-		{"BLM", "Bilgisayar Mühendisliği"}, {"ELK", "Elektrik-Elektronik Mühendisliği"},
-		{"MAK", "Makine Mühendisliği"}, {"INS", "İnşaat Mühendisliği"},
-		{"END", "Endüstri Mühendisliği"}, {"MAT", "Matematik"},
-	}
 	classicLayouts = [][2]int{{5, 8}, {6, 8}, {6, 10}, {8, 10}, {8, 12}, {10, 12}, {10, 14}}
 	labLayouts     = [][2]int{{4, 8}, {5, 8}, {5, 10}, {6, 10}}
 	durations      = []int{60, 75, 90, 120}
@@ -147,7 +164,7 @@ var (
 
 // Generate, yapılandırmaya göre veri kümesini üretir.
 func Generate(cfg Config) (*Dataset, error) {
-	if cfg.Exams < numDepartments*numYears || cfg.Students <= 0 || cfg.Rooms < 2 ||
+	if cfg.Exams < cfg.usedDepartments()*numYears || cfg.Students <= 0 || cfg.Rooms < 2 ||
 		cfg.Days <= 0 || cfg.SessionsPerDay <= 0 || cfg.SessionsPerDay > len(sessionStart) {
 		return nil, fmt.Errorf("geçersiz yapılandırma: %+v", cfg)
 	}
@@ -164,11 +181,20 @@ func Generate(cfg Config) (*Dataset, error) {
 	return d, nil
 }
 
+// genDepartments: kullanılan bölümler fakülte sırasıyla; fakülte kimlikleri yalnızca kullanılan
+// fakültelere verilir (1..).
 func (d *Dataset) genDepartments() {
-	for i, n := range deptNames {
-		d.Departments = append(d.Departments, Department{ID: int64(i + 1), Code: n[0], Name: n[1]})
+	defs, facOf := allDepartments()
+	n := d.Config.usedDepartments()
+	facID := map[int]int64{}
+	for i := 0; i < n; i++ {
+		fi := facOf[i]
+		if _, ok := facID[fi]; !ok {
+			facID[fi] = int64(len(d.Faculties) + 1)
+			d.Faculties = append(d.Faculties, Faculty{ID: facID[fi], Code: faculties[fi].Code, Name: faculties[fi].Name})
+		}
+		d.Departments = append(d.Departments, Department{ID: int64(i + 1), FacultyID: facID[fi], Code: defs[i].Code, Name: defs[i].Name})
 	}
-	d.Departments = append(d.Departments, Department{ID: numDepartments + 1, Code: "ORT", Name: "Ortak Dersler"})
 }
 
 func name(r *rand.Rand) string {
@@ -181,7 +207,10 @@ func (d *Dataset) addUser(email, full string, roles ...string) int64 {
 	return id
 }
 
-// Kullanıcı sırası: 1..5 demo hesapları, sonra öğretim üyeleri, sonra yalnız-gözetmenler.
+// Kullanıcı sırası: 1..5 demo hesapları, sonra öğretim üyeleri (fakülte sırasıyla), sonra yalnız-gözetmenler.
+// Mühendislik Fakültesi'nin 8 öğretim üyesi verilen adlardır (ilki demo öğretim üyesi hesabıdır);
+// diğer fakültelerin 5–6 öğretim üyesi rastgele adlıdır. Öğretim üyeleri fakülte düzeyindedir: bir
+// fakültenin tüm bölümlerinin derslerini verebilir; DepartmentID "ana bölümü"dür (dönüşümlü).
 func (d *Dataset) genUsersAndLecturers(r *rand.Rand) {
 	d.addUser(EmailSecretary, "Demo Sekreter", "secretary")
 	lecUser := d.addUser(EmailLecturer, "Demo Öğretim Üyesi", "lecturer")
@@ -189,66 +218,77 @@ func (d *Dataset) genUsersAndLecturers(r *rand.Rand) {
 	d.addUser(EmailStudentAffairs, "Demo Öğrenci İşleri", "student_affairs")
 	d.addUser(EmailStudent, "Demo Öğrenci", "student")
 
-	const numLecturers = 60
-	for i := 1; i <= numLecturers; i++ {
-		uid := lecUser
-		if i > 1 {
-			// İlk 20 öğretim üyesi aynı zamanda gözetmenlik yapabilir (V-4).
-			roles := []string{"lecturer"}
-			if i <= 20 {
-				roles = append(roles, "invigilator")
-			}
-			uid = d.addUser(fmt.Sprintf("hoca%02d@sinavplan.test", i), name(r), roles...)
-		}
-		dept := int64((i-1)%numDepartments + 1)
-		d.Lecturers = append(d.Lecturers, Lecturer{ID: int64(i), UserID: uid, DepartmentID: dept})
+	facIdx := map[string]int{}
+	for fi, f := range faculties {
+		facIdx[f.Code] = fi
 	}
-	for i := 1; i <= 80; i++ {
-		d.addUser(fmt.Sprintf("gozetmen%02d@sinavplan.test", i), name(r), "invigilator")
+	i := 0
+	for _, fac := range d.Faculties {
+		def := faculties[facIdx[fac.Code]]
+		var depts []int64
+		for _, dp := range d.Departments {
+			if dp.FacultyID == fac.ID {
+				depts = append(depts, dp.ID)
+			}
+		}
+		names := def.Lecturers
+		if len(names) == 0 {
+			for k := 0; k < def.LecturerCount; k++ {
+				names = append(names, name(r))
+			}
+		}
+		for k, nm := range names {
+			i++
+			uid := lecUser
+			if i == 1 {
+				d.Users[lecUser-1].FullName = nm // demo öğretim üyesi hesabı ilk öğretim üyesidir
+			} else {
+				// İlk 20 öğretim üyesi aynı zamanda gözetmenlik yapabilir (V-4).
+				roles := []string{"lecturer"}
+				if i <= 20 {
+					roles = append(roles, "invigilator")
+				}
+				uid = d.addUser(fmt.Sprintf("hoca%02d@sinavplan.test", i), nm, roles...)
+			}
+			d.Lecturers = append(d.Lecturers, Lecturer{ID: int64(i), UserID: uid, DepartmentID: depts[k%len(depts)]})
+		}
+	}
+	for k := 1; k <= 80; k++ {
+		d.addUser(fmt.Sprintf("gozetmen%02d@sinavplan.test", k), name(r), "invigilator")
 	}
 }
 
-// genCourses: müfredat yapısı bölüm×yıl gruplarıdır. Öğrenciler dersleri kendi
-// bölüm-yıl grubundan seçer; bu, çatışma grafını gerçekçi ve renklendirilebilir
-// kılar (tamamen rastgele seçimde her ders çifti çatışır).
+// genCourses: müfredat yapısı bölüm × sınıf (1–4) gruplarıdır; her grupta coursesPerYear ders.
+// Öğrenciler dersleri kendi grubundan (ve bazıları alttan) alır; bu, çatışma grafını gerçekçi ve
+// renklendirilebilir kılar (tamamen rastgele seçimde her ders çifti çatışır).
 func (d *Dataset) genCourses(r *rand.Rand) {
-	electives := d.Config.Exams / 25
-	perYear := (d.Config.Exams - electives) / (numDepartments * numYears)
-	electives = d.Config.Exams - perYear*numDepartments*numYears
-
+	defs, facOf := allDepartments()
+	perYear := min(coursesPerYear, d.Config.Exams/(len(d.Departments)*numYears))
 	id := int64(0)
-	for di := 0; di < numDepartments; di++ {
+	for di := range d.Departments {
 		for y := 1; y <= numYears; y++ {
 			for k := 1; k <= perYear; k++ {
 				id++
-				code := fmt.Sprintf("%s%d%02d", deptNames[di][0], y, k)
 				d.Courses = append(d.Courses, Course{ID: id, DepartmentID: int64(di + 1),
-					Code: code, Name: fmt.Sprintf("%s Dersi %d", deptNames[di][1], y*100+k),
-					Year: y, RequiresLab: r.Float64() < 0.15})
+					Code: fmt.Sprintf("%s%d%02d", defs[di].Code, y, k), Name: defs[di].Courses[y-1][k-1],
+					Year: y, RequiresLab: r.Float64() < faculties[facOf[di]].LabRate})
 			}
 		}
-	}
-	for k := 1; k <= electives; k++ {
-		id++
-		d.Courses = append(d.Courses, Course{ID: id, DepartmentID: numDepartments + 1,
-			Code: fmt.Sprintf("ORT3%02d", k), Name: fmt.Sprintf("Seçmeli Ders %d", k), Year: 3})
 	}
 }
 
 func (d *Dataset) genSections(r *rand.Rand) {
-	byDept := map[int64][]int64{}
+	facOfDept := map[int64]int64{}
+	for _, dp := range d.Departments {
+		facOfDept[dp.ID] = dp.FacultyID
+	}
+	byFac := map[int64][]int64{}
 	for _, l := range d.Lecturers {
-		byDept[l.DepartmentID] = append(byDept[l.DepartmentID], l.ID)
+		byFac[facOfDept[l.DepartmentID]] = append(byFac[facOfDept[l.DepartmentID]], l.ID)
 	}
 	id := int64(0)
 	for _, c := range d.Courses {
-		pool := byDept[c.DepartmentID]
-		if len(pool) == 0 { // ortak dersler: herhangi bir öğretim üyesi
-			pool = make([]int64, len(d.Lecturers))
-			for i, l := range d.Lecturers {
-				pool[i] = l.ID
-			}
-		}
+		pool := byFac[facOfDept[c.DepartmentID]]
 		n := 2
 		if r.Float64() < 0.3 {
 			n = 3
@@ -261,25 +301,22 @@ func (d *Dataset) genSections(r *rand.Rand) {
 	}
 }
 
+// genStudentsAndEnrollments: her öğrenci bir bölüm ve sınıfa aittir; o grubun TÜM derslerini alır.
+// 2. sınıf ve üstündeki öğrencilerin ~%30'u ayrıca aynı bölümün alt sınıflarından 1–2 ders "alttan" alır.
 func (d *Dataset) genStudentsAndEnrollments(r *rand.Rand) {
-	// Ders ve şube dizinleri
-	groupCourses := map[[2]int][]int64{} // (bölüm, yıl) -> ders id'leri
-	var electiveIDs []int64
+	groupCourses := map[[2]int][]int64{} // (bölüm, sınıf) -> ders id'leri
 	sectionsOf := map[int64][]int64{}
 	for _, c := range d.Courses {
-		if c.DepartmentID == numDepartments+1 {
-			electiveIDs = append(electiveIDs, c.ID)
-		} else {
-			key := [2]int{int(c.DepartmentID), c.Year}
-			groupCourses[key] = append(groupCourses[key], c.ID)
-		}
+		key := [2]int{int(c.DepartmentID), c.Year}
+		groupCourses[key] = append(groupCourses[key], c.ID)
 	}
 	for _, s := range d.Sections {
 		sectionsOf[s.CourseID] = append(sectionsOf[s.CourseID], s.ID)
 	}
+	nd := len(d.Departments)
 
 	for i := 1; i <= d.Config.Students; i++ {
-		dept := r.IntN(numDepartments) + 1
+		dept := r.IntN(nd) + 1
 		year := r.IntN(numYears) + 1
 		st := Student{ID: int64(i), DepartmentID: int64(dept), No: fmt.Sprintf("2026%05d", i),
 			FullName: name(r), Disabled: r.Float64() < d.Config.DisabilityRate}
@@ -289,17 +326,15 @@ func (d *Dataset) genStudentsAndEnrollments(r *rand.Rand) {
 		}
 		d.Students = append(d.Students, st)
 
-		pool := groupCourses[[2]int{dept, year}]
-		k := 5 + r.IntN(4) // 5..8 ders
-		chosen := make([]int64, 0, k)
-		if len(electiveIDs) > 0 && r.Float64() < 0.3 {
-			chosen = append(chosen, electiveIDs[r.IntN(len(electiveIDs))])
-		}
-		for _, idx := range r.Perm(len(pool)) {
-			if len(chosen) >= k {
-				break
+		chosen := append([]int64(nil), groupCourses[[2]int{dept, year}]...)
+		if year > 1 && r.Float64() < 0.3 {
+			var lower []int64
+			for y := 1; y < year; y++ {
+				lower = append(lower, groupCourses[[2]int{dept, y}]...)
 			}
-			chosen = append(chosen, pool[idx])
+			for _, idx := range r.Perm(len(lower))[:min(1+r.IntN(2), len(lower))] {
+				chosen = append(chosen, lower[idx])
+			}
 		}
 		for _, cid := range chosen {
 			secs := sectionsOf[cid]
@@ -381,6 +416,7 @@ func (d *Dataset) Hash() string {
 			fmt.Fprintf(h, "%+v\n", f(i))
 		}
 	}
+	w("faculties", len(d.Faculties), func(i int) any { return d.Faculties[i] })
 	w("departments", len(d.Departments), func(i int) any { return d.Departments[i] })
 	w("users", len(d.Users), func(i int) any { return d.Users[i] })
 	w("lecturers", len(d.Lecturers), func(i int) any { return d.Lecturers[i] })

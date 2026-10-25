@@ -478,7 +478,7 @@ paths:
       description: Yalnızca takvimi (T-1) hesaplar; hiçbir şey yazmaz. Yayındaki sürümün metrikleriyle birlikte döner. En çok 300.000 iterasyon.
       requestBody:
         required: true
-        content: {application/json: {schema: {type: object, required: [period_id, iterations], properties: {period_id: {type: integer, format: int64}, seed: {type: integer, format: int64}, iterations: {type: integer, minimum: 1, maximum: 300000}}}}}
+        content: {application/json: {schema: {type: object, required: [period_id, iterations], properties: {period_id: {type: integer, format: int64}, seed: {type: integer, format: int64}, iterations: {type: integer, minimum: 1, maximum: 300000}, scope: {type: object, description: "Sınav provası kapsamı: fakülte → bölümler → sınıflar (1–4). Boş alan = süzme yok.", properties: {faculty_id: {type: integer, format: int64}, department_ids: {type: array, items: {type: integer, format: int64}}, years: {type: array, items: {type: integer, minimum: 1, maximum: 4}}}}}}}}
       responses:
         "200": {description: "Simülasyon sonucu (saved=false)", content: {application/json: {schema: {type: object}}}}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -510,6 +510,12 @@ paths:
       responses:
         "200": {description: Etkinlikler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}, latest_id: {type: integer}, next_before: {type: integer, nullable: true}}}}}}
         "422": {$ref: "#/components/responses/Validation"}
+  /faculties:
+    get:
+      tags: [Ek özellikler (Faz 11)]
+      summary: Fakülteler, bölümleri (öğrenci/ders sayısı, sınıflar) ve öğretim üyeleri
+      responses:
+        "200": {description: Fakülteler, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
   /schedules/{id}/live:
     get:
       tags: [Ek özellikler (Faz 11)]

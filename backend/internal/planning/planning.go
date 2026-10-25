@@ -470,3 +470,115 @@ func SlotIndex(ds *simdata.Dataset) map[int64]int {
 	}
 	return m
 }
+
+// Scope, "sınav provası" kapsamıdır: fakülte → bölümler → sınıflar. Boş alan = süzme yok.
+type Scope struct {
+	FacultyID     int64   `json:"faculty_id"`
+	DepartmentIDs []int64 `json:"department_ids"`
+	Years         []int   `json:"years"`
+}
+
+// ScopeInfo, uygulanan kapsamın özeti (yanıtta gösterilir).
+type ScopeInfo struct {
+	Faculty     string   `json:"faculty,omitempty"`
+	Departments []string `json:"departments"`
+	Years       []int    `json:"years"`
+	Exams       int      `json:"exams"`
+	Students    int      `json:"students"`
+}
+
+// ScopeError, geçersiz kapsam (bilinmeyen fakülte/bölüm, bölüm başka fakültede, yıl aralık dışı, boş sonuç).
+type ScopeError struct{ Field, Msg string }
+
+func (e *ScopeError) Error() string { return e.Msg }
+
+// ApplyScope, kapsama uyan sınavlardan oluşan bir veri kümesi kopyası döner (Exams süzülür; diğer
+// tablolar paylaşılır, salt okunur kullanılır). Kapsam boşsa veri kümesi olduğu gibi döner.
+func ApplyScope(ds *simdata.Dataset, sc Scope) (*simdata.Dataset, ScopeInfo, error) {
+	info := ScopeInfo{Years: []int{}, Departments: []string{}}
+	depts := map[int64]simdata.Department{}
+	for _, d := range ds.Departments {
+		depts[d.ID] = d
+	}
+	if sc.FacultyID != 0 {
+		found := false
+		for _, f := range ds.Faculties {
+			if f.ID == sc.FacultyID {
+				found, info.Faculty = true, f.Name
+			}
+		}
+		if !found {
+			return nil, info, &ScopeError{"faculty_id", "fakülte bulunamadı"}
+		}
+	}
+	allowed := map[int64]bool{}
+	for _, id := range sc.DepartmentIDs {
+		d, ok := depts[id]
+		switch {
+		case !ok:
+			return nil, info, &ScopeError{"department_ids", fmt.Sprintf("bölüm %d bulunamadı", id)}
+		case sc.FacultyID != 0 && d.FacultyID != sc.FacultyID:
+			return nil, info, &ScopeError{"department_ids", fmt.Sprintf("%s bölümü seçilen fakültede değil", d.Name)}
+		}
+		allowed[id] = true
+	}
+	years := map[int]bool{}
+	for _, y := range sc.Years {
+		if y < 1 || y > 4 {
+			return nil, info, &ScopeError{"years", "sınıf 1 ile 4 arasında olmalı"}
+		}
+		years[y] = true
+	}
+	course := map[int64]simdata.Course{}
+	for _, c := range ds.Courses {
+		course[c.ID] = c
+	}
+	cp := *ds
+	cp.Exams = nil
+	for _, e := range ds.Exams {
+		c := course[e.CourseID]
+		d := depts[c.DepartmentID]
+		if sc.FacultyID != 0 && d.FacultyID != sc.FacultyID {
+			continue
+		}
+		if len(allowed) > 0 && !allowed[c.DepartmentID] {
+			continue
+		}
+		if len(years) > 0 && !years[c.Year] {
+			continue
+		}
+		cp.Exams = append(cp.Exams, e)
+	}
+	if len(cp.Exams) == 0 {
+		return nil, info, &ScopeError{"scope", "seçilen kapsamda sınav yok"}
+	}
+	info.Exams = len(cp.Exams)
+	inScope := map[int64]bool{}
+	for _, e := range cp.Exams {
+		inScope[e.CourseID] = true
+	}
+	secCourse := map[int64]int64{}
+	for _, s := range ds.Sections {
+		secCourse[s.ID] = s.CourseID
+	}
+	stu := map[int64]bool{}
+	for _, en := range ds.Enrollments {
+		if inScope[secCourse[en.SectionID]] {
+			stu[en.StudentID] = true
+		}
+	}
+	info.Students = len(stu)
+	seenD := map[int64]bool{}
+	for _, e := range cp.Exams {
+		if d := depts[course[e.CourseID].DepartmentID]; !seenD[d.ID] {
+			seenD[d.ID] = true
+			info.Departments = append(info.Departments, d.Name)
+		}
+	}
+	for y := 1; y <= 4; y++ {
+		if len(years) == 0 || years[y] {
+			info.Years = append(info.Years, y)
+		}
+	}
+	return &cp, info, nil
+}

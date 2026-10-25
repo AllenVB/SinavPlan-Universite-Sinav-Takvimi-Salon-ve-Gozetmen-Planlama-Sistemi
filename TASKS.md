@@ -137,3 +137,5 @@ Faz 10 TAMAM (k6, chaos, EXPLAIN, README, ADR-012). Tasarımlar push edilince Fa
 **Faz 11 doğrulama:** X-1..X-7 tamam (ÖBS kapsam dışı, ADR-014). `make verify` 21/21 PASS (tam ölçek), `go test ./...` 165 test ok, mutasyonla taşıma ihlal denetiminin testi doğrulandı, UI duman: QR/indirme/simülasyon/akış/gerçek sürükle-bırak PASS.
 
 **Faz 12–15 doğrulama:** `make verify` 23/23 PASS (yeni: L-1 canlı özet, Q-1 dinamik QR); `go test ./...` 171 test ok; UI duman: pages (tüm ekranlar), flows, features, live.cjs (canlı yenileme, dönen QR, kamera), qr-roundtrip. Bilinen: öğretim üyesi için ayrı ekran yok; Windows/CI doğrulanmadı; kamera yalnız sahte aygıtla sınandı (gerçek telefon kamerası denenmedi).
+
+**Faz 16 doğrulama:** `make verify` 24/24 PASS (yeni FAK-1), `go test ./...` yeşil; seed özeti yenilendi; UI duman (pages/flows/features) PASS, F16 süzgeç ve kapsam testleri dahil. Bilinen: eski veritabanı için `docker compose down -v` gerekir; hoca havuzu yorumu ADR-016'da.

@@ -14,7 +14,7 @@ import (
 // identityTables, kimlikleri açıkça yazılan tablolar. Yazımdan sonra dizileri
 // en büyük kimliğe ayarlıyoruz; aksi halde API'nin ilk INSERT'ü çakışır.
 var identityTables = []string{
-	"departments", "users", "lecturers", "courses", "sections", "students",
+	"faculties", "departments", "users", "lecturers", "courses", "sections", "students",
 	"rooms", "room_seats", "exam_periods", "slots", "exams",
 }
 
@@ -33,7 +33,8 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 		return nil
 	case err == nil:
 		return fmt.Errorf("veritabanında farklı bir veri kümesi var (seed=%d, hash=%s…); "+
-			"sıfırlamak için `make reset-demo`", seededSeed, seededHash[:12])
+			"sıfırlamak için (TÜM VERİ SİLİNİR): `docker compose down -v` ardından `docker compose up -d`, "+
+			"ya da çalışan sistemde `make reset-demo`", seededSeed, seededHash[:12])
 	case err != pgx.ErrNoRows:
 		return fmt.Errorf("seed_meta okunamadı: %w", err)
 	}
@@ -63,8 +64,12 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 
 	steps := []func() error{
 		func() error {
-			return copyRows("departments", []string{"id", "code", "name"}, len(ds.Departments),
-				func(i int) []any { x := ds.Departments[i]; return []any{x.ID, x.Code, x.Name} })
+			return copyRows("faculties", []string{"id", "code", "name"}, len(ds.Faculties),
+				func(i int) []any { x := ds.Faculties[i]; return []any{x.ID, x.Code, x.Name} })
+		},
+		func() error {
+			return copyRows("departments", []string{"id", "faculty_id", "code", "name"}, len(ds.Departments),
+				func(i int) []any { x := ds.Departments[i]; return []any{x.ID, x.FacultyID, x.Code, x.Name} })
 		},
 		func() error {
 			return copyRows("users", []string{"id", "email", "password_hash", "full_name"}, len(ds.Users),

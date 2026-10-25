@@ -307,3 +307,68 @@ func checkQ1(ctx context.Context, e *env, f *failures) string {
 	f.check(cur.code == 200, "güncel jeton: HTTP %d (200)", cur.code)
 	return fmt.Sprintf("jeton ömrü %d sn; yenileme eski jetonu iptal eder (409 qr_expired), güncel jeton 200", ttl)
 }
+
+// FAK-1: fakülte → bölüm → sınıf yapısı, hoca adları, takvim satırı alanları ve kapsamlı sınav provası.
+func checkFak1(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	r, err := e.a.get(ctx, "/faculties", sec)
+	if !f.expectCode("fakülteler", r, err, 200) {
+		return ""
+	}
+	items := arr(r.body, "items")
+	f.check(len(items) == 4, "%d fakülte (4 bekleniyordu)", len(items))
+	wantDepts := map[string][]string{
+		"Mühendislik Fakültesi":                {"Yazılım Mühendisliği", "Elektrik Mühendisliği", "Bilgisayar Mühendisliği"},
+		"İktisadi ve İdari Bilimler Fakültesi": {"Yönetim Bilişim Sistemleri", "Ekonometri", "Maliye", "Tarih", "Uluslararası İlişkiler"},
+		"Sağlık Bilimleri Fakültesi":           {"Hemşirelik", "Eczacılık", "Ebelik", "Hasta Bakım"},
+	}
+	depts, students := 0, 0
+	var f1, d1 M
+	for i, it := range items {
+		fm := it.(M)
+		name := str(fm, "name")
+		ds := arr(fm, "departments")
+		depts += len(ds)
+		for _, d := range ds {
+			students += int(num(d.(M), "students"))
+			// F-1 (içe aktarma) aynı koşuda ders/öğrenci ekleyebildiğinden alt sınır denetlenir
+			f.check(len(arr(d.(M), "years")) == 4 && num(d.(M), "courses") >= 20, "%s: %d sınıf, %d ders (4 sınıf × ≥5 ders)", str(d.(M), "name"), len(arr(d.(M), "years")), num(d.(M), "courses"))
+		}
+		if want, ok := wantDepts[name]; ok {
+			for j, w := range want {
+				f.check(j < len(ds) && str(ds[j].(M), "name") == w, "%s bölüm %d: beklenen %q", name, j, w)
+			}
+		} else {
+			f.check(name == "Spor Bilimleri Fakültesi" && len(ds) == 3, "spor bilimleri 3 bölümlü olmalı (%q, %d)", name, len(ds))
+		}
+		lec := arr(fm, "lecturers")
+		if i == 0 {
+			f1, d1 = fm, ds[0].(M)
+			want := []string{"Fahrettin Burak DEMİR", "Ömer ASLAN", "Abdullah Elen", "Buket Toptaş", "Serhat KILIÇARSLAN", "Süleyman Gökhan TAŞKIN", "Mehmet Ali Şimşek", "Murat TOPTAŞ"}
+			f.check(len(lec) == 8, "mühendislik %d öğretim üyesi (8)", len(lec))
+			for j, w := range want {
+				f.check(j < len(lec) && str(lec[j].(M), "full_name") == w, "mühendislik öğretim üyesi %d: beklenen %q", j, w)
+			}
+		} else {
+			f.check(len(lec) >= 4 && len(lec) <= 6, "%s: %d öğretim üyesi (4–6)", name, len(lec))
+		}
+	}
+	f.check(depts == 15 && students >= 8000, "%d bölüm, %d öğrenci (15 / ≥8000)", depts, students)
+
+	for id, ex := range e.sn.exams {
+		f.check(str(ex, "faculty_name") != "" && str(ex, "department_name") != "" && num(ex, "year") >= 1 && num(ex, "year") <= 4, "sınav %d takvim satırında fakülte/bölüm/sınıf eksik", id)
+	}
+	run := func(scope M) (resp, int64) {
+		x, _ := e.a.post(ctx, "/schedules/simulate", sec, M{"period_id": e.periodID, "seed": 5, "iterations": 5000, "scope": scope})
+		return x, num(obj(x.body, "scope"), "exams")
+	}
+	_, all := run(M{})
+	_, fac := run(M{"faculty_id": num(f1, "id")})
+	_, dep := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{num(d1, "id")}})
+	one, y1 := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{num(d1, "id")}, "years": []int{1}})
+	f.check(all == 300 && fac == 60 && dep == 20 && y1 == 5, "kapsam sınav sayıları %d/%d/%d/%d (300/60/20/5 bekleniyordu)", all, fac, dep, y1)
+	f.check(num(obj(one.body, "result"), "violations") == 0, "kapsamlı prova ihlalli")
+	bad, _ := run(M{"faculty_id": num(f1, "id"), "department_ids": []any{9999}})
+	f.check(bad.code == 422, "olmayan bölüm: HTTP %d (422)", bad.code)
+	return fmt.Sprintf("4 fakülte, 15 bölüm (her biri 4 sınıf × 5 ders), mühendislik 8 adlı öğretim üyesi; prova kapsamı 300→60→20→5 sınav, ihlal 0")
+}

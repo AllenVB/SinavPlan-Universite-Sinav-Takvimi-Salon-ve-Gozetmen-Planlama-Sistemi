@@ -3,7 +3,7 @@ import { all, fmtDateTime, get } from '../api'
 import { LiveBadge, useLive } from '../live'
 import { Async, Banner, Card, Dot, Empty, Pill, StackedBars, StatCard, type Tone } from '../ui'
 import { useAsync } from '../ui'
-import { ScheduleSelect, useExams, useRooms, useSchedules } from './common'
+import { ScheduleSelect, useExams, useFaculties, useRooms, useSchedules } from './common'
 
 type Act = { id: number; action: string; entity: string; entity_id: string; actor?: string; created_at: string }
 const LABEL: Record<string, [string, Tone]> = {
@@ -18,6 +18,7 @@ export function Dashboard() {
   const sch = useSchedules()
   const exams = useExams(sch.sel)
   const rooms = useRooms()
+  const fac = useFaculties()
   const periods = useAsync(async () => (await get('/periods')).items as { id: number; name: string; exams: number; days: number; sessions_per_day: number }[])
   const pending = useLive(async () => (await all('/excuses?status=pending')).length, [], 30_000)
   const feed = useLive(async () => (await get<{ items: Act[] }>('/activity?limit=12')).items, [], 10_000)
@@ -74,6 +75,29 @@ export function Dashboard() {
         <StatCard icon="users" tone={m && m.scheduling.student_days_with_two_exams > 0 ? 'warn' : 'ok'} label="Aynı gün 2 sınav" value={m ? m.scheduling.student_days_with_two_exams.toLocaleString('tr-TR') : '—'} note={m ? <>öğrenci-gün · sert ihlal <b style={{ color: hard ? 'var(--error)' : 'var(--ok)' }}>{hard}</b></> : undefined} />
         <StatCard icon="bell" tone={pending.data ? 'warn' : 'ok'} label="Bekleyen mazeret" value={pending.data ?? '—'} note={<a href="#/mazeret">Karara bağla →</a>} />
       </div>
+
+      <Card title="Fakülteler ve bölümler" aside={<span className="small muted">her bölümde 1–4. sınıf</span>}>
+        <Async s={fac} empty={(d) => d.length === 0}>
+          {(list) => (
+            <div className="grid g2">
+              {list.map((f) => (
+                <section className="card" key={f.id} style={{ boxShadow: 'none' }}>
+                  <div className="row between"><h3>{f.name}</h3><Pill kind="info">{f.departments.length} bölüm</Pill></div>
+                  <ul className="checks" style={{ marginTop: 10 }}>
+                    {f.departments.map((d) => (
+                      <li key={d.id} style={{ justifyContent: 'space-between' }}>
+                        <span><b>{d.name}</b> <span className="muted small">({d.code})</span></span>
+                        <span className="small muted">{d.students.toLocaleString('tr-TR')} öğrenci · {d.courses} ders</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <details style={{ marginTop: 10 }}><summary className="small muted">Öğretim üyeleri ({f.lecturers.length})</summary><div className="row" style={{ marginTop: 8 }}>{f.lecturers.map((l) => <span key={l.id} className="pill">{l.full_name}</span>)}</div></details>
+                </section>
+              ))}
+            </div>
+          )}
+        </Async>
+      </Card>
 
       <Card title="Takvim durumu" aside={sch.current && <Pill kind={sch.current.status === 'published' ? 'ok' : 'warn'}><Dot tone={sch.current.status === 'published' ? 'ok' : 'warn'} />{sch.current.status === 'published' ? 'Yayında' : 'Taslak'}</Pill>}>
         <Async s={sch.list} empty={(d) => d.length === 0}>

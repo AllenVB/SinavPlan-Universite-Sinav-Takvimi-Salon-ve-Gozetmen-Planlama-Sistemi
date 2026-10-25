@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { get, idemKey, post, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../auth'
 import { Async, Card, ErrorBox, Empty, Field, Pill, useAction, useAsync } from '../ui'
-import { hasRole, ScheduleSelect, useExams, useSchedules, type Exam } from './common'
+import { hasRole, ScheduleSelect, useExamFilter, useExams, useSchedules, type Exam } from './common'
 import { Compare, ExportButtons, Simulator } from './Tools'
 
 export function Calendar() {
@@ -11,7 +11,8 @@ export function Calendar() {
   const secretary = hasRole(user!.roles, 'secretary')
   const exams = useExams(sch.sel)
   const [q, setQ] = useState('')
-  const filtered = useMemo(() => (exams.data ?? []).filter((e) => `${e.course_code} ${e.course_name}`.toLowerCase().includes(q.toLowerCase())), [exams.data, q])
+  const filt = useExamFilter()
+  const filtered = useMemo(() => (exams.data ?? []).filter((e) => filt.match(e) && `${e.course_code} ${e.course_name} ${e.department_name}`.toLowerCase().includes(q.toLowerCase())), [exams.data, q, filt.match])
   const byDay = useMemo(() => {
     const m = new Map<number, Exam[]>()
     filtered.forEach((e) => m.set(e.day, [...(m.get(e.day) ?? []), e]))
@@ -43,7 +44,7 @@ export function Calendar() {
       {publish.error && <ErrorBox error={publish.error} />}
       <div className="noprint"><ExportButtons schedule={sch.sel} /></div>
       {secretary && <div className="noprint"><Generator onDone={() => (sch.list.reload(), sch.setSel(null))} /></div>}
-      {secretary && <div className="noprint"><Simulator periodId={sch.current?.period_id} /></div>}
+      {secretary && <div className="noprint"><Simulator periodId={sch.current?.period_id} exams={exams.data} /></div>}
       {secretary && sch.list.data && sch.list.data.length > 1 && <div className="noprint"><Compare schedules={sch.list.data} current={sch.sel} /></div>}
 
       {m && (
@@ -55,7 +56,12 @@ export function Calendar() {
         </div>
       )}
 
-      <Card title="Sınav oturumları" aside={<input className="input" style={{ width: 240 }} placeholder="Ders ara…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} />}>
+      <Card title={`Sınav oturumları (${filtered.length}${exams.data && filtered.length !== exams.data.length ? ` / ${exams.data.length}` : ''})`}>
+        <div className="row noprint" style={{ marginBottom: 12 }}>
+          {filt.element}
+          <input className="input" style={{ width: 220 }} placeholder="Ders ara…" aria-label="Ders ara" value={q} onChange={(e) => setQ(e.target.value)} />
+          {q && <button className="btn sm" onClick={() => setQ('')}>Aramayı temizle</button>}
+        </div>
         {sch.list.data?.length === 0 ? (
           <Empty title="Henüz planlanmış sınav yok" hint={secretary ? 'Yukarıdan "Takvimi oluştur" ile ilk çizelgeyi üretin.' : 'Çizelge yayınlandığında burada görünür.'} />
         ) : (
@@ -66,7 +72,7 @@ export function Calendar() {
               ) : (
                 <div className="tablewrap">
                   <table>
-                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Öğrenci</th><th>Salon</th><th>Tür</th></tr></thead>
+                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Bölüm</th><th>Sınıf</th><th>Öğrenci</th><th>Salon</th><th>Tür</th></tr></thead>
                     <tbody>
                       {byDay.flatMap(([, list]) =>
                         list.map((e, i) => (
@@ -74,6 +80,8 @@ export function Calendar() {
                             <td>{i === 0 ? fmtDate(e.starts_at) : ''}</td>
                             <td>{fmtTime(e.starts_at)}–{fmtTime(e.ends_at)}</td>
                             <td><b>{e.course_code}</b> {e.course_name}</td>
+                            <td className="small">{e.department_name}</td>
+                            <td><Pill>{e.year}. sınıf</Pill></td>
                             <td>{e.students}</td>
                             <td>{e.rooms}</td>
                             <td>{e.requires_lab ? <Pill kind="info">Laboratuvar</Pill> : <Pill>Klasik</Pill>}</td>
