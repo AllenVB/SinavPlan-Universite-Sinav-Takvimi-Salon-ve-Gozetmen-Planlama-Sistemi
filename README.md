@@ -224,23 +224,25 @@ Tam plan: [duties_by_user.txt](docs/explain/duties_by_user.txt)
 
 ## Doğrulama Soruları
 
-> Cevaplar kullanıcının kendi sözleriyle yazılmak üzere **taslaktır**; her cevabın dayandığı ölçüm/komut aşağıda hazır.
+1- En zorlandığım kısım:
 
-### 1. En zorlandığın görev ve elenen alternatifler
+Öğrenciler salonlara ve koltuklara yerleştirilirken bu sırada oluşacak aynı denk gelme aşamasında zorlandım.Burada kopya önleyici bir sistem istediğimiz için tasarım ve uygulama biraz beni zorladı.Kurallar ve kısıtlar beni zorladı açıkcası. Buna göre bir plan tasarladım.
 
-*Taslak veri:* T-2/T-3. T-2 doğrulayıcısı geçerken T-3 (o günkü veri kümesinde) 52.033 çiftten 110'unu oturtamadı. Önce ileri bakışlı ve çok başlangıçlı doldurma sırası denendi (etkisiz, geri alındı). Kök neden: payı `Single` kapasitesine eşit olan bir sınav tek bir koltuk eşlik sınıfına zorlanıyor, başka bir sınavın engelli öğrencisi bu koltuklardan birini alınca yer kalmıyor. Çözüm kuralı: `pay ≤ Single − diğer sınavların engelli sayısı` (ADR-008); sonuç 0 oturtulamayan ve regresyon testleri. Elenen alternatifler: T-1 için ILP (çözücü bağımlılığı, 60 sn garantisi yok) ve süre bazlı durma (makineler arası farklı sonuç) — ADR-007.
+2-Sistemin yetersiz kaldığı durum:
 
-### 2. Bilinen sınırlama
+Salon kullanımını sistem çakışma engellemek için abartmıştı, gereksiz fazla salon gereksiz maliyet oluşturacağından dolayı bunu optimize ettim.Gözetmen değişikliğinde sistem yetersiz kalıyordu, ne yapacağını şaşırıyordu. Bunu daha fazla gözetmen ekleyerek ve gözetmenlere eşit derecede görev vererek her birinden maksimum derecede yararlanmaya çalıştım.
 
-*Taslak veri:* (a) Salon sayısı en iyi değil: 550 (slot, salon) kullanımı, gevşek alt sınır 369; kutulama sezgisel (Best-Fit Decreasing + bölme + birleştirme). (b) `Reassign` zincir uzunluğunu 3 ile sınırlar; daha derin takas gerektiren çok sıkışık planlarda "doldurulamadı" döner ve bunu raporlar. (c) Yazma yükü testi tek makinede; çok düğümlü senaryo sınanmadı. (d) Windows'ta soğuk kurulum yazar tarafından denenmedi (CI Linux'ta çalışır).
+Yük testi tek bilgisayarda yapıldı; çok sunuculu kurulum denenmedi, bu aşamada sorun olma ihtimali var.
 
-### 3. Dizinler: dizinsiz / dizinli fark
+3-İki dizin ve hız farkı
 
-Yukarıdaki EXPLAIN tablosu (tam planlar `docs/explain/`). Örnekler: `seat_assignments_student_idx` (öğrencinin koltuk sorgusu) ve `enrollments_section_idx` (şube kayıtları, Seq Scan → Bitmap Heap Scan). Dürüst not: `schedule_exams_slot_idx` ölçümde fark yaratmadı — planlayıcı mevcut UNIQUE dizinini kullanıyor; bu dizin düşürülmeye aday.
+Bir şubenin öğrencilerini getiren sorgu dizin olmadan 2,03 ms, dizinle 0,35 ms sürüyor; yaklaşık 6 kat hızlı.
 
-### 4. Reddedilen / düzeltilen yapay zekâ çıktısı
+Bir öğrencinin koltuğunu bulan sorgu dizin olmadan 2,10 ms, dizinle 0,42 ms sürüyor; yaklaşık 5 kat hızlı.
 
-4.Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
+Ölçümler make explain komutu ile alındı ve test edildi,doğrulandı.
+
+4-Düzelttiğim yapay zeka çıktıları:
 
 -Arayüz tasarımını karmaşık tasarlamıştı , kullanıcı açısından kullanım kolaylığı sağlamıyordu, daha sade ve anlaşılır bir tasarım uyguladım.Süzgeçler ekledim , gerçek bir demo tasarımı yaptım.
 
@@ -248,7 +250,7 @@ Yukarıdaki EXPLAIN tablosu (tam planlar `docs/explain/`). Örnekler: `seat_assi
 
 -Gözetmen mazeret kararı düzenlemesi yaparak sekreterin karar verebilmesini ve demo verisinin tüm dönemi kapsamasını istedim
 
--Belge sayıları eskimiş ve CI hiç çalışmamış ve test yapılmamıştı.  Test , verify , load balancer ve explain sayıları tekrar yazıldı.
+-Belge sayıları eskimiş ve CI hiç çalışmamış ve test yapılmamıştı. Test , verify , load balancer ve explain sayıları tekrar yazıldı.
 
 -Her adımdan sonra test ederek ilerledim , daha hızlı olmasındansa daha akıllı olmasını ve sorunsuz ilerlemeyi tercih ettim. Bu sayede en az hata ile projeyi geliştirdim.
 
@@ -256,17 +258,23 @@ Yukarıdaki EXPLAIN tablosu (tam planlar `docs/explain/`). Örnekler: `seat_assi
 
 -Kontrol sağlamadan oturma planı değişti uyarısı veriyordu. Testleri ve doğrulamaları daha ön plana aldım .
 
--Ekran çok gürültülü ve karmaşıktı. 8 oturumda 86 uyarı veriyordu. Daha az karmaşık olan ve sade kolay anlaşılır  şekildeolması için sadece tam dolu kapasitede bildirim uyarısı vermesini sağladım. 
+-Ekran çok gürültülü ve karmaşıktı. 8 oturumda 86 uyarı veriyordu. Daha az karmaşık olan ve sade kolay anlaşılır şekildeolması için sadece tam dolu kapasitede bildirim uyarısı vermesini sağladım.
 
 -Clean code yazması için kod analizi yaptım gerekli direktifleri verdim ve gereksiz yerleri kaldırdım.
 
-### 5. T-1'in doğruluğu nasıl kanıtlandı
+-Açıklamalar ve bilgi kartları yetersizdi , bilgi kartları ekleyerek sistemin daha anlaşılır şekilde oluşturmayı sağladım.
 
-```bash
-make prove-t1
-```
+5. Takvimin doğru çalıştığını nasıl kanıtladın?
 
-Çözücüden bağımsız `Validate` (sıfırdan hesaplar) 0 sert ihlal raporlar: aynı slotta çakışan sınav yok, öğrenci başına günde ≤2 sınav. Ceza 1.830 → 1.044 (300 sınavlık `prove-t1`). Aynı tohum aynı sonucu verir (determinizm testi + `make verify` F-3: aynı tohumla iki üretim özdeş). Uçtan uca: `make verify` T-1 satırı, API verisinden bağımsız hesapla `/conflicts` uç noktasıyla aynı slotta çakışma 0 ve günde 2 sınav sayısı (1.289 öğrenci-gün) uç noktayla birebir eşleşir. Çözümsüz girdi için çözümsüzlük raporu (klik > slot, aşırı yüklü öğrenci) testlerle sınanır.
+make prove-t1 komutunu çalıştırdım . Takvimden ayrı bir kontrol programı ile sonucu baştan sayarak ilerliyor.
+
+Sonuç 0 kural ihlali verdi ve bunu çok fazla kez test ettim. Bu sayede takvimin doğru çalıştığını anlayabildim.
+
+Takvim 3 ile 60 saniye aralığında kompleks ve basit olarak oluşturulabiliyor.
+
+Ekstra:Kullanım kolaylığı için direktifler bıraktım.Ayrı ayrı hesaplara girip her rolün kendine göre özelliklerine göre farklı işlemler yapabilmesini sağladım.
+
+Login ekranında giriş yapmak istediğiniz kullanıcıya tıklayınca otomatik şifre ve isim dolduruyor buna göre giriş yapabilirsiniz.
 
 ## Bilinen sınırlar ve yapılmayanlar
 
