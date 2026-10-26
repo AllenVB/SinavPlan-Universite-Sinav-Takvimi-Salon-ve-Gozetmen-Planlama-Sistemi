@@ -394,6 +394,10 @@ Content-Type: {{json}}
 
 {"slot_id": {{slotId2}}}
 
+### Faz 22 A2: kanıtlar — T-1..T-5 kurallarını kayıtlı plan üzerinde bağımsız SQL ile denetler (yazmaz)
+GET {{host}}/schedules/{{scheduleId}}/proofs
+Authorization: Bearer {{secretary}}
+
 ### Faz 22 A3: komut paleti araması (öğrenci no/ad, ders, salon) ve Öğrenci 360
 GET {{host}}/search?q=2026000
 Authorization: Bearer {{secretary}}

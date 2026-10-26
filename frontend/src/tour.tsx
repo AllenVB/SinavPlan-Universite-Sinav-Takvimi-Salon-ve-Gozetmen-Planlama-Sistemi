@@ -35,6 +35,9 @@ export const TOUR: Step[] = [
   { title: 'Mazeret ve çakışmalar', role: 'secretary', email: 'sekreter@sinavplan.test', who: 'Bölüm sekreteri', path: 'mazeret',
     body: 'Öğrenci ve gözetmen mazeretleri tek masada onaylanır/reddedilir; onaylı mazeretli sınava kart verilmez. Çakışmalar sekmesi yoklama çakışmalarının nasıl çözüldüğünü gösterir.',
     try: 'Bekleyen mazereti onaylayın; çanın üzerindeki sayı azalır.' },
+  { title: 'Kanıtlar: kurallar canlı doğrulanıyor', role: 'secretary', email: 'sekreter@sinavplan.test', who: 'Bölüm sekreteri', path: 'kanitlar',
+    body: 'Yayındaki planın tüm kuralları (çakışma, günde ≤2 sınav, kapasite, lab, yan yana oturmama, engelli koltuğu, gözetmen kuralları) çözücüden bağımsız SQL ile yeniden sayılır. Her kural bir de bilerek bozulmuş sanal planla denenir: doğrulayıcı bozulmayı yakalamalı.',
+    try: '"Yeniden çalıştır" deyin; 12/12 denetimin her birinde gerçek plan 0 ihlal, bozulmuş plan ≥1 yakalandı görünür.' },
 ]
 
 const KEY = 'sinavplan-tour'

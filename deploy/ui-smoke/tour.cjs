@@ -10,7 +10,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   await p.goto(BASE); await p.fill('#email', 'sekreter@sinavplan.test'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
   ok(!(await p.$('[data-testid=tour]')), 'tur kendiliğinden açılmaz');
   await p.click('header button:has-text("Tur")'); await p.waitForSelector('[data-testid=tour]');
-  ok((await p.textContent('[data-testid=tour]')).includes('1 / 8'), 'üst çubuktan açıldı: adım 1 / 8');
+  ok((await p.textContent('[data-testid=tour]')).includes('1 / 9'), 'üst çubuktan açıldı: adım 1 / 9');
   await p.click('[data-testid=tour] button:has-text("İleri")');
   await p.waitForSelector('button:has-text("Takvimi oluştur")', { timeout: 8000 });
   ok(p.url().includes('#/takvim?tab=uret'), 'adım 2 takvimin Üret sekmesini açtı');
@@ -22,7 +22,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   await p.click('[data-testid=tour-switch]');
   await p.waitForSelector('text=Ömer ASLAN', { timeout: 10000 }).then(() => ok(true, 'tek tıkla gözetmen hesabına geçildi'), () => ok(false, 'gözetmen hesabına geçilemedi'));
   await p.waitForTimeout(800);
-  ok(p.url().includes('#/yoklama') && (await p.textContent('[data-testid=tour]')).includes('6 / 8'), 'hesap değişince tur aynı adımdan sürdü (#/yoklama, 6 / 8)');
+  ok(p.url().includes('#/yoklama') && (await p.textContent('[data-testid=tour]')).includes('6 / 9'), 'hesap değişince tur aynı adımdan sürdü (#/yoklama, 6 / 9)');
   if (process.env.AXE_PATH) {
     await p.addScriptTag({ content: fs.readFileSync(process.env.AXE_PATH, 'utf8') });
     const v = await p.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })).violations.filter((x) => x.impact === 'serious' || x.impact === 'critical').map((x) => x.id));

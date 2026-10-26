@@ -12,7 +12,7 @@ import { Calendar } from './pages/Calendar'
 import { Rooms } from './pages/Rooms'
 import { Invigilators } from './pages/Invigilators'
 import { ExcuseDesk } from './pages/Excuses'
-import { Imports } from './pages/Imports'
+import { AdminDesk } from './pages/Proofs'
 import { Live } from './pages/Live'
 import { Tablet } from './pages/Tablet'
 import { MyExams } from './pages/MyExams'
@@ -33,11 +33,13 @@ const routes: Route[] = [
   { path: 'canli', label: 'Sınav günü izleme', roles: ['secretary', 'student_affairs'], page: Live, icon: 'zap', group: 'Sınav günü' },
   { path: 'mazeret', label: 'Mazeret ve çakışma', roles: ['secretary', 'student_affairs', 'student', 'invigilator'], page: ExcuseDesk, icon: 'mail', group: 'Sınav günü' },
   { path: 'cakisma', label: 'Çakışma masası', roles: ['secretary', 'student_affairs'], page: ConflictsTab, icon: 'alert', hidden: true, parent: 'mazeret' },
-  { path: 'ice-aktar', label: 'Veri içe aktarma', roles: ['secretary'], page: Imports, icon: 'upload', group: 'Yönetim' },
+  { path: 'ice-aktar', label: 'Veri ve kanıtlar', roles: ['secretary'], page: AdminDesk, icon: 'upload', group: 'Yönetim' },
+  { path: 'kanitlar', label: 'Kanıtlar', roles: ['secretary'], page: ProofsTab, icon: 'checkCircle', hidden: true, parent: 'ice-aktar' },
 ]
 
 function CalendarEditor() { return <Calendar initialTab="duzenle" /> }
 function ConflictsTab() { return <ExcuseDesk initialTab="cakisma" /> }
+function ProofsTab() { return <AdminDesk initialTab="proofs" /> }
 
 const roleName: Record<Role, string> = { secretary: 'Bölüm sekreteri', lecturer: 'Öğretim üyesi', invigilator: 'Gözetmen', student_affairs: 'Öğrenci işleri', student: 'Öğrenci' }
 

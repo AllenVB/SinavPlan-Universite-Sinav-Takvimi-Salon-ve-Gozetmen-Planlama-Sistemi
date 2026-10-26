@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (27 satır = 28 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (28 satır = 29 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -133,7 +133,21 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 ## İlk 5 dakika: rehberli tur (Faz 22)
 
-Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 8 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını ve mazeret masasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
+Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 9 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını, mazeret masasını ve kuralların canlı doğrulandığı Kanıtlar sayfasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
+
+## Kanıtlar: kurallar canlı doğrulanıyor (Faz 22 A2)
+
+**Veri ve kanıtlar → Kanıtlar** (ya da turun 9. adımı) seçili sürümün planını veritabanından okur ve zor görevlerin kurallarını yeniden sayar. Sayım, çözücü kodundan **bağımsız** SQL ile yapılır.
+
+| Görev | Denetlenen kurallar |
+|---|---|
+| T-1 | ortak öğrencili iki sınav aynı oturumda yok · öğrenci başına günde ≤2 sınav |
+| T-2 | salon kapasitesi aşılmıyor · lab sınavı lab salonunda |
+| T-3 | aynı sınav yan yana yok · koltuk ve öğrenci tekil · engelli öğrenci erişilebilir koltukta |
+| T-4 | gözetmenin aynı gün art arda oturumu yok · 50+ öğrencili salonda ≥2 gözetmen · kendi dersinde gözetmen değil |
+| T-5 | uygulama rolüyle `audit_log` / `attendance_events` güncelleme/silme **canlı denenir** → `permission denied` |
+
+**Neden iki sütun?** "0 ihlal" tek başına bir şey kanıtlamaz; doğrulayıcı hiçbir şeyi yakalamıyor da olabilir. Bu yüzden her kural ikinci kez, sorgu parametresiyle bilerek bozulmuş **sanal** bir planla da koşar; örneğin ortak öğrencili bir sınav diğerinin oturumuna taşınır. Doğrulayıcı bu bozulmayı yakalamalıdır. Veritabanına hiçbir şey yazılmaz; tüm sayımlar tek bir salt-okur (REPEATABLE READ) işlemden gelir. 301 sınav ve 42.751 koltukta yaklaşık 2 sn sürer (`make verify` A2-1). Testte gerçek bir bozulma da (bir öğrenciyi engelli işaretleyip erişilebilir olmayan koltukta bırakmak) yakalanıyor.
 
 ## Ctrl+K ile ara ve "Öğrenci 360" (Faz 22 A3)
 
@@ -220,7 +234,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 27 satır (28 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 28 satır (29 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

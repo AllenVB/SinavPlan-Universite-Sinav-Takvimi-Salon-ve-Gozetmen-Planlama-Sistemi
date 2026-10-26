@@ -573,3 +573,30 @@ func checkA3(ctx context.Context, e *env, f *failures) string {
 	f.check(sq.code == 403, "öğrenci arama: HTTP %d (403)", sq.code)
 	return fmt.Sprintf("arama öğrenciyi (#%d) numara önekiyle buldu, joker güvenli; 360'ta %d sınavın salon+koltuğu planla aynı; öğrenci 403 (başkası/arama)", e.studentID, len(exams))
 }
+
+// A2-1 (Faz 22): kanıtlar ucu. Yayındaki planda her SQL denetimi 0 ihlal bulur ve bilerek bozulmuş sanal
+// planı yakalar; T-5 yazma denemeleri reddedilir; sürüm sayısı değişmez; öğrenci 403.
+func checkA2(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	versions := func() int { l, _ := e.a.all(ctx, "/schedules", sec); return len(l) }
+	n0 := versions()
+	r, err := e.a.get(ctx, fmt.Sprintf("/schedules/%d/proofs", e.sched2), sec)
+	if !f.expectCode("kanıtlar", r, err, 200) {
+		return ""
+	}
+	items := arr(r.body, "items")
+	f.check(len(items) >= 12, "en az 12 denetim bekleniyordu: %d", len(items))
+	caught := 0
+	for _, it := range items {
+		p := it.(M)
+		f.check(num(p, "found") == 0, "%s gerçek planda %d ihlal", str(p, "id"), num(p, "found"))
+		f.check(boolean(p, "ok"), "%s geçmedi (yakalanan %d, %s)", str(p, "id"), num(p, "caught"), str(p, "detail"))
+		if num(p, "caught") > 0 {
+			caught++
+		}
+	}
+	f.check(versions() == n0, "kanıtlar sürüm oluşturdu")
+	s, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/proofs", e.sched2), e.tok["student"])
+	f.check(s.code == 403, "öğrenci kanıtlar: HTTP %d (403)", s.code)
+	return fmt.Sprintf("%d SQL denetimi: gerçek planda 0 ihlal, %d bozulmuş sanal plan yakalandı, T-5 yazma reddi; %d ms; öğrenci 403", len(items), caught, num(r.body, "total_ms"))
+}

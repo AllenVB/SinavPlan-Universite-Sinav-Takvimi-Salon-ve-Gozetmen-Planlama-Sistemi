@@ -363,6 +363,18 @@ paths:
         "200": {description: "student{…, attendance{exam_id: {status, source}}, excuses[]}, exams[]", content: {application/json: {schema: {type: object}}}}
         "403": {description: Başka öğrencinin kaydı}
         "404": {description: Öğrenci yok}
+  /schedules/{id}/proofs:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Kanıtlar — T-1..T-4 kısıtlarını kayıtlı plan üzerinde çözücüden bağımsız SQL ile yeniden denetler (yazmaz)
+      description: |
+        Her denetim iki kez koşar: gerçek plan (`found`, 0 beklenir) ve bilerek bozulmuş sanal plan (`caught`, ≥1 beklenir;
+        CTE parametresiyle, veritabanına yazılmaz). T-5a/b: uygulama rolüyle denetim/yoklama olay tablolarında UPDATE/DELETE
+        geri alınan işlemde denenir, `permission denied` beklenir. Tüm sayımlar tek REPEATABLE READ salt-okur işlemden.
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: "items[{id, task, title, found, mutation, caught, ok, ms}]", content: {application/json: {schema: {type: object}}}}
+        "404": {description: Çizelge yok ya da görünmez}
   /schedules/{id}/fix-suggestions:
     get:
       tags: [Mazeret (F-6)]

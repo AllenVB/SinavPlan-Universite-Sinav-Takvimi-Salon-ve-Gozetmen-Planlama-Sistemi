@@ -207,6 +207,7 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodGet, "/schedules/{id}/rooms", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.slotRooms)
 	s.handle(r, http.MethodGet, "/schedules/{id}/seating", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.seating)
 	s.handle(r, http.MethodGet, "/schedules/{id}/conflicts", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.scheduleConflicts)
+	s.handle(r, http.MethodGet, "/schedules/{id}/proofs", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.proofs, slow(60*time.Second))
 	s.handle(r, http.MethodGet, "/schedules/{id}/fix-suggestions", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.fixSuggestions, slow(60*time.Second))
 	s.handle(r, http.MethodGet, "/schedules/{id}/invigilators", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleInvigilators)
 	s.handle(r, http.MethodPost, "/schedules/{id}/invigilators/{userId}/remove", Roles(auth.RoleSecretary), s.removeInvigilator, idempotent())

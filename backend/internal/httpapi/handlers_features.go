@@ -620,3 +620,29 @@ func (s *Server) fixSuggestions(w http.ResponseWriter, r *http.Request) error {
 		"student_days": fx.StudentDays, "items": items})
 	return nil
 }
+
+// --- Kanıtlar (Faz 22 A2) ------------------------------------------------------------------
+
+// proofs: GET /schedules/{id}/proofs — T-1..T-4 kısıtlarını kayıtlı plan üzerinde çözücüden bağımsız SQL ile
+// yeniden denetler; her denetim bir de bilerek bozulmuş sanal planla koşar (yakalamalı). T-5: uygulama
+// rolünün eklemeli-yalnız tabloları değiştiremediği canlı denenir. Hiçbir şey yazılmaz.
+func (s *Server) proofs(w http.ResponseWriter, r *http.Request) error {
+	sid, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	if _, err := s.visibleSchedule(r, sid); err != nil {
+		return err
+	}
+	out, err := store.RunProofs(r.Context(), s.pool, sid)
+	if err != nil {
+		return storeError(err)
+	}
+	ap, err := store.ProveAppendOnly(r.Context(), s.pool)
+	if err != nil {
+		return err
+	}
+	out.Items = append(out.Items, ap...)
+	WriteJSON(w, http.StatusOK, out)
+	return nil
+}

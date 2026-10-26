@@ -174,6 +174,11 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	// Toplu yükleme sonrası planlayıcı istatistikleri: aksi halde autovacuum gelene dek tablolar boş sanılır
+	// (enrollments 42.715 satırken 3 görünüyordu) ve ilk sorgular kötü plan seçer. Seed sahip rolle çalışır.
+	if _, err := conn.Exec(ctx, `ANALYZE`); err != nil {
+		return fmt.Errorf("ANALYZE: %w", err)
+	}
 	log.Info("seed tamamlandı",
 		slog.Int64("seed", ds.Config.Seed), slog.String("hash", hash[:12]),
 		slog.Duration("süre", time.Since(start).Round(time.Millisecond)))
