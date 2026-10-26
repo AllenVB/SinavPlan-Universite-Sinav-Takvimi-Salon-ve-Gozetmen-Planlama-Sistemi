@@ -19,12 +19,14 @@ type RoomChangeRequest struct {
 	Reason                                   string
 	ActorID                                  int64
 	Strict                                   bool
+	DryRun                                   bool // önizleme: tüm adımlar koşar, sonunda geri alınır
 }
 
 // RoomChangeResult, taşıma sonucu.
 type RoomChangeResult struct {
 	EventID int64 `json:"room_change_event_id"`
 	Moved   int   `json:"moved"`
+	DryRun  bool  `json:"dry_run"`
 }
 
 // RoomChange, tahliyeyi TEK transaction'da yapar:
@@ -195,6 +197,10 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 		Old:      map[string]any{"room_id": req.FromRoomID, "slot_id": req.SlotID, "students": len(mv)},
 		New:      map[string]any{"room_id": req.ToRoomID, "reason": req.Reason}}); err != nil {
 		return RoomChangeResult{}, err
+	}
+	if req.DryRun {
+		res.DryRun, res.EventID = true, 0 // ertelenmiş Rollback: olay kaydı ve taşıma kalıcı olmaz
+		return res, nil
 	}
 	return res, tx.Commit(ctx)
 }

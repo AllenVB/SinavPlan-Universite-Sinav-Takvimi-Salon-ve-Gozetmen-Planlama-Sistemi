@@ -416,6 +416,7 @@ paths:
         - {$ref: "#/components/parameters/Id"}
         - {name: userId, in: path, required: true, schema: {type: integer, format: int64}}
         - {$ref: "#/components/parameters/IdempotencyKey"}
+        - {name: dry_run, in: query, description: "true: önizleme — işlem tam koşar ve geri alınır, hiçbir şey değişmez (Faz 22 B2)", schema: {type: boolean, default: false}}
       responses:
         "200": {description: Sonuç, content: {application/json: {schema: {$ref: "#/components/schemas/RemoveInvigilatorResult"}}}}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -427,12 +428,15 @@ paths:
         Bir slotta bir salonun tüm öğrencilerini tek transaction'da başka salona taşır: salon satırları kimlik
         sırasıyla `FOR UPDATE` kilitlenir, hedefin kapasitesi komşuluk kuralıyla denetlenir, `room_change_events` ve
         `audit_log` aynı transaction'da yazılır. Sığmazsa 409 (`insufficient_capacity`) ve hiçbir şey değişmez.
-      parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/IdempotencyKey"}]
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {$ref: "#/components/parameters/IdempotencyKey"}
+        - {name: dry_run, in: query, description: "true: önizleme — işlem tam koşar ve geri alınır, hiçbir şey değişmez (Faz 22 B2)", schema: {type: boolean, default: false}}
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: "#/components/schemas/RoomChangeRequest"}}}
       responses:
-        "200": {description: Taşındı, content: {application/json: {schema: {type: object, properties: {room_change_event_id: {type: integer}, moved: {type: integer}}}}}}
+        "200": {description: Taşındı, content: {application/json: {schema: {type: object, properties: {room_change_event_id: {type: integer, description: "önizlemede 0"}, moved: {type: integer}, dry_run: {type: boolean}}}}}}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/Validation"}

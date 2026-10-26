@@ -160,6 +160,16 @@ function Evacuate({ scheduleId, slotId, from, rooms, onDone }: { scheduleId: num
   const [src, setSrc] = useState(from[0] ?? 0)
   const [dst, setDst] = useState(0)
   const [reason, setReason] = useState('')
+  // Faz 22 B2: "Önizle" aynı işlemi koşturup geri alır (?dry_run=true); "Tahliye et" uygular.
+  // önizleme yalnız alındığı (kaynak, hedef) çifti için geçerli: seçim değişirse "Tahliye et" yeniden önizleme ister
+  const pair = `${src}-${dst}`
+  const [pvFor, setPvFor] = useState('')
+  const pv = useAction(async () => {
+    const r = (await post(`/schedules/${scheduleId}/room-change?dry_run=true`, { slot_id: slotId, from_room_id: src, to_room_id: dst, reason })) as { moved: number }
+    setPvFor(pair)
+    return r
+  })
+  const fresh = pvFor === pair && !!pv.result
   const act = useAction(async () => {
     const r = await post(`/schedules/${scheduleId}/room-change`, { slot_id: slotId, from_room_id: src, to_room_id: dst, reason }, { 'Idempotency-Key': idemKey('room-change') })
     onDone()
@@ -167,6 +177,7 @@ function Evacuate({ scheduleId, slotId, from, rooms, onDone }: { scheduleId: num
   })
   const name = (id: number) => rooms.find((r) => r.id === id)?.code ?? `#${id}`
   const full = act.error?.code === 'insufficient_capacity'
+  const pvFull = pv.error?.code === 'insufficient_capacity'
   return (
     <Card title="Toplu salon değişikliği (tahliye)">
       <p className="small muted" style={{ marginBottom: 12 }}>Kaynak salondaki bu oturumun tüm öğrencileri tek işlemde hedef salona taşınır; hedefe sığmazsa hiçbir şey değişmez.</p>
@@ -174,8 +185,11 @@ function Evacuate({ scheduleId, slotId, from, rooms, onDone }: { scheduleId: num
         <Field label="Kaynak salon" id="src"><select id="src" value={src} onChange={(e) => setSrc(Number(e.target.value))}>{from.map((id) => <option key={id} value={id}>{name(id)}</option>)}</select></Field>
         <Field label="Hedef salon" id="dst"><select id="dst" value={dst} onChange={(e) => setDst(Number(e.target.value))}><option value={0}>Seçin…</option>{rooms.filter((r) => r.id !== src).map((r) => <option key={r.id} value={r.id}>{r.code} ({r.capacity})</option>)}</select></Field>
         <Field label="Gerekçe" id="why"><input id="why" className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="örn. klima arızası" /></Field>
-        <button className="btn danger" disabled={act.busy || !dst || !reason.trim()} onClick={() => confirm('Öğrenciler hedef salona taşınacak. Onaylıyor musunuz?') && void act.run()}>{act.busy ? 'Taşınıyor…' : 'Tahliye et'}</button>
+        <button className="btn" disabled={pv.busy || !dst || !reason.trim()} onClick={() => void pv.run()}>{pv.busy ? 'Hesaplanıyor…' : 'Önizle'}</button>
+        <button className="btn danger" disabled={act.busy || !fresh || !dst || !reason.trim()} onClick={() => void act.run()}>{act.busy ? 'Taşınıyor…' : 'Tahliye et'}</button>
       </div>
+      {fresh && !act.result && pv.result && <div className="alert info" style={{ marginTop: 12 }} role="status" data-testid="evac-preview"><div><b>Önizleme:</b> {pv.result.moved} öğrenci {name(src)} → {name(dst)} taşınacak; kopya kuralı (yan yana aynı sınav yok) ve engelli koltukları korunarak yerleşiyor. Henüz hiçbir şey değişmedi.</div></div>}
+      {pv.error && <div style={{ marginTop: 12 }}>{pvFull ? <div className="alert err" role="alert"><div><b>Önizleme: hedef salona sığmıyor.</b> {pv.error.message}</div></div> : <ErrorBox error={pv.error} />}</div>}
       {act.result && <div className="alert ok" style={{ marginTop: 12 }} role="status">{act.result.moved} öğrenci taşındı. Gözetmenler ve oturma planı güncellendi.</div>}
       {act.error && <div style={{ marginTop: 12 }}>{full ? <div className="alert err" role="alert"><div><b>Hedef salona sığmıyor.</b> {act.error.message} Hiçbir kayıt değişmedi.</div></div> : <ErrorBox error={act.error} />}</div>}
     </Card>

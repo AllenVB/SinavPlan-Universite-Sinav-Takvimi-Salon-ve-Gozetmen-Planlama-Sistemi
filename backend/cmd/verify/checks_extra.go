@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -599,4 +600,65 @@ func checkA2(ctx context.Context, e *env, f *failures) string {
 	s, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/proofs", e.sched2), e.tok["student"])
 	f.check(s.code == 403, "öğrenci kanıtlar: HTTP %d (403)", s.code)
 	return fmt.Sprintf("%d SQL denetimi: gerçek planda 0 ihlal, %d bozulmuş sanal plan yakalandı, T-5 yazma reddi; %d ms; öğrenci 403", len(items), caught, num(r.body, "total_ms"))
+}
+
+// B2-1 (Faz 22): "ya olursa?" önizlemesi. ?dry_run=true ile gözetmen çıkarma ve tahliye tam koşar ama geri
+// alınır: API'den okunan gözetmen görevleri ve oturma planı, sürüm sayısı ve olay akışı önce/sonra AYNI.
+func checkB2(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	sp := fmt.Sprintf("/schedules/%d", e.sched2)
+	duties, err := e.a.all(ctx, sp+"/invigilators", sec)
+	if err != nil || len(duties) == 0 {
+		f.check(false, "görev listesi alınamadı: %v", err)
+		return ""
+	}
+	slot, from := num(duties[0], "slot_id"), num(duties[0], "room_id")
+	// anlık görüntü: tüm gözetmen görevleri, tahliye edilecek oturumun salon payları ve kaynak salonun
+	// oturma listesi, sürüm sayısı, son denetim olayı
+	snap := func() string {
+		d, _ := e.a.all(ctx, sp+"/invigilators", sec)
+		sh, _ := e.a.all(ctx, fmt.Sprintf("%s/rooms?slot_id=%d", sp, slot), sec)
+		var seats []M
+		for _, x := range sh {
+			if num(x, "room_id") == from {
+				s, _ := e.a.all(ctx, fmt.Sprintf("%s/seating?exam_id=%d&room_id=%d", sp, num(x, "exam_id"), from), sec)
+				seats = append(seats, s...)
+			}
+		}
+		v, _ := e.a.all(ctx, "/schedules", sec)
+		act, _ := e.a.get(ctx, "/activity?limit=1", sec)
+		b, _ := json.Marshal([]any{d, sh, seats, len(v), arr(act.body, "items")})
+		return string(b)
+	}
+	uid := num(duties[len(duties)-1], "user_id")
+	before := snap()
+	r, err := e.a.post(ctx, fmt.Sprintf("%s/invigilators/%d/remove?dry_run=true", sp, uid), sec, nil)
+	if !f.expectCode("gözetmen önizlemesi", r, err, 200) {
+		return ""
+	}
+	f.check(boolean(r.body, "dry_run") && num(r.body, "vacated") >= 1, "önizleme: dry_run=%v boşalan=%d", boolean(r.body, "dry_run"), num(r.body, "vacated"))
+	f.check(num(r.body, "violations") == 0, "önizlemede ihlal %d", num(r.body, "violations"))
+	f.check(snap() == before, "gözetmen önizlemesi veriyi değiştirdi")
+
+	// tahliye önizlemesi: ilk görevin salonu → başka bir salon
+	rooms, _ := e.a.all(ctx, "/rooms", sec)
+	moved := int64(-1)
+	for _, rm := range rooms {
+		to := num(rm, "id")
+		if to == from {
+			continue
+		}
+		ev, _ := e.a.post(ctx, sp+"/room-change?dry_run=true", sec, M{"slot_id": slot, "from_room_id": from, "to_room_id": to, "reason": "verify önizleme"})
+		if ev.code == 200 {
+			f.check(boolean(ev.body, "dry_run") && num(ev.body, "room_change_event_id") == 0, "tahliye önizlemesi dry_run/olay kimliği: %v", ev.body)
+			moved = num(ev.body, "moved")
+			break
+		}
+	}
+	f.check(moved > 0, "hiçbir hedef salonla tahliye önizlenemedi")
+	f.check(snap() == before, "tahliye önizlemesi veriyi değiştirdi")
+	s, _ := e.a.post(ctx, fmt.Sprintf("%s/invigilators/%d/remove?dry_run=true", sp, uid), e.tok["student"], nil)
+	f.check(s.code == 403, "öğrenci önizleme: HTTP %d (403)", s.code)
+	return fmt.Sprintf("gözetmen %d çıkarılırsa %d görev boşalır, %d değişir (ihlal 0); tahliyede %d öğrenci taşınır — görevler, oturma, sürümler, olay akışı değişmedi; öğrenci 403",
+		uid, num(r.body, "vacated"), len(arr(r.body, "changes")), moved)
 }

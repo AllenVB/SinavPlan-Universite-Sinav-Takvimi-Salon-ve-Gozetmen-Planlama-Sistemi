@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (28 satır = 29 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (29 satır = 30 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -134,6 +134,14 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 ## İlk 5 dakika: rehberli tur (Faz 22)
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 9 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını, mazeret masasını ve kuralların canlı doğrulandığı Kanıtlar sayfasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
+
+## "Ya olursa?" önizlemesi (Faz 22 B2)
+
+Geri dönüşü zor iki işlem artık önce **önizlenir**:
+- **Gözetmen hastalandı** (Gözetmen atama → Hasta / çıkar): kaç görevin boşalacağı, kaç görevin kime geçeceği (takas sayısıyla), kaç atamaya **dokunulmayacağı** (ör. 924/934) ve ihlal ya da doldurulamayan görev olup olmadığı gösterilir. **Uygula** sonrası ekran sonucun önizlemeyle birebir aynı olduğunu söyler.
+- **Tahliye** (Salon ve oturma planı → Sınav oturma planı): **Önizle** kaç öğrencinin taşınacağını ya da hedefin yetmediğini söyler. Önizleme alınmadan ya da hedef değiştikten sonra **Tahliye et** kapalıdır.
+
+**Nasıl çalışıyor:** `?dry_run=true` aynı işlemi eksiksiz çalıştırır (kilitler, minimum değişiklikli yeniden atama, oturma yerleşimi, denetim kaydı) ve sonunda işlemi **geri alır**. Önizleme ayrı bir tahmin kodu değildir, gerçek uygulamanın kendisidir. Test, önizlemeden önce ve sonra atamaların, koltukların ve denetim/olay kayıtlarının özetinin aynı olduğunu; ardından gerçek uygulamanın önizlemeyle aynı değişiklik listesini verdiğini doğrular (`make verify` B2-1).
 
 ## Kanıtlar: kurallar canlı doğrulanıyor (Faz 22 A2)
 
@@ -234,7 +242,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 28 satır (29 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 29 satır (30 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

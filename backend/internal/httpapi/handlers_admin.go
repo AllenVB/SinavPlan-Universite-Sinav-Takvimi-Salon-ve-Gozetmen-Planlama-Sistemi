@@ -456,7 +456,8 @@ func (s *Server) removeInvigilator(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
-	res, err := store.RemoveInvigilator(r.Context(), s.pool, id, uid, mustPrincipal(r).UserID)
+	// ?dry_run=true: önizleme — aynı işlem koşar, sonunda geri alınır (Faz 22 B2)
+	res, err := store.RemoveInvigilator(r.Context(), s.pool, id, uid, mustPrincipal(r).UserID, r.URL.Query().Get("dry_run") == "true")
 	if err != nil {
 		return storeError(err)
 	}

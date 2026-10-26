@@ -46,6 +46,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | FÖY | Salon ve oturma planı → Föyler → oturum + salon → Yazdır | kapı listesi ve imza föyü satırı = salonda oturan; numaraya göre sıralı; kapılı kroki; baskıda menü/denetimler gizli; PDF ≥3 sayfa; gözetmen yalnız kendi görevleri; a11y 0 | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/sheets.cjs` |
 | A3-1 | `GET /search?q=`, `GET /students/{id}/overview` | arama demo öğrenciyi numara önekiyle bulur; `%_%` → 0 sonuç; 360'taki her sınavın salon+koltuğu oturma planıyla aynı; öğrenci başkasının 360'ı ve arama → 403 | `make verify` (A3-1) · `go test ./internal/httpapi -run SearchAndStudent` · `deploy/ui-smoke/palette.cjs` |
 | A2-1 | `GET /schedules/{id}/proofs` | 12 SQL denetimi: gerçek planda her biri 0 ihlal, bozulmuş sanal planı yakalar; T-5 yazma reddi; sürüm sayısı değişmez; öğrenci 403; ~2 sn | `make verify` (A2-1) · `go test ./internal/httpapi -run Proofs` (gerçek bozulmayı da yakalar) · `deploy/ui-smoke/proofs.cjs` |
+| B2-1 | `POST …/invigilators/{u}/remove?dry_run=true`, `POST …/room-change?dry_run=true` | işlem tam koşar ve geri alınır: görevler, salon payları, kaynak salonun oturma listesi, sürüm sayısı ve olay akışı önce/sonra aynı; ihlal 0; öğrenci 403. HTTP testinde gerçek uygulama önizlemeyle aynı değişiklik listesini verir | `make verify` (B2-1) · `go test ./internal/httpapi -run DryRun` · `deploy/ui-smoke/preview.cjs` |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
 | UI-CHK | tarayıcıda yoklama: gözetmen "Yeni QR oluştur" → öğrenci kodu girer | gözetmen sayacı artar; yanlış kod hata verir | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/checkin.cjs` (demo verisi ve süren oturum gerekir) |
 
@@ -66,8 +67,8 @@ gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin s
 | Takvim üret | sekreter → Sınav takvimi → "Takvimi oluştur" | durum Sırada→Çalışıyor→Tamamlandı, yeni sürüm listede; ikinci tıklama çalışırken kapalı |
 | Yayınla | taslak sürümde "Bu sürümü yayınla" | sürüm "yayında"; öğrenci/öğretim üyesi artık görür |
 | Oturma planı | Salon ve oturma planı → sınav seç | salon başına koltuk haritası, engelli öğrenci yeşil, yan yana aynı sınav yok |
-| Tahliye | aynı ekranda kaynak/hedef salon + gerekçe | taşınan sayısı; sığmazsa kırmızı uyarı ve hiçbir şey değişmez |
-| Gözetmen çıkar | Gözetmen atama → "Hasta / çıkar" | boşalan/yeniden atanan/takas özeti, ihlal 0 |
+| Tahliye | aynı ekranda kaynak/hedef salon + gerekçe → **Önizle** → Tahliye et | önizleme taşınacak sayıyı ya da "sığmıyor"u gösterir, veri değişmez; hedef değişince yeniden önizleme ister |
+| Gözetmen çıkar | Gözetmen atama → "Hasta / çıkar" → önizleme → Uygula | önce boşalan/yeniden atanan/dokunulmayan/ihlal ve kimin hangi göreve geçeceği; Uygula sonrası "önizlemeyle birebir aynı" |
 | İçe aktarma | Veri içe aktarma → hatalı CSV | satır numaralı hata tablosu |
 | Mazeret | öğrenci: mazeret gönder → öğrenci işleri: onayla | onaylanan sınavın kartı "mazeretiniz var" uyarısı verir |
 | Yoklama | gözetmen: görev seç → Geldi → Senkronla | "1 senkron bekliyor" → "kabul edildi"; çevrimdışıyken kuyruk kalır |

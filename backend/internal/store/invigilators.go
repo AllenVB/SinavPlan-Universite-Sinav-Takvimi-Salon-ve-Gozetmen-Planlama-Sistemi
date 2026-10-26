@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/AllenVB/sinavplan/backend/internal/audit"
 	"github.com/AllenVB/sinavplan/backend/internal/domain/invigilation"
@@ -22,13 +23,26 @@ type RemoveInvigilatorResult struct {
 	Swaps      int                     `json:"swaps"`
 	Unfilled   []invigilation.Unfilled `json:"unfilled"`
 	Violations int                     `json:"violations"`
+	Untouched  int                     `json:"untouched"` // dokunulmayan (kilitli kalan) atama sayısı
+	Total      int                     `json:"total"`     // önceki toplam atama
+	DryRun     bool                    `json:"dry_run"`   // true: önizleme; işlem geri alındı, hiçbir şey değişmedi
+	// Görev ayrıntıları (önizleme/sonuç ekranı için): görev → oturum başlangıcı ve salon kodu.
+	Duties map[int64]DutyInfo `json:"duties"`
+}
+
+// DutyInfo, bir görevin (oturum × salon) okunur karşılığı.
+type DutyInfo struct {
+	StartsAt time.Time `json:"starts_at"`
+	RoomCode string    `json:"room_code"`
 }
 
 // RemoveInvigilator, hastalanan gözetmeni çizelgeden çıkarır; diğer atamalar KİLİTLİ,
 // boşalan görevler minimum değişiklikle doldurulur (invigilation.Reassign). Her şey tek
 // transaction'da: çizelge satırı kilitlenir, değişen görevlerin atamaları silinip yeniden
 // yazılır, denetim kaydı eklenir.
-func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, userID, actor int64) (RemoveInvigilatorResult, error) {
+// dryRun=true: aynı işlem eksiksiz koşar (kilitler, yeniden atama, denetim kaydı) ama sonunda GERİ ALINIR —
+// önizleme, gerçek uygulamanın birebir aynısıdır, ayrı bir tahmin kodu yoktur.
+func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, userID, actor int64, dryRun bool) (RemoveInvigilatorResult, error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return RemoveInvigilatorResult{}, err
@@ -170,13 +184,31 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 		New: map[string]any{"changes": len(res.Changes), "swaps": res.Swaps, "unfilled": len(res.Plan.Unfilled)}}); err != nil {
 		return RemoveInvigilatorResult{}, err
 	}
+	untouched := 0
+	for _, a := range plan.Assignments {
+		if !affected[a.DutyID] {
+			untouched++
+		}
+	}
 	out := RemoveInvigilatorResult{Vacated: res.Vacated, Changes: res.Changes, Swaps: res.Swaps,
-		Unfilled: res.Plan.Unfilled, Violations: viol}
+		Unfilled: res.Plan.Unfilled, Violations: viol, Untouched: untouched, Total: len(plan.Assignments), DryRun: dryRun,
+		Duties: map[int64]DutyInfo{}}
+	for d := range affected {
+		r := refs[d]
+		var di DutyInfo
+		if err := tx.QueryRow(ctx, `SELECT sl.starts_at, ro.code FROM slots sl, rooms ro WHERE sl.id = $1 AND ro.id = $2`, r.slotID, r.roomID).Scan(&di.StartsAt, &di.RoomCode); err != nil {
+			return RemoveInvigilatorResult{}, err
+		}
+		out.Duties[d] = di
+	}
 	if out.Changes == nil {
 		out.Changes = []invigilation.Change{}
 	}
 	if out.Unfilled == nil {
 		out.Unfilled = []invigilation.Unfilled{}
+	}
+	if dryRun {
+		return out, nil // ertelenmiş Rollback: hiçbir şey kalıcı olmaz
 	}
 	return out, tx.Commit(ctx)
 }

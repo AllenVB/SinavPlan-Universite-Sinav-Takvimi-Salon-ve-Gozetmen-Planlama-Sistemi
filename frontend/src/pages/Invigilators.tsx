@@ -6,7 +6,7 @@ import { Async, Bar, Card, ErrorBox, Pill, StatCard, Status, useAction, useAsync
 import { hasRole, ScheduleSelect, useSchedules } from './common'
 
 type Duty = { id: number; user_id: number; full_name: string; slot_id: number; day: number; session: number; starts_at: string; room_code: string; building: string; exam_id: number; course_code: string }
-type Removal = { vacated: number; swaps: number; violations: number; changes: unknown[]; unfilled: unknown[] }
+type Removal = { vacated: number; swaps: number; violations: number; changes: { duty_id: number; from: number; to: number }[]; unfilled: unknown[]; untouched: number; total: number; dry_run: boolean; duties: Record<string, { starts_at: string; room_code: string }> }
 
 export function Invigilators() {
   const { user } = useAuth()
@@ -39,12 +39,22 @@ export function Invigilators() {
   }, [duties.data])
   const rows = useMemo(() => (duties.data ?? []).filter((d) => `${d.full_name} ${d.room_code} ${d.course_code}`.toLowerCase().includes(q.toLowerCase())), [duties.data, q])
   const pages = Math.ceil(rows.length / 50)
-  const [removed, setRemoved] = useState<{ name: string; r: Removal } | null>(null)
+  const [removed, setRemoved] = useState<{ name: string; r: Removal; same: boolean } | null>(null)
+  // Faz 22 B2: önce önizleme (?dry_run=true — aynı işlem koşar ve geri alınır), sonra "Uygula"
+  const [pv, setPv] = useState<{ uid: number; name: string; r: Removal } | null>(null)
+  const preview = useAction(async (uid: number, name: string) => {
+    setRemoved(null)
+    const r = await post<Removal>(`/schedules/${sch.sel}/invigilators/${uid}/remove?dry_run=true`)
+    setPv({ uid, name, r })
+  })
   const remove = useAction(async (uid: number, name: string) => {
     const r = await post<Removal>(`/schedules/${sch.sel}/invigilators/${uid}/remove`, undefined, { 'Idempotency-Key': idemKey(`remove-${sch.sel}-${uid}`) })
-    setRemoved({ name, r })
+    const same = !!pv && pv.r.vacated === r.vacated && pv.r.changes.length === r.changes.length && pv.r.swaps === r.swaps && JSON.stringify(pv.r.changes) === JSON.stringify(r.changes)
+    setRemoved({ name, r, same })
+    setPv(null)
     duties.reload()
   })
+  const who = useMemo(() => new Map((duties.data ?? []).map((d) => [d.user_id, d.full_name])), [duties.data])
   return (
     <>
       <div className="head">
@@ -74,12 +84,34 @@ export function Invigilators() {
           </ul>
         </Card>
       </div>
+      {pv && (
+        <Card title={`Önizleme: ${pv.name} çıkarılırsa`} aside={<Pill kind="info">Henüz hiçbir şey değişmedi</Pill>}>
+          <div data-testid="remove-preview">
+            <div className="grid g4">
+              <StatCard icon="alert" tone="warn" label="Boşalan görev" value={pv.r.vacated} />
+              <StatCard icon="users" tone="info" label="Yeniden atanan" value={pv.r.changes.length} note={`${pv.r.swaps} takas`} />
+              <StatCard icon="shield" tone="ok" label="Dokunulmayan atama" value={`${pv.r.untouched} / ${pv.r.total}`} note="minimum değişiklik" />
+              <StatCard icon="checkCircle" tone={pv.r.violations === 0 && pv.r.unfilled.length === 0 ? 'ok' : 'err'} label="İhlal / doldurulamayan" value={`${pv.r.violations} / ${pv.r.unfilled.length}`} />
+            </div>
+            <div className="tablewrap" style={{ maxHeight: 240, overflowY: 'auto', marginTop: 12 }} tabIndex={0} role="region" aria-label="Değişecek görevler">
+              <table>
+                <thead><tr><th>Görev</th><th>Salon</th><th>Şimdiki</th><th>Yeni gözetmen</th></tr></thead>
+                <tbody>{pv.r.changes.map((c, i) => { const d = pv.r.duties[String(c.duty_id)]; return <tr key={i}><td>{d ? fmtDateTime(d.starts_at) : c.duty_id}</td><td>{d?.room_code}</td><td>{who.get(c.from) ?? `#${c.from}`}</td><td><b>{who.get(c.to) ?? `#${c.to}`}</b></td></tr> })}</tbody>
+              </table>
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button className="btn danger" disabled={remove.busy} onClick={() => void remove.run(pv.uid, pv.name)}>{remove.busy ? 'Uygulanıyor…' : 'Uygula'}</button>
+              <button className="btn" onClick={() => setPv(null)}>Vazgeç</button>
+            </div>
+          </div>
+        </Card>
+      )}
       {removed && (
         <div className="alert ok" role="status">
-          <div><b>{removed.name} çizelgeden çıkarıldı.</b> {removed.r.vacated} görev boşaldı, {removed.r.changes.length} görev yeniden atandı ({removed.r.swaps} takas), kalan ihlal: {removed.r.violations}, doldurulamayan: {removed.r.unfilled.length}. Diğer tüm atamalar korundu.</div>
+          <div><b>{removed.name} çizelgeden çıkarıldı.</b> {removed.r.vacated} görev boşaldı, {removed.r.changes.length} görev yeniden atandı ({removed.r.swaps} takas), kalan ihlal: {removed.r.violations}, doldurulamayan: {removed.r.unfilled.length}. {removed.r.untouched} atama korundu.{removed.same && ' Sonuç önizlemeyle birebir aynı.'}</div>
         </div>
       )}
-      {remove.error && <ErrorBox error={remove.error} />}
+      {(remove.error || preview.error) && <ErrorBox error={(remove.error ?? preview.error)!} />}
       <Card title="Görev listesi" aside={<input className="input" style={{ width: 260 }} placeholder="Gözetmen, salon veya ders ara…" aria-label="Ara" value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} />}>
         <Async s={duties} empty={(d) => d.length === 0}>
           {() => (
@@ -91,7 +123,7 @@ export function Invigilators() {
                     {rows.slice(page * 50, page * 50 + 50).map((d) => (
                       <tr key={d.id}>
                         <td>{d.full_name}</td><td>{fmtDateTime(d.starts_at)}</td><td>{d.room_code} <span className="muted small">{d.building}</span></td><td>{d.course_code}</td>
-                        {secretary && <td><button className="btn sm danger" disabled={remove.busy} onClick={() => confirm(`${d.full_name} tüm görevlerinden çıkarılsın mı? Boşalan görevler minimum değişiklikle yeniden atanır.`) && void remove.run(d.user_id, d.full_name)}>Hasta / çıkar</button></td>}
+                        {secretary && <td><button className="btn sm danger" disabled={remove.busy || preview.busy} onClick={() => void preview.run(d.user_id, d.full_name)}>{preview.busy ? 'Hesaplanıyor…' : 'Hasta / çıkar'}</button></td>}
                       </tr>
                     ))}
                   </tbody>

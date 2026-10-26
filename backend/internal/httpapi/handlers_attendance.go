@@ -195,7 +195,7 @@ func (s *Server) roomChange(w http.ResponseWriter, r *http.Request) error {
 	}
 	res, err := store.RoomChange(r.Context(), s.pool, store.RoomChangeRequest{ScheduleID: sid, SlotID: req.SlotID,
 		FromRoomID: req.FromRoomID, ToRoomID: req.ToRoomID, Reason: req.Reason, ActorID: mustPrincipal(r).UserID,
-		Strict: s.seatingStrict})
+		Strict: s.seatingStrict, DryRun: r.URL.Query().Get("dry_run") == "true"})
 	if err != nil {
 		return storeError(err)
 	}

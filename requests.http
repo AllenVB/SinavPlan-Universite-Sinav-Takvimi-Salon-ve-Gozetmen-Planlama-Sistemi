@@ -394,6 +394,10 @@ Content-Type: {{json}}
 
 {"slot_id": {{slotId2}}}
 
+### Faz 22 B2: önizleme — gözetmen çıkarılırsa ne olur? (işlem koşar, geri alınır; veri değişmez)
+POST {{host}}/schedules/{{scheduleId}}/invigilators/3/remove?dry_run=true
+Authorization: Bearer {{secretary}}
+
 ### Faz 22 A2: kanıtlar — T-1..T-5 kurallarını kayıtlı plan üzerinde bağımsız SQL ile denetler (yazmaz)
 GET {{host}}/schedules/{{scheduleId}}/proofs
 Authorization: Bearer {{secretary}}
