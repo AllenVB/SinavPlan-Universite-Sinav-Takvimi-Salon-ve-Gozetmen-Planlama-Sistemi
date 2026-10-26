@@ -346,6 +346,17 @@ func TestRoomChangeMovesEveryoneAtomically(t *testing.T) {
 	if ev != 1 || au != 1 {
 		t.Fatalf("olay ve denetim kaydı: %d / %d", ev, au)
 	}
+	// Taşınan (hesabı olan) öğrencilere ve salonun gözetmenlerine tam birer bildirim gitti (hedef salon boştu).
+	var wantN, gotN int
+	_ = env.App.Pool.QueryRow(ctx, `SELECT
+		(SELECT count(DISTINCT st.user_id) FROM "wm-seat_assignments" sa JOIN "wm-students" st ON st.id = sa.student_id
+		   WHERE sa.schedule_id=$1 AND sa.slot_id=$2 AND sa.room_id=$3 AND st.user_id IS NOT NULL) +
+		(SELECT count(DISTINCT user_id) FROM "wm-invigilator_assignments" WHERE schedule_id=$1 AND slot_id=$2 AND room_id=$3)`,
+		sid, req.SlotID, req.ToRoomID).Scan(&wantN)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-notifications" WHERE kind = 'room_change'`).Scan(&gotN)
+	if gotN != wantN || gotN == 0 {
+		t.Fatalf("salon değişikliği bildirimi: %d (beklenen %d, >0)", gotN, wantN)
+	}
 	// Yeni yerleşimde yan yana aynı sınav yok.
 	var adj int
 	_ = env.App.Pool.QueryRow(ctx, `

@@ -23,6 +23,8 @@ type Metrics struct {
 	StudentsWithTwoExamsADay   int   `json:"students_with_two_exams_a_day"` // en az bir gün 2 sınavı olan öğrenci
 	MaxStudentsInSlot          int   `json:"max_students_in_slot"`
 	UsedSlots                  int   `json:"used_slots"`
+	// FrontLoadCost: büyük sınavların gün indeksinden gelen ceza (FrontLoad ağırlığı kapalıyken 0 ve JSON'da yok).
+	FrontLoadCost int64 `json:"front_load_cost,omitempty"`
 }
 
 // Report, Validate çıktısı.
@@ -35,10 +37,7 @@ type Report struct {
 // bir slotta mı, ortak öğrencili iki sınav aynı slotta mı, bir öğrencinin bir günde
 // 2'den fazla sınavı var mı, slot kapasitesi aşılıyor mu. Metrikleri de hesaplar.
 func Validate(in Input, assignment map[int64]int) Report {
-	w := in.Weights
-	if w == (Weights{}) {
-		w = DefaultWeights
-	}
+	w := in.Weights.withDefaults()
 	slots := in.Slots()
 	rep := Report{Violations: []Violation{}}
 
@@ -142,8 +141,23 @@ func Validate(in Input, assignment map[int64]int) Report {
 				Detail: fmt.Sprintf("lab: %d öğrenci > lab kapasitesi %d", labLoad[s], in.LabSlotCapacity)})
 		}
 	}
+	if w.FrontLoad > 0 {
+		thr := in.LargeExamStudents
+		if thr <= 0 {
+			thr = DefaultLargeExam
+		}
+		for _, e := range in.Exams {
+			uniq := map[int64]bool{}
+			for _, s := range e.Students {
+				uniq[s] = true
+			}
+			if s, ok := assignment[e.ID]; ok && s >= 0 && s < slots && len(uniq) >= thr {
+				rep.Metrics.FrontLoadCost += w.FrontLoad * int64(s/in.SessionsPerDay)
+			}
+		}
+	}
 	rep.Metrics.Penalty = w.ConsecutiveDay*int64(rep.Metrics.ConsecutiveDayPairs) +
-		w.SameDay*int64(rep.Metrics.StudentDaysWithTwoExams)
+		w.SameDay*int64(rep.Metrics.StudentDaysWithTwoExams) + rep.Metrics.FrontLoadCost
 	return rep
 }
 

@@ -282,7 +282,7 @@ Ortamı kaldırma: dockerd + `docker compose up -d --build postgres migrate seed
 ### Faz 22 tamamlandı — son tam test turu (26 Ekim 2026, ~11:05 TR, temiz kurulumdan)
 | Doğrulama | Sonuç |
 |---|---|
-| `go test -race ./...` | **197 PASS**, 0 FAIL, 1 SKIP (`TestFullScale`, `-race` altında bilinçli) · gofmt/vet temiz |
+| `go test -race ./...` | **197 PASS** (Faz 22 sonu; güncel: bkz. aşağıdaki Faz 23 kaydı), 0 FAIL, 1 SKIP (`TestFullScale`, `-race` altında bilinçli) · gofmt/vet temiz |
 | Domain kapsamı | scheduling %94,9 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
 | `make prove-all` | T-1..T-4 SONUÇ: BAŞARILI |
 | `make verify` | **31 satır (32 kimlik)** hepsi PASS, 35 sn — yeni: B1-1, A3-1, A2-1, B2-1, C2-1, B3-1 |
@@ -299,3 +299,6 @@ Faz 22 sırasında bulunup düzeltilen hatalar: kanıtlar F-3 sonrası eski ista
 
 ### Demo yoklama kodu, gözetmen programı, çan düzeltmesi (26 Ekim 2026) — ADR-021
 Öğrenci demo kodu `111111` (`DEMO_CHECKIN_CODE`), gözetmen ekranında "Kod üret" (yalnız 6 haneli kod), sekreter ana paneli + Gözetmen atama ekranında "Gözetmen programı", çan düğmesinin sekmeden bağımsız bekleyen mazeretlere dönmesi. Doğrulama: `go test` (config + httpapi), `deploy/ui-smoke/roster.cjs` PASS. README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd` kalmalı.
+
+### Faz 23 (26 Ekim 2026) — benzer sistem araştırmasından #2, #3, #4, #6 — ADR-022
+Bildirim kutusu (+ "yoklamanız alınmadı"), krokiden yoklama, kapalı salonlar, büyük sınavı öne alma. Doğrulama: `go test -race ./...` **211 PASS**, 0 FAIL, 1 SKIP; `make verify` **33 satır (34 kimlik)** PASS (yeni: N-1, R-1); UI duman: roster, exam-room, inbox, notifications, alerts, simple, tour, palette PASS. **Doğrulanmayan:** `a11y.cjs` (bu ortamda axe-core yok), yeni bildirim paneli/krokideki işaret çubuğu için erişilebilirlik taraması. README son satırı `DDO Case Kodu: MERCAN-1e5afd` kalmalı.

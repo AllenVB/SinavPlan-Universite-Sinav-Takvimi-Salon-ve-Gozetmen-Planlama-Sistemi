@@ -201,6 +201,21 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 		}
 		out.Duties[d] = di
 	}
+	// Bildirimler: yeni görev alan gözetmenler ve görevleri devredilen gözetmen (önizlemede işlem geri alındığı için kalmaz).
+	for _, c := range res.Changes {
+		di := out.Duties[c.DutyID]
+		if err := Notify(ctx, tx, c.To, "duty_assigned", "Yeni gözetmenlik göreviniz var",
+			fmt.Sprintf("%s · %s salonu. Bir gözetmenin çizelgeden çıkarılması nedeniyle size atandı.", clock(di.StartsAt), di.RoomCode),
+			"#/yoklama", fmt.Sprintf("duty:%d:%d:%d", scheduleID, c.DutyID, c.To)); err != nil {
+			return RemoveInvigilatorResult{}, err
+		}
+	}
+	if res.Vacated > 0 {
+		if err := Notify(ctx, tx, userID, "duty_removed", "Gözetmenlik görevleriniz güncellendi",
+			fmt.Sprintf("%d göreviniz başka gözetmenlere devredildi.", res.Vacated), "#/yoklama", fmt.Sprintf("duty-removed:%d:%d", scheduleID, userID)); err != nil {
+			return RemoveInvigilatorResult{}, err
+		}
+	}
 	if out.Changes == nil {
 		out.Changes = []invigilation.Change{}
 	}

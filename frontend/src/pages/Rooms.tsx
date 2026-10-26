@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { markAttendance } from '../attendance'
 import { useLive } from '../live'
-import { all, get, idemKey, post } from '../api'
+import { all, fmtDateTime, get, idemKey, post, request } from '../api'
 import { useAuth } from '../auth'
 import { doorLabel, doorShort, RoomGrid } from '../roomgrid'
 import { RoomEditor } from './RoomEditor'
@@ -15,7 +16,7 @@ type Att = { student_id: number; status: 'present' | 'absent'; source: string; u
 
 const rowLetter = (r: number) => String.fromCharCode(65 + (r % 26))
 
-export function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string; doorSide?: string; doorPos?: number }) {
+export function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos, picked, onPick, stateOf }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string; doorSide?: string; doorPos?: number; picked?: string; onPick?: (t: SeatRow) => void; stateOf?: (t: SeatRow) => 'present' | 'absent' | 'none' }) {
   const at = new Map(seats?.map((s) => [`${s.row}:${s.col}`, s]))
   return (
     <RoomGrid rows={rows} cols={cols} doorSide={doorSide} doorPos={doorPos} label={`${rows} sıra, ${cols} sütunlu oturma düzeni`}>
@@ -23,9 +24,11 @@ export function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos }: {
         const k = `${r}:${c}`
         const s = at.get(k)
         const t = taken?.get(k)
-        const cls = ['seat', s && !s.active ? 'off' : '', s?.accessible ? 'acc' : '', t ? (t.disabled_student ? 'dis' : 'taken') : '', mine === k ? 'mine' : ''].join(' ')
+        const st = t && stateOf ? stateOf(t) : 'none'
+        const cls = ['seat', s && !s.active ? 'off' : '', s?.accessible ? 'acc' : '', t ? (t.disabled_student ? 'dis' : 'taken') : '', mine === k ? 'mine' : '', st === 'present' ? 'here' : st === 'absent' ? 'gone' : '', picked === k ? 'picked' : ''].join(' ')
+        const act = t && onPick ? { role: 'button', tabIndex: 0, onClick: () => onPick(t), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(t) } } } : {}
         return (
-          <div className={cls} title={t ? `${t.full_name} (${t.student_no})${t.disabled_student ? ' · erişilebilir koltuk' : ''}` : s && !s.active ? 'Kullanım dışı' : s?.accessible ? 'Erişilebilir koltuk' : 'Boş koltuk'}>
+          <div className={cls} {...act} title={t ? `${t.full_name} (${t.student_no})${t.disabled_student ? ' · erişilebilir koltuk' : ''}` : s && !s.active ? 'Kullanım dışı' : s?.accessible ? 'Erişilebilir koltuk' : 'Boş koltuk'}>
             {s && !s.active ? '' : `${rowLetter(r)}${c + 1}`}
           </div>
         )
@@ -120,6 +123,7 @@ function Plan() {
     return [...m.entries()]
   }, [seating.data])
   const secretary = hasRole(user!.roles, 'secretary')
+  const canMark = hasRole(user!.roles, 'secretary', 'invigilator')
   return (
     <>
       <Card title="Sınav seçin" aside={<ScheduleSelect s={sch} />}>
@@ -141,7 +145,7 @@ function Plan() {
           {(rows) => (
             <>
               <p className="small muted">{rows.length} öğrenci, {byRoom.length} salonda. Aynı sınavın öğrencileri yan yana oturmaz; engelli öğrenciler erişilebilir koltuktadır. Aşağıda her salonun krokisi ve öğrenci listesi, yoklamadaki durumlarıyla birlikte (geldi / gelmedi / işaretsiz) görünür.</p>
-              {byRoom.map(([rid, list]) => <RoomPlan key={rid} room={rooms.data?.find((r) => r.id === rid)} rows={list} att={att.data} />)}
+              {byRoom.map(([rid, list]) => <RoomPlan key={rid} room={rooms.data?.find((r) => r.id === rid)} rows={list} att={att.data} canMark={canMark} onMarked={() => void att.reload()} />)}
               {secretary && ex && <Evacuate scheduleId={sch.sel!} slotId={ex.slot_id} from={byRoom.map(([r]) => r)} rooms={rooms.data ?? []} onDone={seating.reload} />}
             </>
           )}
@@ -151,27 +155,51 @@ function Plan() {
   )
 }
 
-function RoomPlan({ room, rows, att }: { room?: Room; rows: SeatRow[]; att: Map<number, Att> | null }) {
+function RoomPlan({ room, rows, att, canMark = false, onMarked }: { room?: Room; rows: SeatRow[]; att: Map<number, Att> | null; canMark?: boolean; onMarked?: () => void }) {
   const seats = useAsync(async () => (room ? ((await get(`/rooms/${room.id}`)).seats as Seat[]) : []), [room?.id])
   const taken = new Map(rows.map((r) => [`${r.seat_row}:${r.seat_col}`, r]))
   const roster = useMemo(() => [...rows].sort((a, b) => a.seat_row - b.seat_row || a.seat_col - b.seat_col), [rows])
-  const state = (r: SeatRow) => att?.get(r.student_id)?.status ?? 'none'
+  // krokiden/listeden işaretlenenler (ağ yoksa kuyrukta bekler) sunucu yanıtından önce de görünsün
+  const [local, setLocal] = useState<Map<number, 'present' | 'absent'>>(new Map())
+  const [queued, setQueued] = useState<Set<number>>(new Set())
+  const [pick, setPick] = useState<SeatRow | null>(null)
+  const mark = useAction(async (r: SeatRow, status: 'present' | 'absent') => {
+    const how = await markAttendance(r.exam_id, r.student_id, status)
+    setLocal((m) => new Map(m).set(r.student_id, status))
+    setQueued((q) => { const n = new Set(q); if (how === 'queued') n.add(r.student_id); else n.delete(r.student_id); return n })
+    if (how === 'synced') onMarked?.()
+    return how
+  })
+  const state = (r: SeatRow): 'present' | 'absent' | 'none' => local.get(r.student_id) ?? att?.get(r.student_id)?.status ?? 'none'
   const here = roster.filter((r) => state(r) === 'present').length, gone = roster.filter((r) => state(r) === 'absent').length
   return (
     <Card title={`${room?.code ?? 'Salon'} · ${room?.building ?? ''}`} aside={<div className="row"><Pill kind="ok">{here} geldi</Pill><Pill kind={gone ? 'err' : ''}>{gone} gelmedi</Pill><Pill>{roster.length - here - gone} işaretsiz</Pill></div>}>
-      {!room ? <Empty title="Salon bilgisi yok" /> : <Async s={seats}>{(s) => (<><SeatMap rows={room.rows} cols={room.cols} seats={s} taken={taken} doorSide={room.door_side} doorPos={room.door_pos} /><div style={{ marginTop: 10 }}><Legend withStudents /></div></>)}</Async>}
+      {!room ? <Empty title="Salon bilgisi yok" /> : <Async s={seats}>{(s) => (<><SeatMap rows={room.rows} cols={room.cols} seats={s} taken={taken} doorSide={room.door_side} doorPos={room.door_pos} stateOf={state} picked={pick ? `${pick.seat_row}:${pick.seat_col}` : undefined} onPick={canMark ? setPick : undefined} /><div style={{ marginTop: 10 }}><Legend withStudents /></div></>)}</Async>}
+      {canMark && (
+        <div className="markbar" role="status" data-testid="mark-bar">
+          {pick ? (
+            <>
+              <span><b>{pick.full_name}</b> <span className="mono small muted">{pick.student_no}</span> · koltuk <b>{rowLetter(pick.seat_row)}{pick.seat_col + 1}</b> · şu an: <b>{{ present: 'Geldi', absent: 'Gelmedi', none: 'İşaretsiz' }[state(pick)]}</b>{queued.has(pick.student_id) && <span className="small muted"> (ağ yok, kuyrukta)</span>}</span>
+              <span className="row"><button className="btn sm ok" disabled={mark.busy} onClick={() => void mark.run(pick, 'present')}>GELDİ</button><button className="btn sm danger" disabled={mark.busy} onClick={() => void mark.run(pick, 'absent')}>GELMEDİ</button><button className="btn sm" onClick={() => setPick(null)}>Bırak</button></span>
+            </>
+          ) : <span className="small muted">Yoklama için krokide bir koltuğa ya da listede bir öğrenciye tıklayın; geldi/gelmedi işaretleyin. Ağ yoksa kayıt cihazda saklanır ve Yoklama ekranından eşitlenir.</span>}
+          {mark.error && <ErrorBox error={mark.error} />}
+        </div>
+      )}
       <div className="tablewrap" style={{ marginTop: 12, maxHeight: 360, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={`${room?.code ?? 'Salon'} öğrenci listesi`} data-testid="student-roster">
         <table>
-          <thead><tr><th>Koltuk</th><th>Öğrenci</th><th>No</th><th>Yoklama</th></tr></thead>
+          <thead><tr><th>Koltuk</th><th>Öğrenci</th><th>No</th><th>Yoklama</th>{canMark && <th />}</tr></thead>
           <tbody>
             {roster.map((r) => {
               const a = att?.get(r.student_id)
+              const cur = state(r)
               return (
-                <tr key={r.student_id}>
+                <tr key={r.student_id} className={pick?.student_id === r.student_id ? 'tone-info' : ''} onClick={canMark ? () => setPick(r) : undefined}>
                   <td><b>{rowLetter(r.seat_row)}{r.seat_col + 1}</b>{r.accessible && <> <Pill kind="info">erişilebilir</Pill></>}</td>
                   <td>{r.full_name}</td>
                   <td className="mono small">{r.student_no}</td>
-                  <td>{a ? <Pill kind={a.status === 'present' ? 'ok' : 'err'}>{a.status === 'present' ? `Geldi${a.source === 'qr' ? ' (QR)' : ''}` : 'Gelmedi'}</Pill> : <span className="small muted">İşaretsiz</span>}</td>
+                  <td>{cur !== 'none' ? <Pill kind={cur === 'present' ? 'ok' : 'err'}>{cur === 'present' ? `Geldi${a?.status === 'present' && a.source === 'qr' && !local.has(r.student_id) ? ' (QR)' : ''}` : 'Gelmedi'}</Pill> : <span className="small muted">İşaretsiz</span>}{queued.has(r.student_id) && <span className="small muted"> · kuyrukta</span>}</td>
+                  {canMark && <td><div className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}><button className="btn sm ok" disabled={mark.busy} onClick={(e) => { e.stopPropagation(); void mark.run(r, 'present') }} aria-label={`${r.full_name} geldi`}>GELDİ</button><button className="btn sm danger" disabled={mark.busy} onClick={(e) => { e.stopPropagation(); void mark.run(r, 'absent') }} aria-label={`${r.full_name} gelmedi`}>GELMEDİ</button></div></td>}
                 </tr>
               )
             })}
@@ -227,6 +255,7 @@ type SlotRoom = { room_id: number; room_code: string; room_type: string; buildin
 /** Bir oturumdaki salon doluluğu: renkli çubuk (yeşil/sarı/kırmızı) ve atanan sınavlar. */
 /** Kapasite panosunda bir sınava tıklanınca: o salonun krokisi + öğrenci listesi (koltuk, yoklamada geldi/gelmedi/işaretsiz). */
 function ExamRoomDetail({ scheduleId, examId, roomId, title, onClose }: { scheduleId: number; examId: number; roomId: number; title: string; onClose: () => void }) {
+  const { user } = useAuth()
   const rooms = useRooms()
   const seating = useAsync(async () => (await all<SeatRow>(`/schedules/${scheduleId}/seating?exam_id=${examId}`)).filter((r) => r.room_id === roomId), [scheduleId, examId, roomId])
   const att = useLive(async () => new Map((await all<Att>(`/exams/${examId}/attendance`)).map((a) => [a.student_id, a])), [examId], 5000)
@@ -235,12 +264,52 @@ function ExamRoomDetail({ scheduleId, examId, roomId, title, onClose }: { schedu
       <div className="row between" style={{ marginBottom: 8 }}><h2 style={{ margin: 0 }}>{title}</h2><button className="btn sm" onClick={onClose} aria-label="Detayı kapat">✕ Kapat</button></div>
       {seating.error?.status === 403
         ? <Card><Empty title="Bu sınav sizin göreviniz değil" hint="Gözetmenler yalnızca görevli oldukları salonların öğrenci listesini görebilir. Görevlerinizi Yoklama ekranında bulabilirsiniz." /></Card>
-        : <Async s={seating} empty={(d) => d.length === 0}>{(rows) => <RoomPlan room={rooms.data?.find((r) => r.id === roomId)} rows={rows} att={att.data} />}</Async>}
+        : <Async s={seating} empty={(d) => d.length === 0}>{(rows) => <RoomPlan room={rooms.data?.find((r) => r.id === roomId)} rows={rows} att={att.data} canMark={hasRole(user!.roles, 'secretary', 'invigilator')} onMarked={() => void att.reload()} />}</Async>}
     </div>
   )
 }
 
+type Block = { id: number; room_id: number; room_code: string; building: string; slot_id: number; day: number; session: number; starts_at: string; reason: string; affected_exams: number }
+
+/** Salon–oturum uygunluğu: salonu seçili oturumda kapat (bakım, başka etkinlik). Bir sonraki takvim/salon planı o salonu o oturumda kullanmaz. */
+function RoomBlocks({ slot, rooms }: { slot: number; rooms: Room[] }) {
+  const blocks = useAsync(async () => (await get<{ items: Block[] }>('/room-blocks')).items)
+  const [room, setRoom] = useState(0)
+  const [reason, setReason] = useState('')
+  const add = useAction(async () => {
+    const b = await post<Block>('/room-blocks', { room_id: room, slot_id: slot, reason })
+    setReason('')
+    blocks.reload()
+    return b
+  })
+  const del = useAction(async (id: number) => { await request('DELETE', `/room-blocks/${id}`); blocks.reload() })
+  return (
+    <Card title="Kapalı salonlar (bakım / başka etkinlik)" aside={<Pill kind={blocks.data?.length ? 'warn' : ''}>{blocks.data?.length ?? 0} kayıt</Pill>}>
+      <p className="small muted" style={{ marginTop: 0 }}>Seçili oturumda kullanılamayacak salonu işaretleyin. <b>Bir sonraki takvim üretiminde</b> salon planı o salonu o oturumda kullanmaz; mevcut yayındaki çizelge değişmez.</p>
+      <div className="row noprint" style={{ alignItems: 'flex-end' }}>
+        <Field label="Salon" id="blk-room"><select id="blk-room" value={room} onChange={(e) => setRoom(Number(e.target.value))} style={{ width: 'auto' }}><option value={0}>Salon seçin…</option>{rooms.map((r) => <option key={r.id} value={r.id}>{r.code} · {r.building}</option>)}</select></Field>
+        <Field label="Gerekçe (isteğe bağlı)" id="blk-reason"><input id="blk-reason" className="input" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 240 }} /></Field>
+        <button className="btn" disabled={!room || !slot || add.busy} onClick={() => void add.run()} data-testid="block-add">Seçili oturumda kapat</button>
+      </div>
+      {add.error && <div style={{ marginTop: 8 }}><ErrorBox error={add.error} /></div>}
+      {add.result && add.result.affected_exams > 0 && <div className="alert warn" role="status" style={{ marginTop: 8 }}><div className="small"><b>{add.result.room_code}</b> yayındaki çizelgede bu oturumda {add.result.affected_exams} sınava ev sahipliği yapıyor; yeni bir takvim üretilene kadar o plan geçerlidir.</div></div>}
+      {del.error && <ErrorBox error={del.error} />}
+      <Async s={blocks} empty={(d) => d.length === 0}>
+        {(list) => (
+          <div className="tablewrap" style={{ marginTop: 10 }}><table data-testid="block-list">
+            <thead><tr><th>Salon</th><th>Oturum</th><th>Gerekçe</th><th /></tr></thead>
+            <tbody>{list.map((b) => (
+              <tr key={b.id}><td><b>{b.room_code}</b> <span className="muted small">{b.building}</span></td><td>{b.day + 1}. gün · {b.session + 1}. oturum <span className="muted small">{fmtDateTime(b.starts_at)}</span></td><td className="small">{b.reason || '—'}{b.affected_exams > 0 && <> <Pill kind="warn">{b.affected_exams} sınav yerleşik</Pill></>}</td><td><button className="btn sm" disabled={del.busy} onClick={() => void del.run(b.id)} aria-label={`${b.room_code} kapatmasını kaldır`}>Kaldır</button></td></tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </Async>
+    </Card>
+  )
+}
+
 function Capacity() {
+  const { user } = useAuth()
   const sch = useSchedules()
   const rooms = useRooms()
   const slots = useAsync(async () => (sch.current ? ((await get<{ items: { id: number; day: number; session: number; starts_at: string }[] }>(`/periods/${sch.current.period_id}/slots`)).items) : []), [sch.current?.period_id])
@@ -278,6 +347,7 @@ function Capacity() {
       </div>
       {pick && sch.sel && <ExamRoomDetail scheduleId={sch.sel} examId={pick.exam} roomId={pick.room} title={pick.title} onClose={() => setPick(null)} />}
       <p className="small muted noprint">Bir dersin koduna tıklayın: o sınavın salon krokisi ve öğrenci listesi (yoklamada geldi / gelmedi) açılır.</p>
+      {hasRole(user!.roles, 'secretary') && <RoomBlocks slot={cur} rooms={rooms.data ?? []} />}
       <Async s={items} empty={() => cards.length === 0}>
         {() => (
           <div className="grid g3">

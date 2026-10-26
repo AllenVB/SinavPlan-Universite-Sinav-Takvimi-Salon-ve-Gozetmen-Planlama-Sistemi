@@ -800,3 +800,77 @@ func checkB3(ctx context.Context, e *env, f *failures) string {
 	return fmt.Sprintf("harita toplamı = çözücü metriği; sınav %d (%d öğrenci): %d çakışma, %d günlük sınır, %d uygun oturum bağımsız hesapla doğrulandı",
 		exam, len(studentsOf[exam]), counts["conflict"], counts["daily_limit"], counts["ok"])
 }
+
+// N-1 (Faz 23): bildirim kutusu — her rolün kendi kutusu var (şekil, okunmamış sayısı), kimliksiz erişim 401,
+// başkasının/olmayan bildirimi okundu yapmak 404, "hepsini okundu yap" okunmamışı sıfırlar.
+func checkN1(ctx context.Context, e *env, f *failures) string {
+	var sum []string
+	for _, role := range []string{"student", "invigilator", "secretary"} {
+		r, err := e.a.get(ctx, "/me/notifications", e.tok[role])
+		if !f.expectCode(role+" bildirim kutusu", r, err, 200) {
+			continue
+		}
+		_, isList := r.body["items"].([]any)
+		f.check(isList, "%s: items dizi değil: %v", role, r.body)
+		f.check(num(r.body, "unread") >= 0, "%s: unread geçersiz", role)
+		sum = append(sum, fmt.Sprintf("%s %d bildirim/%d okunmamış", role, len(arr(r.body, "items")), num(r.body, "unread")))
+	}
+	if r, err := e.a.get(ctx, "/me/notifications", ""); err == nil {
+		f.check(r.code == 401, "kimliksiz bildirim kutusu 401 olmalı: %d", r.code)
+	}
+	if r, err := e.a.post(ctx, "/me/notifications/999999999/read", e.tok["student"], nil); err == nil {
+		f.check(r.code == 404, "olmayan bildirimi okundu yapmak 404 olmalı: %d", r.code)
+	}
+	if r, err := e.a.post(ctx, "/me/notifications/read-all", e.tok["student"], nil); f.expectCode("read-all", r, err, 200) {
+		if r2, err := e.a.get(ctx, "/me/notifications", e.tok["student"]); f.expectCode("kutu", r2, err, 200) {
+			f.check(num(r2.body, "unread") == 0, "read-all sonrası okunmamış %d", num(r2.body, "unread"))
+		}
+	}
+	return strings.Join(sum, "; ") + "; kimliksiz 401; olmayan id 404; read-all sonrası 0 okunmamış"
+}
+
+// R-1 (Faz 23): salon–oturum uygunluğu — yalnız sekreter salonu bir oturumda kapatır; aynı kayıt ikinci kez 409;
+// yayındaki çizelgede o salon+oturumda yerleşik sınav varsa uyarı sayısı döner; kaldırma 204.
+func checkR1(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	rooms, err := e.a.get(ctx, "/rooms?limit=1", sec)
+	if !f.expectCode("salonlar", rooms, err, 200) || len(arr(rooms.body, "items")) == 0 {
+		return ""
+	}
+	periods, err := e.a.get(ctx, "/periods", sec)
+	if !f.expectCode("dönem", periods, err, 200) || len(arr(periods.body, "items")) == 0 {
+		return ""
+	}
+	slots, err := e.a.get(ctx, fmt.Sprintf("/periods/%d/slots", num(arr(periods.body, "items")[0].(M), "id")), sec)
+	if !f.expectCode("oturumlar", slots, err, 200) || len(arr(slots.body, "items")) == 0 {
+		return ""
+	}
+	body := M{"room_id": num(arr(rooms.body, "items")[0].(M), "id"), "slot_id": num(arr(slots.body, "items")[0].(M), "id"), "reason": "verify: bakım"}
+	for _, role := range []string{"student", "invigilator", "lecturer"} {
+		if r, err := e.a.post(ctx, "/room-blocks", e.tok[role], body); err == nil {
+			f.check(r.code == 403, "%s salon kapatamaz (403 bekleniyordu): %d", role, r.code)
+		}
+	}
+	created, err := e.a.post(ctx, "/room-blocks", sec, body)
+	if !f.expectCode("kapatma", created, err, 201) {
+		return ""
+	}
+	id := num(created.body, "id")
+	if r, err := e.a.post(ctx, "/room-blocks", sec, body); err == nil {
+		f.check(r.code == 409, "aynı salon+oturum ikinci kez 409 olmalı: %d", r.code)
+	}
+	list, err := e.a.get(ctx, "/room-blocks", sec)
+	if f.expectCode("liste", list, err, 200) {
+		found := false
+		for _, x := range arr(list.body, "items") {
+			found = found || num(x.(M), "id") == id
+		}
+		f.check(found, "kapatma listede yok")
+	}
+	del, err := e.a.do(ctx, http.MethodDelete, fmt.Sprintf("/room-blocks/%d", id), sec, "", nil)
+	f.expectCode("kaldırma", del, err, 204)
+	if r, err := e.a.do(ctx, http.MethodDelete, fmt.Sprintf("/room-blocks/%d", id), sec, "", nil); err == nil {
+		f.check(r.code == 404, "ikinci silme 404 olmalı: %d", r.code)
+	}
+	return fmt.Sprintf("kapatma 201 (etkilenen sınav %d), yinelenen 409, öğrenci/gözetmen/öğretim üyesi 403, kaldırma 204", num(created.body, "affected_exams"))
+}

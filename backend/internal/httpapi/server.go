@@ -164,6 +164,9 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodPost, "/auth/refresh", Public(), s.refresh)
 	s.handle(r, http.MethodPost, "/auth/logout", Public(), s.logout)
 	s.handle(r, http.MethodGet, "/me", AllRoles(), s.me)
+	s.handle(r, http.MethodGet, "/me/notifications", AllRoles(), s.listNotifications)
+	s.handle(r, http.MethodPost, "/me/notifications/read-all", AllRoles(), s.readAllNotifications)
+	s.handle(r, http.MethodPost, "/me/notifications/{id}/read", AllRoles(), s.readNotification)
 
 	// Öğrenciler
 	s.handle(r, http.MethodGet, "/students", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.listStudents)
@@ -196,6 +199,9 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodGet, "/rooms", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.listRooms)
 	s.handle(r, http.MethodGet, "/rooms/{id}", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.getRoom)
 	s.handle(r, http.MethodPost, "/rooms", Roles(auth.RoleSecretary), s.createRoom)
+	s.handle(r, http.MethodGet, "/room-blocks", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.listRoomBlocks)
+	s.handle(r, http.MethodPost, "/room-blocks", Roles(auth.RoleSecretary), s.createRoomBlock)
+	s.handle(r, http.MethodDelete, "/room-blocks/{id}", Roles(auth.RoleSecretary), s.deleteRoomBlock)
 	s.handle(r, http.MethodPut, "/rooms/{id}", Roles(auth.RoleSecretary), s.updateRoom)
 	s.handle(r, http.MethodDelete, "/rooms/{id}", Roles(auth.RoleSecretary), s.deleteRoom)
 

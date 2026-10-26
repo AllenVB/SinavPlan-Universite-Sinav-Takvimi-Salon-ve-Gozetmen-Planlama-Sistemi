@@ -1,5 +1,6 @@
 import jsQR from 'jsqr'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DKEY, QKEY, readJSON as load, uuidv7, writeJSON as store } from '../attendance'
 import { cached } from '../offline'
 import { all, download, fmtDateTime, fmtTime, get, idemKey, post } from '../api'
 import { Icon } from '../icons'
@@ -14,22 +15,7 @@ type Att = { student_id: number; status: 'present' | 'absent'; source: string }
 type Cal = { exam_id: number; ends_at: string }
 type Room = { id: number; code: string; building: string; type: string; capacity: number }
 
-const QKEY = 'sinavplan.queue'
-const DKEY = 'sinavplan.device'
-const load = <T,>(k: string, d: T): T => { try { return JSON.parse(localStorage.getItem(k) ?? '') as T } catch { return d } }
-const store = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* depolama kapalı */ } }
 const seatName = (r: number, c: number) => `${String.fromCharCode(65 + (r % 26))}-${c + 1}`
-
-// UUIDv7: 48 bit zaman + rastgele; olay kimliği istemcide üretilir (idempotent senkron için).
-function uuidv7() {
-  const b = crypto.getRandomValues(new Uint8Array(16))
-  const ms = BigInt(Date.now())
-  for (let i = 0; i < 6; i++) b[i] = Number((ms >> BigInt(8 * (5 - i))) & 0xffn)
-  b[6] = (b[6] & 0x0f) | 0x70
-  b[8] = (b[8] & 0x3f) | 0x80
-  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
-}
 
 export function Tablet() {
   const now = useNow()

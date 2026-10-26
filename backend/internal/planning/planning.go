@@ -46,12 +46,76 @@ func SchedulingInput(ds *simdata.Dataset, seed int64) scheduling.Input {
 			lab += r.Capacity
 		}
 	}
+	// Kapalı salonlar (ADR-022): kapasite, en çok salon kapatılan oturuma göre düşülür; çözücü hiçbir oturuma
+	// o oturumun salonlarının taşıyamayacağı yükü koymaz. Kapalı salon yoksa değerler değişmez.
+	blockedTotal, blockedLab := worstBlockedCapacity(ds)
+	total -= blockedTotal
+	lab -= blockedLab
 	in := scheduling.Input{Days: ds.Config.Days, SessionsPerDay: ds.Config.SessionsPerDay, Seed: seed,
 		SlotCapacity: total * 8 / 10, LabSlotCapacity: lab * 8 / 10}
 	for _, ex := range ds.Exams {
 		in.Exams = append(in.Exams, scheduling.Exam{ID: ex.ID, Students: st[ex.ID], Lab: ex.RequiresLab})
 	}
 	return in
+}
+
+// roomBlockViolations, planın kapalı bir salona pay verip vermediğini (T-2'den bağımsız) denetler.
+func roomBlockViolations(blocked map[int64]bool, plan rooms.Plan) []rooms.Violation {
+	var v []rooms.Violation
+	for _, pl := range plan.Placements {
+		if blocked[pl.RoomID] {
+			v = append(v, rooms.Violation{Kind: "room_blocked", ExamID: pl.ExamID, RoomID: pl.RoomID, Detail: "salon bu oturumda kapalı"})
+		}
+	}
+	return v
+}
+
+// blockedBySlot, kapalı salonları slot indeksine göre döner (indeks = ds.Slots sırası).
+func blockedBySlot(ds *simdata.Dataset) map[int]map[int64]bool {
+	if len(ds.RoomBlocks) == 0 {
+		return nil
+	}
+	idx := map[int64]int{}
+	for i, s := range ds.Slots {
+		idx[s.ID] = i
+	}
+	out := map[int]map[int64]bool{}
+	for _, b := range ds.RoomBlocks {
+		i, ok := idx[b.SlotID]
+		if !ok {
+			continue
+		}
+		if out[i] == nil {
+			out[i] = map[int64]bool{}
+		}
+		out[i][b.RoomID] = true
+	}
+	return out
+}
+
+// worstBlockedCapacity, tek bir oturumda kapalı olan salonların en büyük toplam (ve laboratuvar) kapasitesi.
+func worstBlockedCapacity(ds *simdata.Dataset) (total, lab int) {
+	capOf := map[int64]simdata.Room{}
+	for _, r := range ds.Rooms {
+		capOf[r.ID] = r
+	}
+	perSlot := map[int64][2]int{}
+	for _, b := range ds.RoomBlocks {
+		r, ok := capOf[b.RoomID]
+		if !ok {
+			continue
+		}
+		v := perSlot[b.SlotID]
+		v[0] += r.Capacity
+		if r.Type == "lab" {
+			v[1] += r.Capacity
+		}
+		perSlot[b.SlotID] = v
+	}
+	for _, v := range perSlot {
+		total, lab = max(total, v[0]), max(lab, v[1])
+	}
+	return total, lab
 }
 
 // Rooms, veri kümesinin salonlarını domain biçimine çevirir.
@@ -126,6 +190,7 @@ func Plan(ds *simdata.Dataset, assignment map[int64]int, cfg rooms.Config) (*Res
 		examByID[e.ID] = e
 	}
 	rr, sr := Rooms(ds)
+	blocked := blockedBySlot(ds)
 
 	bySlot := map[int][]int64{}
 	for ex, slot := range assignment {
@@ -158,12 +223,23 @@ func Plan(ds *simdata.Dataset, assignment map[int64]int, cfg rooms.Config) (*Res
 			exams = append(exams, rooms.Exam{ID: id, Students: len(ids), Disabled: len(dis[id]), Lab: examByID[id].RequiresLab})
 		}
 
-		plan, err := rooms.Assign(rr, exams, cfg)
+		// Bu oturumda kapalı salonlar T-2'ye hiç verilmez; yerleşim sonrası bağımsız denetim bunu yeniden doğrular.
+		open := rr
+		if len(blocked[slot]) > 0 {
+			open = make([]rooms.Room, 0, len(rr))
+			for _, r := range rr {
+				if !blocked[slot][r.ID] {
+					open = append(open, r)
+				}
+			}
+		}
+		plan, err := rooms.Assign(open, exams, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("slot %d: %w", slot, err)
 		}
-		sres := SlotResult{Slot: slot, Rooms: plan, RoomViolation: rooms.Validate(rr, exams, cfg, plan),
+		sres := SlotResult{Slot: slot, Rooms: plan, RoomViolation: rooms.Validate(open, exams, cfg, plan),
 			Seating: map[int64]seating.Plan{}}
+		sres.RoomViolation = append(sres.RoomViolation, roomBlockViolations(blocked[slot], plan)...)
 
 		// Payları öğrencilere böl: önce engelli öğrenciler (payın engelli sayısı kadar),
 		// kalanı diğer öğrenciler. Sıra (sınav, salon) kimliğine göre sabit.
@@ -353,8 +429,16 @@ func (e *InfeasibleError) Error() string { return e.Message }
 // BuildFrom, veri kümesi için T-1..T-4'ü çalıştırır. excused: gözetmen kullanıcı
 // kimliği -> mazeretli slot indeksleri.
 func BuildFrom(ds *simdata.Dataset, seed int64, iterations int, excused map[int64][]int) (store.SchedulePlan, *Report, error) {
+	return BuildFromFrontLoad(ds, seed, iterations, excused, 0)
+}
+
+// BuildFromFrontLoad, BuildFrom'un büyük sınavı öne alma cezası (ağırlık > 0) ile çalışan hâlidir; 0 = kapalı (varsayılan).
+func BuildFromFrontLoad(ds *simdata.Dataset, seed int64, iterations int, excused map[int64][]int, frontLoad int64) (store.SchedulePlan, *Report, error) {
 	in := SchedulingInput(ds, seed)
 	in.MaxIterations = iterations
+	if frontLoad > 0 {
+		in.Weights = scheduling.Weights{ConsecutiveDay: scheduling.DefaultWeights.ConsecutiveDay, SameDay: scheduling.DefaultWeights.SameDay, FrontLoad: frontLoad}
+	}
 	r, err := scheduling.Solve(in)
 	if err != nil {
 		return store.SchedulePlan{}, nil, err

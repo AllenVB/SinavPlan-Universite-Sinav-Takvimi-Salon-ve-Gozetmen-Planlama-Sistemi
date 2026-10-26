@@ -184,6 +184,27 @@ func DecideExcuse(ctx context.Context, pool *pgxpool.Pool, id, decider int64, ap
 	if err != nil {
 		return Excuse{}, err
 	}
+	// Bildirim: kararı veren değil, mazeretin sahibi öğrenir (öğrenci → hesabı varsa; gözetmen → kendisi).
+	var owner *int64
+	if e.Kind == "student" {
+		if err := tx.QueryRow(ctx, `SELECT user_id FROM "wm-students" WHERE id = $1`, e.StudentID).Scan(&owner); err != nil {
+			return Excuse{}, err
+		}
+	} else {
+		owner = e.UserID
+	}
+	if owner != nil {
+		title, body := "Mazeretiniz reddedildi", "Mazeret talebiniz reddedildi."
+		if approve {
+			title, body = "Mazeretiniz onaylandı", "Mazeret talebiniz onaylandı."
+		}
+		if note != "" {
+			body += " Not: " + note
+		}
+		if err := Notify(ctx, tx, *owner, "excuse_decision", title, body, "#/mazeret", fmt.Sprintf("excuse:%d", id)); err != nil {
+			return Excuse{}, err
+		}
+	}
 	if err := audit.Write(ctx, tx, audit.Entry{ActorID: decider, Action: "excuse.decide", Entity: "excuse", EntityID: fmt.Sprint(id),
 		Old: map[string]any{"status": status}, New: map[string]any{"status": next, "note": note}}); err != nil {
 		return Excuse{}, err

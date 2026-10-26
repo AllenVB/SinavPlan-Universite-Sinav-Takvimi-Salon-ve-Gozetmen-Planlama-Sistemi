@@ -49,8 +49,8 @@ const parts = [
   const b = await chromium.launch(); let fail = 0; const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) fail++; };
   const p = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   await p.goto(BASE); await p.fill('#email', 'seed.mercan@ddo-case.invalid'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
-  await p.click('.bellbtn'); await p.waitForSelector('.tabs'); await p.click('.tabs button:has-text("Çakışmalar")'); await p.waitForSelector('h1:has-text("Çakışmalar")');
-  await p.click('.bellbtn'); await p.waitForSelector('h1:has-text("Mazeret masası")', { timeout: 5000 }).then(() => ok(true, 'çan: Çakışmalar sekmesinden Mazeret masasına döner'), () => ok(false, 'çan: Mazeret masasına dönmedi'));
+  await p.click('a.bellbtn'); await p.waitForSelector('.tabs'); await p.click('.tabs button:has-text("Çakışmalar")'); await p.waitForSelector('h1:has-text("Çakışmalar")');
+  await p.click('a.bellbtn'); await p.waitForSelector('h1:has-text("Mazeret masası")', { timeout: 5000 }).then(() => ok(true, 'çan: Çakışmalar sekmesinden Mazeret masasına döner'), () => ok(false, 'çan: Mazeret masasına dönmedi'));
   await b.close(); return fail;
 }),
 ];

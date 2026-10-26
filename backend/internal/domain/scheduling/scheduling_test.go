@@ -3,6 +3,7 @@ package scheduling
 import (
 	"math/rand/v2"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -303,5 +304,54 @@ func BenchmarkSolveFullScale(b *testing.B) {
 		if _, err := Solve(in); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// Büyük sınavı öne alma cezası (FrontLoad, ADR-022): çözücünün artımlı cezası bağımsız doğrulayıcıyla birebir eşleşir,
+// büyük sınavlar ortalamada daha erken güne düşer, hiçbir sert kural bozulmaz ve ağırlık 0 iken sonuç eskisiyle aynıdır.
+func TestFrontLoadPenaltyMatchesValidatorAndPullsLargeExamsEarlier(t *testing.T) {
+	base := fromDataset(mustSmall(t))
+	base.MaxIterations = 30_000
+	// küçük veri kümesinde "büyük": öğrenci sayısına göre üst çeyrek
+	sizes := make([]int, 0, len(base.Exams))
+	for _, e := range base.Exams {
+		sizes = append(sizes, len(e.Students))
+	}
+	sort.Ints(sizes)
+	thr := sizes[len(sizes)*3/4]
+	base.LargeExamStudents = thr
+	meanLargeDay := func(in Input, a map[int64]int) float64 {
+		var sum float64
+		var n int
+		for _, e := range in.Exams {
+			if len(e.Students) >= thr {
+				sum += float64(a[e.ID] / in.SessionsPerDay)
+				n++
+			}
+		}
+		if n == 0 {
+			t.Fatal("veri kümesinde büyük sınav yok; eşik/veri ayarlanmalı")
+		}
+		return sum / float64(n)
+	}
+	off := mustSolve(t, base)
+	zero := base
+	zero.Weights = Weights{ConsecutiveDay: 3, SameDay: 1, FrontLoad: 0}
+	if !reflect.DeepEqual(off.Assignment, mustSolve(t, zero).Assignment) {
+		t.Fatal("FrontLoad=0 sonucu değiştirmemeli (varsayılan ağırlıklarla özdeş)")
+	}
+
+	on := base
+	on.Weights = Weights{ConsecutiveDay: 3, SameDay: 1, FrontLoad: 20}
+	r := mustSolve(t, on)
+	rep := noViolations(t, on, r)
+	if rep.Metrics.Penalty != r.Penalty {
+		t.Fatalf("çözücü cezası %d, doğrulayıcı %d", r.Penalty, rep.Metrics.Penalty)
+	}
+	if rep.Metrics.FrontLoadCost == 0 && meanLargeDay(on, r.Assignment) > 0 {
+		t.Fatal("büyük sınavlar 0. günden sonraysa FrontLoadCost > 0 olmalı")
+	}
+	if got, was := meanLargeDay(on, r.Assignment), meanLargeDay(base, off.Assignment); got >= was {
+		t.Fatalf("büyük sınavlar öne gelmeli: ortalama gün %.2f -> %.2f", was, got)
 	}
 }

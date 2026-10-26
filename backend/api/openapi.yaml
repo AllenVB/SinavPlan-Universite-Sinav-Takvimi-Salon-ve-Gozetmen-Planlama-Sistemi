@@ -133,6 +133,62 @@ paths:
         "200": {description: Kullanıcı, content: {application/json: {schema: {$ref: "#/components/schemas/UserView"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
 
+  /room-blocks:
+    get:
+      tags: [Salon]
+      summary: Kapalı salon–oturum kayıtları
+      description: "Roller: secretary, student_affairs. `affected_exams`: yayındaki çizelgede bu salon+oturumda hâlen yerleşik sınav sayısı."
+      responses:
+        "200": {description: Kapalı salonlar, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object}}}}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [Salon]
+      summary: Salonu bir oturumda kullanıma kapat (bakım, başka etkinlik)
+      description: "Rol: secretary. Bir sonraki takvim/salon planı üretiminde T-2 bu salonu o oturumda kullanmaz ve slot kapasitesi en kötü oturuma göre düşer; mevcut çizelgelere dokunulmaz. Aynı salon+oturum ikinci kez kapatılamaz (409)."
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [room_id, slot_id], properties: {room_id: {type: integer}, slot_id: {type: integer}, reason: {type: string, maxLength: 200}}}}}
+      responses:
+        "201": {description: Kapatıldı, content: {application/json: {schema: {type: object}}}}
+        "404": {description: Salon ya da oturum yok, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "409": {description: Zaten kapalı, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/Validation"}
+  /room-blocks/{id}:
+    delete:
+      tags: [Salon]
+      summary: Kapatmayı kaldır
+      description: "Rol: secretary"
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "204": {description: Kaldırıldı}
+        "404": {description: Kayıt yok, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /me/notifications:
+    get:
+      tags: [Bildirim]
+      summary: Bildirim kutusu
+      description: "Her rol kendi bildirimlerini görür. Okuma sırasında zamana bağlı bildirimler üretilir (idempotent): 24 saat içindeki sınav/görev hatırlatması ve sınav başlayalı 15 dk geçtiği hâlde yoklamada 'geldi' kaydı olmayan öğrenciye 'yoklamanız alınmadı'. Olay bildirimleri (mazeret kararı, gözetmen devri, salon değişikliği) ilgili işlemle birlikte yazılır."
+      responses:
+        "200": {description: "Bildirimler (yeniden eskiye, en çok 30) ve okunmamış sayısı", content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {type: object, properties: {id: {type: integer}, kind: {type: string}, title: {type: string}, body: {type: string}, link: {type: string}, created_at: {type: string, format: date-time}, read_at: {type: string, format: date-time, nullable: true}}}}, unread: {type: integer}}}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /me/notifications/read-all:
+    post:
+      tags: [Bildirim]
+      summary: Tüm bildirimleri okundu yap
+      responses:
+        "200": {description: İşaretlenen sayısı, content: {application/json: {schema: {type: object, properties: {marked: {type: integer}}}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /me/notifications/{id}/read:
+    post:
+      tags: [Bildirim]
+      summary: Bildirimi okundu yap (yalnız kendi bildirimi)
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200": {description: İşaretlendi, content: {application/json: {schema: {type: object, properties: {marked: {type: integer}}}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: Bildirim yok, başkasına ait ya da zaten okundu, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+
   /students:
     get:
       tags: [Öğrenci]
@@ -893,6 +949,7 @@ components:
         period_id: {type: integer}
         seed: {type: integer, default: 42}
         iterations: {type: integer, minimum: 0, maximum: 2000000, default: 0}
+        front_load: {type: integer, minimum: 0, maximum: 100, default: 0, description: "Büyük sınavı (≥100 öğrenci) erken güne alma ceza ağırlığı; 0 = kapalı (ADR-022)"}
     JobAccepted:
       type: object
       properties: {job_id: {type: integer}, status: {type: string, example: queued}, status_url: {type: string}}

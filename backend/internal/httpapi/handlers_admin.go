@@ -151,6 +151,8 @@ type createScheduleRequest struct {
 	PeriodID   int64 `json:"period_id"`
 	Seed       int64 `json:"seed"`
 	Iterations int   `json:"iterations"`
+	// FrontLoad: büyük sınavı öne alma ağırlığı, 0 = kapalı (varsayılan)
+	FrontLoad int64 `json:"front_load"`
 }
 
 // createSchedule: POST /schedules — asenkron iş başlatır (202).
@@ -166,13 +168,16 @@ func (s *Server) createSchedule(w http.ResponseWriter, r *http.Request) error {
 	if req.Iterations < 0 || req.Iterations > jobs.MaxIterations {
 		f["iterations"] = "0 ile " + strconv.Itoa(jobs.MaxIterations) + " arasında olmalı (0 = varsayılan)"
 	}
+	if req.FrontLoad < 0 || req.FrontLoad > jobs.MaxFrontLoad {
+		f["front_load"] = "0 ile " + strconv.Itoa(jobs.MaxFrontLoad) + " arasında olmalı (0 = kapalı)"
+	}
 	if len(f) > 0 {
 		return Validation("takvim isteği geçersiz", f)
 	}
 	if s.runner == nil {
 		return Unavailable("iş çalıştırıcı yapılandırılmadı")
 	}
-	id, err := s.runner.Submit(r.Context(), jobs.Params{PeriodID: req.PeriodID, Seed: req.Seed, Iterations: req.Iterations}, mustPrincipal(r).UserID)
+	id, err := s.runner.Submit(r.Context(), jobs.Params{PeriodID: req.PeriodID, Seed: req.Seed, Iterations: req.Iterations, FrontLoad: req.FrontLoad}, mustPrincipal(r).UserID)
 	if errors.Is(err, store.ErrConflict) {
 		return Conflict("bu dönem için bekleyen veya çalışan bir takvim işi var")
 	}

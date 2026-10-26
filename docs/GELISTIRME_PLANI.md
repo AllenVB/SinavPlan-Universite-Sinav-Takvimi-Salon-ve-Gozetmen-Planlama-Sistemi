@@ -3,6 +3,8 @@
 Amaç: SınavPlan'ı benzer sistemlerle karşılaştırıp bir sonraki adımlarda neyin değer katacağını sıralamak.
 **Not:** Bu belge dört web aramasına dayanır; ticari ürünlerin ayrıntılı belgelerine erişilemedi. Bulgular eğilim gösterir, kapsamlı bir pazar analizi değildir. Teslim tarihi (26 Ekim 2026 23:59) sonrası commit'ler değerlendirmeye alınmadığından, aşağıdaki işler teslimden **sonra** ya da mülakat anlatısı olarak düşünülmüştür.
 
+> **Durum (26 Ekim 2026):** #2 bildirim kutusu, #3 krokiden yoklama, #4 gelmeyene bildirim ve #6 salon–oturum uygunluğu + büyük sınavı öne alma uygulandı ([ADR-022](../DECISIONS.md)). Kalanlar (#1, #5, #7–#12) açık.
+
 ## 1. İncelenen benzer sistemler ve çıkarımlar
 
 | Kaynak | Ne yapıyor | SınavPlan'da karşılığı |

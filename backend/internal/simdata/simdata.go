@@ -147,7 +147,13 @@ type Dataset struct {
 	Period      Period
 	Slots       []Slot
 	Exams       []Exam
+	// RoomBlocks: salonun belirli bir oturumda kapalı olduğu (bakım, başka etkinlik) kayıtlar; üretilen veride boştur ve
+	// Hash'e girmez (veri tabanından yüklenen gerçek dönemde dolar).
+	RoomBlocks []RoomBlock
 }
+
+// RoomBlock, bir salonun bir slotta kullanıma kapalı olduğunu söyler.
+type RoomBlock struct{ RoomID, SlotID int64 }
 
 var (
 	firstNames = []string{"Ahmet", "Mehmet", "Ayşe", "Fatma", "Mustafa", "Zeynep", "Elif", "Emre", "Burak", "Selin",

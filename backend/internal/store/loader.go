@@ -142,6 +142,15 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
+	if err := each(`SELECT rb.room_id, rb.slot_id FROM "wm-room_blocks" rb JOIN "wm-slots" sl ON sl.id = rb.slot_id WHERE sl.period_id = $1 ORDER BY rb.slot_id, rb.room_id`,
+		[]any{periodID}, func(r pgx.Rows) error {
+			var b simdata.RoomBlock
+			err := r.Scan(&b.RoomID, &b.SlotID)
+			ds.RoomBlocks = append(ds.RoomBlocks, b)
+			return err
+		}); err != nil {
+		return nil, err
+	}
 	if err := each(`SELECT id, period_id, course_id, duration_minutes, requires_lab FROM "wm-exams" WHERE period_id = $1 ORDER BY id`,
 		[]any{periodID}, func(r pgx.Rows) error {
 			var e simdata.Exam

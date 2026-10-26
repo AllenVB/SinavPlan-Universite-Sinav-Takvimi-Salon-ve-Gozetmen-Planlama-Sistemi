@@ -257,7 +257,7 @@ export type Quality = { label: string; iterations: number }
  * Takvim hesabının iki ayarı, sade adlarla: "Varyasyon no" (aynı numara = aynı takvim; farklı numara farklı çözüm
  * dener) ve "Hesaplama kalitesi" (daha yüksek = daha uzun sürer, daha rahat takvim). API'deki seed/iterations alanlarına eşlenir.
  */
-export function TuneFields({ seed, setSeed, quality, setQuality, presets, idPrefix }: { seed: string; setSeed: (v: string) => void; quality: number; setQuality: (v: number) => void; presets: Quality[]; idPrefix: string }) {
+export function TuneFields({ seed, setSeed, quality, setQuality, presets, idPrefix, frontLoad, setFrontLoad }: { seed: string; setSeed: (v: string) => void; quality: number; setQuality: (v: number) => void; presets: Quality[]; idPrefix: string; frontLoad?: number; setFrontLoad?: (v: number) => void }) {
   // Varsayılan akış tek düğmedir; ince ayarlar kapalı başlayan "Gelişmiş ayarlar" altındadır.
   return (
     <details className="adv">
@@ -274,9 +274,18 @@ export function TuneFields({ seed, setSeed, quality, setQuality, presets, idPref
             {presets.map((p) => <option key={p.iterations} value={p.iterations}>{p.label}</option>)}
           </select>
         </Field>
+        {setFrontLoad && (
+          <Field label="Büyük sınavlar" id={`${idPrefix}-front`}>
+            <select id={`${idPrefix}-front`} value={frontLoad ?? 0} onChange={(e) => setFrontLoad(Number(e.target.value))} style={{ width: 'auto' }}>
+              <option value={0}>Fark etmez (varsayılan)</option>
+              <option value={5}>Hafifçe öne al</option>
+              <option value={20}>Güçlü öne al</option>
+            </select>
+          </Field>
+        )}
         <p id={`${idPrefix}-help`} className="small muted" style={{ flexBasis: '100%', margin: 0 }}>
           <b>Varyasyon no:</b> aynı numara her zaman aynı takvimi üretir; farklı numara aynı kurallara uyan başka bir çözüm dener.{' '}
-          <b>Hesaplama kalitesi:</b> yükseldikçe hesap uzar, takvim öğrenciler için daha rahat (daha düşük rahatsızlık puanı) olur.
+          <b>Hesaplama kalitesi:</b> yükseldikçe hesap uzar, takvim öğrenciler için daha rahat (daha düşük rahatsızlık puanı) olur.{setFrontLoad && <> <b>Büyük sınavlar:</b> 100+ öğrencili sınavları takvimin başına çeker (not girişi erken biter); öğrenci rahatlığı biraz azalabilir.</>}
         </p>
       </div>
     </details>

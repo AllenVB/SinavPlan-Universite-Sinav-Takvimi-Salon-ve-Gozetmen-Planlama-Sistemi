@@ -28,10 +28,26 @@ type Exam struct {
 }
 
 // Weights, yumuşak ceza ağırlıkları.
+//
+// FrontLoad (varsayılan 0 = kapalı): büyük sınavı (≥ LargeExamStudents öğrenci) erken güne alma cezası; büyük bir sınav
+// d. güne konursa ceza FrontLoad·d olur. UniTime/ITC-2007'deki "büyük sınavlar öne" yumuşak kısıtının karşılığıdır;
+// sonuç değerlendirmesi ve not girişi için büyük sınavın erken bitmesi istenir (ADR-022).
 type Weights struct {
 	ConsecutiveDay int64
 	SameDay        int64
+	FrontLoad      int64
 }
+
+// withDefaults: ardışık/aynı gün ağırlıklarının ikisi de 0 ise varsayılanları (3, 1) kullanır; FrontLoad korunur.
+func (w Weights) withDefaults() Weights {
+	if w.ConsecutiveDay == 0 && w.SameDay == 0 {
+		w.ConsecutiveDay, w.SameDay = DefaultWeights.ConsecutiveDay, DefaultWeights.SameDay
+	}
+	return w
+}
+
+// DefaultLargeExam: FrontLoad açıkken "büyük sınav" eşiği (öğrenci sayısı), Input.LargeExamStudents 0 ise.
+const DefaultLargeExam = 100
 
 // DefaultWeights: Wc=3, Ws=1.
 var DefaultWeights = Weights{ConsecutiveDay: 3, SameDay: 1}
@@ -52,6 +68,8 @@ type Input struct {
 	// 0 = sınırsız. T-2'nin salon kapasitesi aşılmadan çözülebilmesi için.
 	SlotCapacity    int
 	LabSlotCapacity int
+	// LargeExamStudents: FrontLoad cezasında "büyük sınav" eşiği; 0 = DefaultLargeExam.
+	LargeExamStudents int
 }
 
 // Slots, toplam slot sayısı.
@@ -76,7 +94,8 @@ type problem struct {
 	adjW    [][]int32 // kenar ağırlığı = ortak öğrenci sayısı
 	wDegree []int64   // ağırlıklı derece (DSatur eşitlik bozma)
 
-	wC, wS      int64
+	wC, wS, wF  int64
+	large       []bool // büyük sınav (FrontLoad cezası bunlara uygulanır)
 	cap, labCap int
 }
 
@@ -84,12 +103,9 @@ func newProblem(in Input) (*problem, error) {
 	if in.Days <= 0 || in.SessionsPerDay <= 0 {
 		return nil, fmt.Errorf("gün ve oturum sayısı pozitif olmalı")
 	}
-	w := in.Weights
-	if w == (Weights{}) {
-		w = DefaultWeights
-	}
+	w := in.Weights.withDefaults()
 	p := &problem{n: len(in.Exams), days: in.Days, sessions: in.SessionsPerDay,
-		slots: in.Days * in.SessionsPerDay, wC: w.ConsecutiveDay, wS: w.SameDay,
+		slots: in.Days * in.SessionsPerDay, wC: w.ConsecutiveDay, wS: w.SameDay, wF: w.FrontLoad,
 		cap: in.SlotCapacity, labCap: in.LabSlotCapacity}
 
 	// Öğrenci kimliklerini sıralı yoğun indekslere çevir (determinizm için sıralı).
@@ -134,6 +150,16 @@ func newProblem(in Input) (*problem, error) {
 		}
 		sort.Slice(p.examStudents[e], func(a, b int) bool { return p.examStudents[e][a] < p.examStudents[e][b] })
 		p.size[e] = len(p.examStudents[e])
+	}
+	p.large = make([]bool, p.n)
+	if p.wF > 0 {
+		thr := in.LargeExamStudents
+		if thr <= 0 {
+			thr = DefaultLargeExam
+		}
+		for e := range p.large {
+			p.large[e] = p.size[e] >= thr
+		}
 	}
 
 	// Çatışma bitset'leri: sınavın her öğrencisinin sınav kümesini OR'la.

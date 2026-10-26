@@ -103,6 +103,27 @@ func (st *state) localPenalty(s int32, pairs, days []int) int64 {
 // günlük sınır uygunluğunu döner. Çağıran ya commit ya revert etmelidir.
 // Çatışma ve kapasite denetimi çağıranın sorumluluğundadır.
 func (st *state) evaluate(changes []change) (delta int64, feasible bool, days []int) {
+	delta, feasible, days = st.evaluateStudents(changes)
+	return delta + st.frontDelta(changes), feasible, days
+}
+
+// frontDelta, büyük sınavların gün indeksinden doğan ceza farkı (FrontLoad kapalıysa 0). Yalnız gün değişince değişir;
+// yerleştirme (from < 0) 0. günden sayılır.
+func (st *state) frontDelta(changes []change) int64 {
+	p := st.p
+	if p.wF == 0 {
+		return 0
+	}
+	var d int64
+	for _, c := range changes {
+		if p.large[c.exam] {
+			d += p.wF * int64(max(dayOf(p, c.to), 0)-max(dayOf(p, c.from), 0))
+		}
+	}
+	return d
+}
+
+func (st *state) evaluateStudents(changes []change) (delta int64, feasible bool, days []int) {
 	p := st.p
 	days = st.dayBuf[:0]
 	defer func() { st.dayBuf = days[:0] }()
@@ -298,6 +319,9 @@ func (st *state) evalMove(e, from, to int) (delta int64, feasible bool) {
 			feasible = false
 		}
 		delta += pen(base) - before
+	}
+	if p.wF > 0 && p.large[e] {
+		delta += p.wF * int64(max(d2, 0)-max(d1, 0))
 	}
 	return delta, feasible
 }

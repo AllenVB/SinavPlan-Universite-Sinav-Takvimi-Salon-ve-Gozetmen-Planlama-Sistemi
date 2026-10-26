@@ -198,6 +198,28 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 		New:      map[string]any{"room_id": req.ToRoomID, "reason": req.Reason}}); err != nil {
 		return RoomChangeResult{}, err
 	}
+	// Bildirim: taşınan öğrenciler (hesabı olanlar) ve o salonun gözetmenleri.
+	var fromCode, toCode string
+	if err := tx.QueryRow(ctx, `SELECT (SELECT code FROM "wm-rooms" WHERE id = $1), (SELECT code FROM "wm-rooms" WHERE id = $2)`, req.FromRoomID, req.ToRoomID).Scan(&fromCode, &toCode); err != nil {
+		return RoomChangeResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO "wm-notifications" (user_id, kind, title, body, link, dedupe_key)
+		SELECT DISTINCT st.user_id, 'room_change', 'Sınav salonunuz değişti',
+		       $3::text || ' salonundan ' || $4::text || ' salonuna taşındınız. Gerekçe: ' || $5::text, '#/programim', 'room-change:' || $1::bigint::text || ':' || st.user_id::text
+		FROM "wm-seat_assignments" sa JOIN "wm-students" st ON st.id = sa.student_id
+		WHERE sa.id = ANY($2::bigint[]) AND st.user_id IS NOT NULL
+		ON CONFLICT (user_id, dedupe_key) DO NOTHING`, res.EventID, ids, fromCode, toCode, req.Reason); err != nil {
+		return RoomChangeResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO "wm-notifications" (user_id, kind, title, body, link, dedupe_key)
+		SELECT DISTINCT ia.user_id, 'room_change', 'Görev salonunuz değişti',
+		       $3::text || ' salonundaki göreviniz ' || $4::text || ' salonuna taşındı. Gerekçe: ' || $5::text, '#/yoklama', 'room-change:' || $1::bigint::text || ':' || ia.user_id::text
+		FROM "wm-invigilator_assignments" ia WHERE ia.schedule_id = $2 AND ia.slot_id = $6 AND ia.room_id = $7
+		ON CONFLICT (user_id, dedupe_key) DO NOTHING`, res.EventID, req.ScheduleID, fromCode, toCode, req.Reason, req.SlotID, req.ToRoomID); err != nil {
+		return RoomChangeResult{}, err
+	}
 	if req.DryRun {
 		res.DryRun, res.EventID = true, 0 // ertelenmiş Rollback: olay kaydı ve taşıma kalıcı olmaz
 		return res, nil

@@ -36,13 +36,13 @@ Tablo adları `wm-` önekli, kullanıcı tablosu `wm-uo-users`'tır (görev belg
 | Öğrenci işleri | `ogrenciisleri@sinavplan.test` |
 | Öğrenci | `ogrenci@sinavplan.test` |
 
-**Demo yoklama kodu: `111111`** — öğrenci hesabıyla "Sınava giriş" ekranında bu kodu girince, gözetmen olmadan, yayındaki çizelgede o an en yakın sınavı için yoklamada *geldi* yazılır (ekranda da yayınlanır). `DEMO_CHECKIN_CODE` ile değişir; boş bırakılırsa kapanır (bkz. ADR-021). Gözetmen ekranında "Kod üret" yalnız 6 haneli kod üretir; sekreterin ana panelinde ve Gözetmen atama ekranında "Gözetmen programı" (kim, hangi salon, ne zaman) listelenir.
+**Demo yoklama kodu: `111111`** — öğrenci hesabıyla "Sınava giriş" ekranında bu kodu girince, gözetmen olmadan, yayındaki çizelgede o an en yakın sınavı için yoklamada *geldi* yazılır (ekranda da yayınlanır). `DEMO_CHECKIN_CODE` ile değişir; boş bırakılırsa kapanır (bkz. ADR-021). Gözetmen ekranında "Kod üret" yalnız 6 haneli kod üretir; sekreterin ana panelinde ve Gözetmen atama ekranında "Gözetmen programı" (kim, hangi salon, ne zaman) listelenir. **Bildirim kutusu** (üst çubuk, her rol): sınav/görev hatırlatması, "yoklamanız alınmadı" (başladıktan 15 dk sonra), mazeret kararı, gözetmen devri, salon değişikliği. **Krokiden yoklama:** Kapasite panosunda ders koduna tıklayınca salon krokisi + öğrenci listesi açılır; gözetmen/sekreter koltuğa tıklayıp geldi/gelmedi işaretler (ağ yoksa kuyruğa yazılır). **Kapalı salonlar** (Kapasite panosu, sekreter): salon bir oturumda kapatılırsa sonraki planda kullanılmaz; takvim üretiminde "Büyük sınavlar" seçeneği büyük sınavları öne çeker (ADR-022).
 
 ### Komutlar
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (31 satır = 32 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (33 satır = 34 kimlik, ~35 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -114,7 +114,7 @@ Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipogra
 
 Her kimliğin "beklenen sonuç" tablosu, rol hesapları ve elle deneme senaryoları: [TESTING.md](TESTING.md). Elle deneme koleksiyonu: `requests.http`.
 
-**Kalite ölçütleri (proje.md §9):** 197 otomatik test (`-race`); domain kapsamı attendance %100, invigilation %97, rooms %99,3, scheduling %94,9, seating %100 (CI çıktısında görünür); GitHub Actions: build + test + lint + imaj + soğuk kurulum; OpenAPI `/docs`, Prometheus `/metrics`; k6 yük testi; [DECISIONS.md](DECISIONS.md) içinde 21 karar kaydı; kaos betiği `make chaos`; `make reset-demo` ile sıfırlama.
+**Kalite ölçütleri (proje.md §9):** 211 otomatik test (`-race`); domain kapsamı attendance %100, invigilation %97, rooms %99,3, scheduling %94,9, seating %100 (CI çıktısında görünür); GitHub Actions: build + test + lint + imaj + soğuk kurulum; OpenAPI `/docs`, Prometheus `/metrics`; k6 yük testi; [DECISIONS.md](DECISIONS.md) içinde 21 karar kaydı; kaos betiği `make chaos`; `make reset-demo` ile sıfırlama.
 
 ## Ekranlar
 
@@ -148,8 +148,8 @@ Faz 17–19 ekranları:
 | T-3 | 42.715 / 42.715 öğrenci-sınav çifti oturtuldu, 0 ihlal; 877 engelli öğrenci erişilebilir koltukta; bilerek bozulmuş planda sayaç beklenen 3 ihlali buldu |
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
-| Testler | **197 test** (`go test -race ./... -v \| grep -c "^--- PASS"`; 0 FAIL, 1 bilinçli atlanan: tam ölçek `-race` altında `prove-t1`'e bırakılır); domain kapsamı: scheduling %94,9 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 31 satır (32 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| Testler | **211 test** (`go test -race ./... -v \| grep -c "^--- PASS"`; 0 FAIL, 1 bilinçli atlanan: tam ölçek `-race` altında `prove-t1`'e bırakılır); domain kapsamı: scheduling %94,9 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
+| `make verify` | 33 satır (34 kimlik; X-5/X-7 tek satır), hepsi PASS, ~35 sn |
 
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker

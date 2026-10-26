@@ -20,12 +20,15 @@ type Params struct {
 	PeriodID   int64 `json:"period_id"`
 	Seed       int64 `json:"seed"`
 	Iterations int   `json:"iterations"`
+	// FrontLoad: büyük sınavı erken güne alma ceza ağırlığı (0 = kapalı, ADR-022).
+	FrontLoad int64 `json:"front_load,omitempty"`
 }
 
 // Sınırlar: iterasyon bütçesi süreyi belirler (1M ≈ 10 sn, 300 sınav).
 const (
 	DefaultIterations = 300_000
 	MaxIterations     = 2_000_000
+	MaxFrontLoad      = 100
 	jobTimeout        = 5 * time.Minute
 )
 
@@ -99,7 +102,7 @@ func (r *Runner) run(id int64, p Params, actor int64) {
 		finish(0, nil, err)
 		return
 	}
-	sp, rep, err := planning.BuildFrom(ds, p.Seed, p.Iterations, excused)
+	sp, rep, err := planning.BuildFromFrontLoad(ds, p.Seed, p.Iterations, excused, p.FrontLoad)
 	if err != nil {
 		finish(0, rep, err) // rep, çözümsüzlük raporunu taşır
 		return

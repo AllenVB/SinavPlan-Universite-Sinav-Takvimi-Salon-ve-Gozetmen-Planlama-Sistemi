@@ -182,3 +182,70 @@ func TestInvigilationAtScale(t *testing.T) {
 	}
 	t.Logf("reassign: boşalan=%d değişen=%d takas=%d", r.Vacated, len(r.Changes), r.Swaps)
 }
+
+// Salon–oturum uygunluğu (ADR-022): kapalı salon o oturumda kullanılmaz, plan temiz kalır, doğrulayıcı kapalı salon
+// kullanımını yakalar ve slot kapasitesi en kötü oturuma göre düşer.
+func TestBlockedRoomsAreNeverUsedAndValidatorCatchesMisuse(t *testing.T) {
+	ds, _ := simdata.Generate(simdata.Config{Seed: 5, Exams: 72, Students: 900, Rooms: 24, Days: 6, SessionsPerDay: 3, DisabilityRate: 0.02})
+	assign := solve(t, ds, 40_000)
+	free, err := Plan(ds, assign, rooms.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// En çok salon kullanılan oturumun, kullanılan ilk 3 salonunu kapat.
+	var slot int
+	most := 0
+	for _, s := range free.Slots {
+		if len(s.Rooms.Placements) > most {
+			slot, most = s.Slot, len(s.Rooms.Placements)
+		}
+	}
+	used := map[int64]bool{}
+	var blockIDs []int64
+	for _, s := range free.Slots {
+		if s.Slot != slot {
+			continue
+		}
+		for _, p := range s.Rooms.Placements {
+			if !used[p.RoomID] && len(blockIDs) < 3 {
+				used[p.RoomID] = true
+				blockIDs = append(blockIDs, p.RoomID)
+			}
+		}
+	}
+	// Doğrulayıcı: kapalı salona pay veren plan yakalanır.
+	for _, s := range free.Slots {
+		if s.Slot == slot {
+			if v := roomBlockViolations(used, s.Rooms); len(v) == 0 {
+				t.Fatal("kapalı salonu kullanan plan doğrulayıcıdan geçmemeli")
+			}
+		}
+	}
+	before := SchedulingInput(ds, 42).SlotCapacity
+	for _, id := range blockIDs {
+		ds.RoomBlocks = append(ds.RoomBlocks, simdata.RoomBlock{RoomID: id, SlotID: ds.Slots[slot].ID})
+	}
+	if after := SchedulingInput(ds, 42).SlotCapacity; after >= before {
+		t.Fatalf("kapalı salonlar slot kapasitesini düşürmeli: %d -> %d", before, after)
+	}
+	blocked, err := Plan(ds, assign, rooms.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range blocked.Slots {
+		if s.Slot != slot {
+			continue
+		}
+		for _, p := range s.Rooms.Placements {
+			if used[p.RoomID] {
+				t.Fatalf("kapalı salon %d kullanıldı", p.RoomID)
+			}
+		}
+		if len(s.RoomViolation) != 0 {
+			t.Fatalf("kapalı salonlar dışında plan temiz olmalı: %v", s.RoomViolation)
+		}
+	}
+	if tot := blocked.Totals(); tot.ExamsUnplaced != 0 || tot.Unseated != 0 {
+		t.Logf("not: bu oturum sığmayabilir (yerleşmeyen %d) — kapasite düşürülerek T-1 yeniden çözülmeli", tot.ExamsUnplaced)
+	}
+}

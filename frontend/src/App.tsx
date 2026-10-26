@@ -11,6 +11,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Calendar } from './pages/Calendar'
 import { Rooms } from './pages/Rooms'
 import { Invigilators } from './pages/Invigilators'
+import { Inbox } from './inbox'
 import { ExcuseDesk, showPendingExcuses } from './pages/Excuses'
 import { AdminDesk } from './pages/Proofs'
 import { Live } from './pages/Live'
@@ -108,6 +109,7 @@ function Shell() {
           <span className="caps grow">{period.data ?? ''}</span>
           <div className="topbar-right">
             <LiveBadge updatedAt={health.updatedAt} error={health.error ?? (health.data && health.data.status !== 'healthy' ? ({ status: 503 } as never) : null)} />
+            <Inbox />
             {canPending && (
               <a className="bellbtn" href="#/mazeret" onClick={showPendingExcuses} aria-label={`Bekleyen mazeret: ${pending.data ?? 0}`} title="Bekleyen mazeretler">
                 <Icon name="bell" size={18} />

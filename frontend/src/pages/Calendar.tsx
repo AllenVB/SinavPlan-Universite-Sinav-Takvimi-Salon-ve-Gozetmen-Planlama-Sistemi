@@ -181,10 +181,11 @@ function Generator({ onDone }: { onDone: () => void }) {
   const period = useAsync(async () => (await get('/periods')).items?.[0] as { id: number; name: string } | undefined)
   const [seed, setSeed] = useState('42')
   const [iter, setIter] = useState(300_000)
+  const [frontLoad, setFrontLoad] = useState(0)
   const [job, setJob] = useState<number | null>(null)
   const status = useAsync(async () => (job ? get(`/schedule-jobs/${job}`) : null), [job])
   const start = useAction(async () => {
-    const r = await post('/schedules', { period_id: period.data!.id, seed: Number(seed), iterations: iter })
+    const r = await post('/schedules', { period_id: period.data!.id, seed: Number(seed), iterations: iter, front_load: frontLoad })
     setJob(r.job_id)
   })
   const st: string | undefined = status.data?.status
@@ -201,7 +202,7 @@ function Generator({ onDone }: { onDone: () => void }) {
   return (
     <Card title="Takvimi oluştur" aside={st && <Pill kind={st === 'succeeded' ? 'ok' : st === 'failed' ? 'err' : 'info'}>{{ queued: 'Sırada', running: 'Çalışıyor…', succeeded: 'Tamamlandı', failed: 'Başarısız' }[st]}</Pill>}>
       <div className="row" style={{ alignItems: 'flex-end' }}>
-        <TuneFields idPrefix="gen" seed={seed} setSeed={setSeed} quality={iter} setQuality={setIter} presets={[{ label: 'Hızlı (yaklaşık 5 sn)', iterations: 100_000 }, { label: 'Dengeli (yaklaşık 15 sn) — önerilen', iterations: 300_000 }, { label: 'Detaylı (yaklaşık 1 dk)', iterations: 1_000_000 }]} />
+        <TuneFields idPrefix="gen" seed={seed} setSeed={setSeed} quality={iter} setQuality={setIter} frontLoad={frontLoad} setFrontLoad={setFrontLoad} presets={[{ label: 'Hızlı (yaklaşık 5 sn)', iterations: 100_000 }, { label: 'Dengeli (yaklaşık 15 sn) — önerilen', iterations: 300_000 }, { label: 'Detaylı (yaklaşık 1 dk)', iterations: 1_000_000 }]} />
         <button className="btn primary" disabled={start.busy || running || !period.data || !Number(seed)} onClick={() => void start.run()}>
           {running ? 'Üretiliyor…' : 'Takvimi oluştur'}
         </button>
