@@ -154,6 +154,9 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodGet, "/students", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.listStudents)
 	s.handle(r, http.MethodGet, "/students/{id}/exams",
 		Roles(auth.RoleSecretary, auth.RoleStudentAffairs, auth.RoleStudent), s.studentExams)
+	s.handle(r, http.MethodGet, "/students/{id}/overview",
+		Roles(auth.RoleSecretary, auth.RoleStudentAffairs, auth.RoleStudent), s.studentOverview)
+	s.handle(r, http.MethodGet, "/search", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.search)
 	s.handle(r, http.MethodGet, "/me/exams", Roles(auth.RoleStudent), s.myExams)
 
 	// Yoklama, sınav kartı, tahliye (F-7, T-5)

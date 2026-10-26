@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -516,4 +517,59 @@ func checkB1(ctx context.Context, e *env, f *failures) string {
 	s, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/fix-suggestions", e.sched2), e.tok["student"])
 	f.check(s.code == 403, "öğrenci öneri: HTTP %d (403)", s.code)
 	return fmt.Sprintf("öğrenci %d: %d öneri bağımsız denetlendi (slot çakışması 0, günde ≤2, hedef gün boş, başlamış oturum yok); sürüm sayısı değişmedi; öğrenci 403", student, checked)
+}
+
+// A3-1 (Faz 22): komut paleti araması + "Öğrenci 360". Arama demo öğrenciyi numara önekiyle bulur; 360
+// kartındaki her sınavın salon+koltuğu oturma planıyla birebir; öğrenci başkasının kartını göremez (403),
+// arama yapamaz (403); LIKE jokerleri düz metin sayılır.
+func checkA3(ctx context.Context, e *env, f *failures) string {
+	if !needSnap(e, f) {
+		return ""
+	}
+	sec := e.tok["secretary"]
+	ov, err := e.a.get(ctx, fmt.Sprintf("/students/%d/overview", e.studentID), sec)
+	if !f.expectCode("360", ov, err, 200) {
+		return ""
+	}
+	st := obj(ov.body, "student")
+	no := str(st, "student_no")
+	hit, err := e.a.get(ctx, "/search?q="+url.QueryEscape(no[:len(no)-1]), sec)
+	if !f.expectCode("arama", hit, err, 200) {
+		return ""
+	}
+	found := false
+	for _, it := range arr(hit.body, "items") {
+		h := it.(M)
+		found = found || (str(h, "kind") == "student" && num(h, "id") == e.studentID)
+	}
+	f.check(found, "arama %q öğrenciyi (#%d) bulmadı", no[:len(no)-1], e.studentID)
+	w, _ := e.a.get(ctx, "/search?q="+url.QueryEscape("%_%"), sec)
+	f.check(w.code == 200 && len(arr(w.body, "items")) == 0, "LIKE jokerleri: %d sonuç (0 beklenir)", len(arr(w.body, "items")))
+
+	seat := map[int64]M{}
+	for _, row := range e.sn.seats {
+		if num(row, "student_id") == e.studentID {
+			seat[num(row, "exam_id")] = row
+		}
+	}
+	exams := arr(ov.body, "exams")
+	f.check(len(exams) == len(e.sn.studentExams()[e.studentID]) && len(exams) > 0, "360: %d sınav, planda %d", len(exams), len(e.sn.studentExams()[e.studentID]))
+	for _, it := range exams {
+		m := it.(M)
+		row := seat[num(m, "exam_id")]
+		f.check(row != nil && str(m, "room_code") == str(e.sn.rooms[num(row, "room_id")], "code") &&
+			num(m, "seat_row") == num(row, "seat_row") && num(m, "seat_col") == num(row, "seat_col"), "360 sınav %d salon/koltuk planla farklı", num(m, "exam_id"))
+	}
+	var other int64
+	for id := range e.sn.studentExams() {
+		if id != e.studentID {
+			other = id
+			break
+		}
+	}
+	o, _ := e.a.get(ctx, fmt.Sprintf("/students/%d/overview", other), e.tok["student"])
+	f.check(o.code == 403, "öğrenci başkasının 360'ı: HTTP %d (403)", o.code)
+	sq, _ := e.a.get(ctx, "/search?q=ab", e.tok["student"])
+	f.check(sq.code == 403, "öğrenci arama: HTTP %d (403)", sq.code)
+	return fmt.Sprintf("arama öğrenciyi (#%d) numara önekiyle buldu, joker güvenli; 360'ta %d sınavın salon+koltuğu planla aynı; öğrenci 403 (başkası/arama)", e.studentID, len(exams))
 }

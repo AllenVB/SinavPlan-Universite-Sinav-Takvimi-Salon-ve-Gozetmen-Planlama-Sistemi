@@ -18,11 +18,16 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
   const exams = useExams(sch.sel)
   // Tur veya bağlantı #/takvim?tab=… ile gelirse (sayfa yeniden kurulmadan) sekmeyi izle
   useEffect(() => {
-    const f = () => { const t = TAB_FROM_HASH[new URLSearchParams(location.hash.split('?')[1] ?? '').get('tab') ?? '']; if (secretary && location.hash.startsWith('#/takvim')) setTab(t ?? 'takvim') }
+    const f = () => {
+      const p = new URLSearchParams(location.hash.split('?')[1] ?? '')
+      if (!location.hash.startsWith('#/takvim')) return
+      if (secretary) setTab(TAB_FROM_HASH[p.get('tab') ?? ''] ?? 'takvim')
+      if (p.get('q') !== null) setQ(p.get('q')!)
+    }
     addEventListener('hashchange', f)
     return () => removeEventListener('hashchange', f)
   }, [secretary])
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(() => new URLSearchParams(location.hash.split('?')[1] ?? '').get('q') ?? '')
   const filt = useExamFilter()
   const [day, setDay] = useState('')
   const [hour, setHour] = useState('')

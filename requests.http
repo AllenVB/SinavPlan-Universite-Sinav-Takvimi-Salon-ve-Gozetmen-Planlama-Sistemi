@@ -394,6 +394,14 @@ Content-Type: {{json}}
 
 {"slot_id": {{slotId2}}}
 
+### Faz 22 A3: komut paleti araması (öğrenci no/ad, ders, salon) ve Öğrenci 360
+GET {{host}}/search?q=2026000
+Authorization: Bearer {{secretary}}
+
+###
+GET {{host}}/students/1/overview
+Authorization: Bearer {{secretary}}
+
 ### Faz 22 B1: aynı gün iki sınavı olan öğrenci için çözüm önerisi (yazmaz; uygulamak için yukarıdaki move)
 GET {{host}}/schedules/{{scheduleId}}/fix-suggestions?student_id=2&limit=3
 Authorization: Bearer {{secretary}}

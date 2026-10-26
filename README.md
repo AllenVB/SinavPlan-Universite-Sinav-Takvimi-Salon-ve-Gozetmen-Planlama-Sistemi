@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (26 satır = 27 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (27 satır = 28 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -135,6 +135,14 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 8 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını ve mazeret masasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
 
+## Ctrl+K ile ara ve "Öğrenci 360" (Faz 22 A3)
+
+Sekreter ve öğrenci işleri herhangi bir ekranda **Ctrl+K** (Mac'te ⌘K) ya da üst çubuktaki **Ara** ile komut paletini açar. Öğrenci numarası ya da adı, ders kodu ya da adı, salon kodu ya da ekran adı yazılır. Ok tuşlarıyla seçilir, Enter ile açılır.
+- **Öğrenci seçilince Öğrenci 360:** fakülte ve bölüm, erişilebilir koltuk ihtiyacı, yayındaki tüm sınavları (salon + koltuk), her sınavın yoklama durumu (geldi / QR ile geldi / gelmedi / işaretsiz / mazeretli), mazeretleri ve sıradaki sınavın kapılı krokisi (koltuğu işaretli). Ofisin en sık sorusu olan "Bu öğrenci nerede, ne durumda?" tek bakışta yanıtlanır.
+- **Ders seçilince** takvim o derse süzülür; **ekran adıyla** gezinilir.
+
+Arama sunucu tarafında yetkilidir: öğrenci arama yapamaz; 360 kartında yalnız kendisini görebilir (`make verify` A3-1). Kullanıcı girdisindeki LIKE joker karakterleri düz metin sayılır.
+
 ## Sınav günü föyleri (Faz 22 C1)
 
 **Salon ve oturma planı → Föyler** sekmesinde oturum ve salon seçilip **Yazdır / PDF** denir. Her föy ayrı bir A4 sayfasına basılır; sunucuda PDF üretilmez, tarayıcının "PDF olarak kaydet"i kullanılır.
@@ -212,7 +220,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 26 satır (27 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 27 satır (28 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

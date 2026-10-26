@@ -5,6 +5,7 @@ import { Icon, type IconName } from './icons'
 import { LiveBadge, useLive } from './live'
 import { AuthProvider, useAuth } from './auth'
 import { Tour, TourButton } from './tour'
+import { Palette, PaletteButton } from './palette'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Calendar } from './pages/Calendar'
@@ -115,6 +116,7 @@ function Shell() {
               <div className="who"><b className="small">{user!.full_name ?? `Kullanıcı #${user!.id}`}</b><div className="small muted">{roles.map((r) => roleName[r]).join(', ')}</div></div>
               <Avatar name={user!.full_name ?? roles.map((r) => roleName[r]).join(' ')} size={36} />
             </div>
+            {canPending && <PaletteButton />}
             <TourButton />
             <button className="btn sm" onClick={() => void logout()}>Çıkış</button>
           </div>
@@ -125,6 +127,7 @@ function Shell() {
       </div>
       <nav className="bottomnav" aria-label="Mobil menü">{nav}</nav>
       <Tour />
+      {canPending && <Palette pages={visible.map((r) => ({ path: r.path, label: r.label }))} />}
     </div>
   )
 }

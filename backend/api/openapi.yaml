@@ -344,6 +344,25 @@ paths:
       parameters: [{$ref: "#/components/parameters/Id"}, {$ref: "#/components/parameters/Limit"}, {$ref: "#/components/parameters/After"}]
       responses:
         "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /search:
+    get:
+      tags: [Öğrenci]
+      summary: Komut paleti araması (Ctrl+K) — öğrenci (numara öneki/ad), ders (kod/ad), salon (kod); tür başına en çok 6
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 64}}
+      responses:
+        "200": {description: "items[{kind: student|course|room, id, title, sub}]; 2 karakterden kısa sorgu boş liste", content: {application/json: {schema: {type: object}}}}
+        "422": {description: 64 karakterden uzun sorgu}
+  /students/{id}/overview:
+    get:
+      tags: [Öğrenci]
+      summary: Öğrenci 360 — kimlik, bölüm/fakülte, yayınlanmış programdaki sınavlar (salon + koltuk), yoklama durumu, mazeretler
+      description: Sekreter ve öğrenci işleri herkesi; öğrenci yalnız kendisini görür (aksi 403).
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: "student{…, attendance{exam_id: {status, source}}, excuses[]}, exams[]", content: {application/json: {schema: {type: object}}}}
+        "403": {description: Başka öğrencinin kaydı}
+        "404": {description: Öğrenci yok}
   /schedules/{id}/fix-suggestions:
     get:
       tags: [Mazeret (F-6)]

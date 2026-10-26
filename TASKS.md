@@ -255,6 +255,7 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 | Özellik | Durum |
 |---|---|
 | A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
+| A3 Ctrl+K + Öğrenci 360 | **tamam** — `/search`, `/students/{id}/overview`; verify A3-1; `palette.cjs` 12/12 (açıkken axe 0) |
 | C1 Yazdırılabilir föyler | **tamam** — 3 föy, A4 sayfa bölme, gözetmen yalnız kendi görevleri; `sheets.cjs` 9/9 (PDF 7 sayfa doğrulandı, kroki bölünmüyor) |
 | B1 Çakışma çözüm önerisi | **tamam** — öğrenci odaklı (çözücü çıktısı tek-hamlede yerel optimumda olduğundan "toplamı düşür" önerisi genelde boş: kaba kuvvetle doğrulandı); verify B1-1, `fix.cjs` 4/4, gerçek ölçek 0,16 sn |
 
