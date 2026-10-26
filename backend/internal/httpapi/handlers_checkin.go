@@ -130,15 +130,18 @@ func (s *Server) selfCheckIn(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	now := time.Now()
-	fails, err := store.CheckinFailures(r.Context(), s.pool, p.UserID, now.Add(-checkinFailSpan))
-	if err != nil {
-		return storeError(err)
-	}
-	if fails >= checkinMaxFails {
-		return &APIError{Status: http.StatusTooManyRequests, Code: "too_many_attempts", Message: "çok fazla hatalı deneme; birkaç dakika sonra tekrar deneyin"}
-	}
 	if s.qr == nil {
 		return Unavailable("QR yapılandırılmadı")
+	}
+	// Demo kodu deneme sınırına takılmaz: önceki yanlış denemeler demoyu kilitlemesin.
+	if !s.qr.IsDemoCode(req.Code) {
+		fails, err := store.CheckinFailures(r.Context(), s.pool, p.UserID, now.Add(-checkinFailSpan))
+		if err != nil {
+			return storeError(err)
+		}
+		if fails >= checkinMaxFails {
+			return &APIError{Status: http.StatusTooManyRequests, Code: "too_many_attempts", Message: "çok fazla hatalı deneme; birkaç dakika sonra tekrar deneyin"}
+		}
 	}
 	res, err := s.qr.CheckIn(r.Context(), s.pool, p.UserID, p.StudentID, req.Token, req.Code, now)
 	if err != nil {

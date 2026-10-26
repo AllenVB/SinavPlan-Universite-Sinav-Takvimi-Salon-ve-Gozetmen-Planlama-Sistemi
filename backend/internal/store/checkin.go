@@ -212,7 +212,7 @@ type CheckinResult struct {
 // Kural: oturumun (slot, salon) kapsamında o öğrenciye atanmış bir koltuk olmalı; böylece başka salondaki
 // biri kodu öğrenip yoklamaya yazılamaz. Kod yoluyla `manual`, QR yoluyla `qr` kaynağı yazılır.
 func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID int64, token, code string, now time.Time) (CheckinResult, error) {
-	if code != "" && q.demoCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(q.demoCode)) == 1 {
+	if q.IsDemoCode(code) {
 		return q.demoCheckIn(ctx, pool, userID, studentID, now)
 	}
 	var sessionID int64
@@ -326,8 +326,9 @@ func (q *QR) recordPresent(ctx context.Context, tx pgx.Tx, res CheckinResult, us
 	return res, tx.Commit(ctx)
 }
 
-// demoCheckIn: DEMO_CHECKIN_CODE (ör. 111111) girilince öğrenci, yayındaki çizelgede şu ana en yakın (mazeretsiz) sınavına
-// 'geldi' yazılır. Yalnızca demo içindir (değişken boşsa kapalı); gözetmen oturumu gerekmez, salon/koltuk denetimi
+// demoCheckIn: DEMO_CHECKIN_CODE (ör. 111111) girilince öğrenci, yayındaki çizelgede mazeretsiz bir sınavına 'geldi' yazılır.
+// Seçim sırası: henüz "geldi" olmayan sınavlar önce; bunlar arasında yoklama penceresi şu an açık olan (başlangıçtan 30 dk
+// önce – bitişten 15 dk sonra), yoksa zamanca şu ana en yakın olan. Hepsi zaten "geldi" ise en yakını döner (already_present). Yalnızca demo içindir (değişken boşsa kapalı); gözetmen oturumu gerekmez, salon/koltuk denetimi
 // yoktur — bu yüzden gerçek dağıtımlarda ayarlanmamalıdır. Kaynak `manual`, cihaz `demo-code` olarak izlenir.
 func (q *QR) demoCheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID int64, now time.Time) (CheckinResult, error) {
 	tx, err := pool.Begin(ctx)
@@ -343,7 +344,9 @@ func (q *QR) demoCheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studen
 		JOIN "wm-exams" e ON e.id = sa.exam_id JOIN "wm-courses" co ON co.id = e.course_id JOIN "wm-rooms" r ON r.id = sa.room_id
 		WHERE sa.student_id = $1
 		  AND NOT EXISTS (SELECT 1 FROM "wm-excuses" x WHERE x.kind = 'student' AND x.student_id = sa.student_id AND x.exam_id = sa.exam_id AND x.status = 'approved')
-		ORDER BY abs(extract(epoch FROM (sl.starts_at - $2::timestamptz))), sa.exam_id LIMIT 1`, studentID, now).
+		ORDER BY EXISTS (SELECT 1 FROM "wm-attendance_state" st WHERE st.exam_id = sa.exam_id AND st.student_id = sa.student_id AND st.status = 'present'),
+		         ($2::timestamptz NOT BETWEEN sl.starts_at - interval '30 minutes' AND sl.ends_at + interval '15 minutes'),
+		         abs(extract(epoch FROM (sl.starts_at - $2::timestamptz))), sa.exam_id LIMIT 1`, studentID, now).
 		Scan(&res.ExamID, &res.CourseCode, &res.CourseName, &res.RoomCode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CheckinResult{}, ErrCheckinNotHere

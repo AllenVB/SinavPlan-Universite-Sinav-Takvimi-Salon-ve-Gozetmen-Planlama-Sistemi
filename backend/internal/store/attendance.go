@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -245,6 +246,11 @@ func NewQR(secret string) *QR {
 func (q *QR) WithDemoCode(code string) *QR {
 	q.demoCode = code
 	return q
+}
+
+// IsDemoCode: kod, açık demo koduyla aynı mı (sabit zamanlı karşılaştırma; demo kapalıysa her zaman false).
+func (q *QR) IsDemoCode(code string) bool {
+	return code != "" && q.demoCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(q.demoCode)) == 1
 }
 
 // DemoCode açık demo kodunu döndürür (kapalıysa boş).
