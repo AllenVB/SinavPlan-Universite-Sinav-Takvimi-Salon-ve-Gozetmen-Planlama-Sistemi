@@ -250,8 +250,16 @@ func TestDemoCheckinCode(t *testing.T) {
 	if err := f.env.Owner.Pool.QueryRow(context.Background(), `SELECT status FROM "wm-attendance_state" WHERE exam_id = $1 AND student_id = 1`, f.examID).Scan(&status); err != nil || status != "present" {
 		t.Fatalf("durum present olmalı: %q %v", status, err)
 	}
-	if code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"}); code != http.StatusOK || out["already_present"] != true {
-		t.Fatalf("ikinci giriş idempotent olmalı: %d %v", code, out)
+	// İkinci giriş: yoklaması zaten alınmış sınavı değil, henüz alınmamış bir sonrakini kaydeder.
+	if code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"}); code != http.StatusOK || out["already_present"] == true || int64(out["exam_id"].(float64)) == f.examID {
+		t.Fatalf("ikinci giriş başka (yoklaması alınmamış) sınavı kaydetmeli: %d %v", code, out)
+	}
+	// Yanlış denemeler demo kodunu kilitlemez.
+	for i := 0; i < 9; i++ {
+		post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "000000"})
+	}
+	if code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"}); code != http.StatusOK {
+		t.Fatalf("deneme sınırı demo kodunu engellememeli: %d %v", code, out)
 	}
 	if code, _ := post(t, f.s, "/me/checkin", f.inv, "", map[string]string{"code": "111111"}); code != http.StatusForbidden {
 		t.Fatalf("gözetmen /me/checkin kullanamaz: %d", code)
