@@ -344,3 +344,7 @@ table.why td { background: #fff; }
 .demoaccts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
 .demoacct { display: grid; gap: 2px; text-align: left; justify-items: start; padding: 8px 10px; height: auto; white-space: normal; }
 .demoacct.on { border-color: var(--primary); background: var(--low); }
+
+/* Sınav salonu bilgi kartı (kopya önleme) */
+.anticheat summary { cursor: pointer; list-style: revert; }
+.anticheat .checks li { align-items: flex-start; }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Icon } from '../icons'
 import { markAttendance } from '../attendance'
 import { useLive } from '../live'
 import { all, fmtDateTime, get, idemKey, post, request } from '../api'
@@ -106,6 +107,25 @@ function Inventory() {
   )
 }
 
+/** Sınav salonu bilgi kartı: oturma planında ve yoklamada uygulanan kopya önleme tedbirleri (hepsi sunucuda uygulanır ve doğrulanır). */
+export function AntiCheatCard({ open = false }: { open?: boolean }) {
+  return (
+    <details className="card anticheat" open={open} data-testid="anticheat">
+      <summary><b>Kopya önleme tedbirleri</b> <span className="small muted">— bu salon planında uygulananlar</span></summary>
+      <ul className="checks" style={{ marginTop: 10 }}>
+        <li><Icon name="seat" size={16} /> <span><b>Yan yana aynı sınav yok:</b> aynı dersin öğrencileri sol/sağ komşu oturmaz (sıkı modda ön/arka da).</span></li>
+        <li><Icon name="users" size={16} /> <span><b>Karışık salon:</b> salonda birden çok sınav varsa sütunlar dönüşümlüdür; her öğrencinin komşusu başka bir sınavdandır.</span></li>
+        <li><Icon name="list" size={16} /> <span><b>Tek sınavlı salon:</b> öğrenciler bir koltuk atlayarak oturur (kapasitenin yaklaşık yarısı).</span></li>
+        <li><Icon name="check" size={16} /> <span><b>Tek koltuk:</b> her öğrenciye sınav başına bir koltuk, bir koltukta bir kişi (veritabanı kısıtıyla).</span></li>
+        <li><Icon name="checkCircle" size={16} /> <span><b>Engelli öğrenciler</b> erişilebilir koltuğa yerleşir; bu kural yan yana oturmama kuralını bozmaz.</span></li>
+        <li><Icon name="qr" size={16} /> <span><b>Yoklama:</b> gözetmen ekranındaki QR 30 sn'de bir değişir (ekran görüntüsü işe yaramaz); 6 haneli kod yalnız o salonda koltuğu olan öğrenciyi kabul eder, hatalı denemeler sınırlıdır.</span></li>
+        <li><Icon name="shield" size={16} /> <span><b>Gözetim:</b> 50'den fazla öğrencili salonda en az 2 gözetmen; gözetmen kendi dersinin sınavına girmez.</span></li>
+        <li><Icon name="zap" size={16} /> <span><b>Bağımsız denetim:</b> kurallar plan üreten koddan ayrı bir doğrulayıcıyla sayılır; Veri ve kanıtlar → Kanıtlar (T-3) canlı gösterir.</span></li>
+      </ul>
+    </details>
+  )
+}
+
 function Plan() {
   const { user } = useAuth()
   const sch = useSchedules()
@@ -126,6 +146,7 @@ function Plan() {
   const canMark = hasRole(user!.roles, 'secretary', 'invigilator')
   return (
     <>
+      <AntiCheatCard />
       <Card title="Sınav seçin" aside={<ScheduleSelect s={sch} />}>
         <Async s={exams} empty={(d) => d.length === 0}>
           {(list) => (
@@ -345,6 +366,8 @@ function Capacity() {
         <StatCard icon="seat" tone={tone(capUsed ? (assigned / capUsed) * 100 : 0)} label="Genel doluluk" value={`%${capUsed ? Math.round((assigned / capUsed) * 100) : 0}`} progress={capUsed ? (assigned / capUsed) * 100 : 0} />
         <StatCard icon="alert" tone={critical ? 'err' : 'ok'} label="Kritik doluluk (>%90)" value={critical} note={critical ? 'yoğun salonlar kırmızı' : 'tüm salonlar güvenli'} />
       </div>
+      <div className="alert" role="note" data-testid="load-balance"><div className="small"><b>Yük dengesi:</b> bu oturumda salon doluluğu {cards.length ? `en az %${Math.round(Math.min(...cards.map((c) => c.pct)))} – en çok %${Math.round(Math.max(...cards.map((c) => c.pct)))}` : '—'}; öğrenciler salonlara kapasite ve kopya kuralına göre bölünür, büyük sınavlar birden çok salona dağıtılır. Gözetmen görevleri adil dağıtılır (en çok–en az görev farkı en aza indirilir; bkz. Gözetmen atama).</div></div>
+      <AntiCheatCard />
       {pick && sch.sel && <ExamRoomDetail scheduleId={sch.sel} examId={pick.exam} roomId={pick.room} title={pick.title} onClose={() => setPick(null)} />}
       <p className="small muted noprint">Bir dersin koduna tıklayın: o sınavın salon krokisi ve öğrenci listesi (yoklamada geldi / gelmedi) açılır.</p>
       {hasRole(user!.roles, 'secretary') && <RoomBlocks slot={cur} rooms={rooms.data ?? []} />}
