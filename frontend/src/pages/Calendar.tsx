@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { get, idemKey, post, fmtDate, fmtTime } from '../api'
 import { useAuth } from '../auth'
 import { Async, Card, ErrorBox, Empty, Pill, Tabs, TuneFields, useAction, useAsync } from '../ui'
 import { hasRole, ScheduleSelect, useExamFilter, useExams, useSchedules, type Exam } from './common'
 import { Compare, ExportButtons, Simulator } from './Tools'
 import { Editor } from './Editor'
+import { LoadHeatmap, WhyPanel } from './Insight'
 
 type Tab = 'takvim' | 'uret' | 'prova' | 'karsilastir' | 'duzenle'
 const TAB_FROM_HASH: Record<string, Tab> = { uret: 'uret', prova: 'prova', karsilastir: 'karsilastir', duzenle: 'duzenle' }
@@ -32,6 +33,7 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
   const [day, setDay] = useState('')
   const [hour, setHour] = useState('')
   const [kind, setKind] = useState('')
+  const [why, setWhy] = useState<number | null>(null)
   const dayKey = (e: Exam) => String(e.day)
   const days = useMemo(() => {
     const m = new Map<number, string>()
@@ -101,6 +103,8 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
         </div>
       )}
 
+      <div className="noprint"><LoadHeatmap schedule={sch.sel} /></div>
+
       <Card title={`Sınav oturumları (${filtered.length}${exams.data && filtered.length !== exams.data.length ? ` / ${exams.data.length}` : ''})`}>
         <div className="row noprint" style={{ marginBottom: 12 }}>
           {filt.element}
@@ -129,12 +133,13 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
                 <Empty title="Eşleşen ders yok" />
               ) : (
                 <div className="tablewrap">
-                  <table>
-                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Öğretim üyesi</th><th>Bölüm</th><th>Sınıf</th><th>Öğrenci</th><th>Salon</th><th>Tür</th></tr></thead>
+                  <table data-testid="exam-table">
+                    <thead><tr><th>Tarih</th><th>Saat</th><th>Ders</th><th>Öğretim üyesi</th><th>Bölüm</th><th>Sınıf</th><th>Öğrenci</th><th>Salon</th><th>Tür</th><th className="noprint" /></tr></thead>
                     <tbody>
                       {byDay.flatMap(([, list]) =>
                         list.map((e, i) => (
-                          <tr key={e.exam_id}>
+                          <Fragment key={e.exam_id}>
+                          <tr>
                             <td>{i === 0 ? fmtDate(e.starts_at) : ''}</td>
                             <td>{fmtTime(e.starts_at)}–{fmtTime(e.ends_at)}</td>
                             <td><b>{e.course_code}</b> {e.course_name}</td>
@@ -144,7 +149,10 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
                             <td>{e.students}</td>
                             <td>{e.rooms}</td>
                             <td>{e.requires_lab ? <Pill kind="info">Laboratuvar</Pill> : <Pill>Klasik</Pill>}</td>
+                            <td className="noprint"><button className="btn sm" aria-expanded={why === e.exam_id} onClick={() => setWhy(why === e.exam_id ? null : e.exam_id)}>{why === e.exam_id ? 'Kapat' : 'Neden burada?'}</button></td>
                           </tr>
+                          {why === e.exam_id && sch.sel && <tr className="noprint"><td colSpan={10}><WhyPanel schedule={sch.sel} exam={e.exam_id} /></td></tr>}
+                          </Fragment>
                         )),
                       )}
                     </tbody>

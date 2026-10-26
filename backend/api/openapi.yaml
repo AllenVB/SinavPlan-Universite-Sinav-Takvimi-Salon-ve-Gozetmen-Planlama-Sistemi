@@ -363,6 +363,24 @@ paths:
         "200": {description: "student{…, attendance{exam_id: {status, source}}, excuses[]}, exams[]", content: {application/json: {schema: {type: object}}}}
         "403": {description: Başka öğrencinin kaydı}
         "404": {description: Öğrenci yok}
+  /schedules/{id}/load:
+    get:
+      tags: [Takvim (F-3)]
+      summary: Yoğunluk ısı haritası — gün × oturum sınav/öğrenci sayısı, gün başına aynı gün 2 sınav ve ardışık gün (SQL, çözücüden bağımsız)
+      description: "`totals_match`: SQL toplamları çözücü metrikleriyle (student_days_with_two_exams, consecutive_day_pairs) aynı mı."
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200": {description: "cells[], days[], totals, metrics, totals_match", content: {application/json: {schema: {type: object}}}}
+  /schedules/{id}/exams/{examId}/why:
+    get:
+      tags: [Takvim (F-3)]
+      summary: '"Bu sınav neden burada?" — her oturum için durum (current/ok/conflict/daily_limit/capacity), çakışan sınavlar ve ortak öğrenci sayısı, uygunsa ceza farkı'
+      parameters:
+        - {$ref: "#/components/parameters/Id"}
+        - {name: examId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses:
+        "200": {description: "options[], counts, best_alternative, codes", content: {application/json: {schema: {type: object}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
   /schedules/{id}/proofs:
     get:
       tags: [Takvim (F-3)]

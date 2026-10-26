@@ -728,3 +728,75 @@ func checkC2(ctx context.Context, e *env, f *failures) string {
 	f.check(s.code == 403, "öğrenci canlı: HTTP %d (403)", s.code)
 	return fmt.Sprintf("%d oturum, %d salon: gözetmen/kapasite kuralları bağımsız hesapla birebir; %d uyarı önem sırasında; öğrenci 403", len(slots), rooms, total)
 }
+
+// B3-1 (Faz 22): yoğunluk haritası ve "neden burada?". Harita toplamları (SQL) çözücü metrikleriyle aynı;
+// bir sınavın "çakışma" denen her oturumunda ortak öğrencili bir sınav VAR, "uygun" denen her oturumda YOK
+// ve hiçbir öğrenci o gün 2'den fazla sınava çıkmaz — API takviminden bağımsız yeniden hesapla.
+func checkB3(ctx context.Context, e *env, f *failures) string {
+	if !needSnap(e, f) {
+		return ""
+	}
+	sec := e.tok["secretary"]
+	sp := fmt.Sprintf("/schedules/%d", e.sched2)
+	ld, err := e.a.get(ctx, sp+"/load", sec)
+	if !f.expectCode("harita", ld, err, 200) {
+		return ""
+	}
+	f.check(boolean(ld.body, "totals_match"), "harita toplamları çözücü metrikleriyle farklı: %v / %v", ld.body["totals"], ld.body["metrics"])
+	byStudent := e.sn.studentExams()
+	studentsOf := map[int64][]int64{}
+	for st, ex := range byStudent {
+		for _, x := range ex {
+			studentsOf[x] = append(studentsOf[x], st)
+		}
+	}
+	slotOf := func(x int64) int64 { return num(e.sn.exams[x], "slot_id") }
+	// en çok öğrencili sınav (en çok kısıtlı olan)
+	var exam int64
+	for x := range e.sn.exams {
+		if exam == 0 || len(studentsOf[x]) > len(studentsOf[exam]) || (len(studentsOf[x]) == len(studentsOf[exam]) && x < exam) {
+			exam = x
+		}
+	}
+	w, err := e.a.get(ctx, fmt.Sprintf("%s/exams/%d/why", sp, exam), sec)
+	if !f.expectCode("neden burada", w, err, 200) {
+		return ""
+	}
+	counts := map[string]int{}
+	for _, it := range arr(w.body, "options") {
+		o := it.(M)
+		slot, day, status := num(o, "slot_id"), num(o, "day"), str(o, "status")
+		counts[status]++
+		shared := false
+		over := 0
+		for _, st := range studentsOf[exam] {
+			n := 1
+			for _, y := range byStudent[st] {
+				if y == exam {
+					continue
+				}
+				if slotOf(y) == slot {
+					shared = true
+				}
+				if e.sn.slotDay[slotOf(y)] == day {
+					n++
+				}
+			}
+			if n > 2 {
+				over++
+			}
+		}
+		switch status {
+		case "current":
+			f.check(slot == slotOf(exam), "current oturum %d, takvimde %d", slot, slotOf(exam))
+		case "conflict":
+			f.check(shared, "oturum %d 'çakışma' denmiş ama ortak öğrencili sınav yok", slot)
+		case "ok":
+			f.check(!shared && over == 0, "oturum %d 'uygun' denmiş ama çakışma=%v günlük sınır aşan=%d", slot, shared, over)
+		case "daily_limit":
+			f.check(!shared && over > 0, "oturum %d 'günlük sınır' denmiş ama aşan öğrenci %d", slot, over)
+		}
+	}
+	return fmt.Sprintf("harita toplamı = çözücü metriği; sınav %d (%d öğrenci): %d çakışma, %d günlük sınır, %d uygun oturum bağımsız hesapla doğrulandı",
+		exam, len(studentsOf[exam]), counts["conflict"], counts["daily_limit"], counts["ok"])
+}

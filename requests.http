@@ -394,6 +394,14 @@ Content-Type: {{json}}
 
 {"slot_id": {{slotId2}}}
 
+### Faz 22 B3: yoğunluk haritası (SQL toplamı = çözücü metriği) ve "bu sınav neden burada?"
+GET {{host}}/schedules/{{scheduleId}}/load
+Authorization: Bearer {{secretary}}
+
+###
+GET {{host}}/schedules/{{scheduleId}}/exams/{{examId}}/why
+Authorization: Bearer {{secretary}}
+
 ### Faz 22 B2: önizleme — gözetmen çıkarılırsa ne olur? (işlem koşar, geri alınır; veri değişmez)
 POST {{host}}/schedules/{{scheduleId}}/invigilators/3/remove?dry_run=true
 Authorization: Bearer {{secretary}}

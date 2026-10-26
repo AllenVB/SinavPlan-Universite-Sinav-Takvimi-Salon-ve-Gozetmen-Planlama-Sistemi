@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -645,5 +646,95 @@ func (s *Server) proofs(w http.ResponseWriter, r *http.Request) error {
 	}
 	out.Items = append(out.Items, ap...)
 	WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+// --- Yoğunluk haritası ve "neden burada?" (Faz 22 B3) ----------------------------------------
+
+// scheduleLoad: GET /schedules/{id}/load — gün × oturum ısı haritası ve günlük yoğunluk (SQL ile, çözücüden
+// bağımsız). Toplamlar çözücü metrikleriyle karşılaştırılır (`totals_match`).
+func (s *Server) scheduleLoad(w http.ResponseWriter, r *http.Request) error {
+	sid, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	sc, err := s.visibleSchedule(r, sid)
+	if err != nil {
+		return err
+	}
+	cells, days, err := store.ScheduleLoad(r.Context(), s.pool, sid)
+	if err != nil {
+		return err
+	}
+	two, cons := 0, 0
+	for _, d := range days {
+		two += d.TwoExams
+		cons += d.Consecutive
+	}
+	out := map[string]any{"schedule_id": sid, "cells": cells, "days": days,
+		"totals": map[string]int{"student_days_with_two_exams": two, "consecutive_day_pairs": cons}}
+	var m struct {
+		Scheduling struct {
+			Two  int `json:"student_days_with_two_exams"`
+			Cons int `json:"consecutive_day_pairs"`
+		} `json:"scheduling"`
+	}
+	if json.Unmarshal(sc.Metrics, &m) == nil {
+		out["metrics"] = map[string]int{"student_days_with_two_exams": m.Scheduling.Two, "consecutive_day_pairs": m.Scheduling.Cons}
+		out["totals_match"] = m.Scheduling.Two == two && m.Scheduling.Cons == cons
+	}
+	WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+// examWhy: GET /schedules/{id}/exams/{examId}/why — sınavın her oturumdaki durumu: şu anki yeri, hangi
+// sınavlarla kaç ortak öğrenci yüzünden çakıştığı, günlük sınır, kapasite, uygunsa ceza farkı.
+func (s *Server) examWhy(w http.ResponseWriter, r *http.Request) error {
+	sid, err := pathInt64(r, "id")
+	if err != nil {
+		return err
+	}
+	examID, err := pathInt64(r, "examId")
+	if err != nil {
+		return err
+	}
+	sc, err := s.visibleSchedule(r, sid)
+	if err != nil {
+		return err
+	}
+	base, err := store.ScheduleAssignment(r.Context(), s.pool, sid)
+	if err != nil {
+		return err
+	}
+	if _, ok := base[examID]; !ok {
+		return NotFound("sınav bu çizelgede yok")
+	}
+	ds, err := store.LoadDataset(r.Context(), s.pool, sc.PeriodID, sc.Seed)
+	if err != nil {
+		return storeError(err)
+	}
+	opts, err := planning.WhyHere(ds, sc.Seed, base, examID)
+	if err != nil {
+		return err
+	}
+	code := map[int64]string{}
+	course := map[int64]simdata.Course{}
+	for _, c := range ds.Courses {
+		course[c.ID] = c
+	}
+	for _, e := range ds.Exams {
+		code[e.ID] = course[e.CourseID].Code
+	}
+	count := map[string]int{}
+	var best *planning.WhyOption
+	for i := range opts {
+		o := &opts[i]
+		count[o.Status]++
+		if o.Status == "ok" && (best == nil || o.Delta < best.Delta) {
+			best = o
+		}
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"exam_id": examID, "course_code": code[examID], "options": opts,
+		"codes": code, "counts": count, "best_alternative": best})
 	return nil
 }

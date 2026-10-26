@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (30 satır = 31 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (31 satır = 32 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -134,6 +134,14 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 ## İlk 5 dakika: rehberli tur (Faz 22)
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 9 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını, mazeret masasını ve kuralların canlı doğrulandığı Kanıtlar sayfasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
+
+## Yoğunluk haritası ve "Bu sınav neden burada?" (Faz 22 B3)
+
+Takvim sekmesinde:
+- **Yoğunluk haritası:** gün × oturum ızgarasında her hücrede o oturumdaki sınav sayısı yazar, renk öğrenci yoğunluğunu gösterir. Altında gün başına "aynı gün 2 sınav" ve "ardışık gün" satırları var. Toplamlar SQL ile ayrıca hesaplanır ve çözücünün kendi metrikleriyle karşılaştırılır; rozet bunu gösterir: **SQL toplamı = çözücü metriği**.
+- **Neden burada?** (her sınav satırında): sınavın 45 oturumun her birindeki durumu bir ızgarada gösterilir. ● şu anki oturum, **✕** çakışmadır (hücreye tıklayınca hangi sınavla kaç ortak öğrenci olduğu çıkar), **3** günlük sınırdır (bazı öğrenciler günde 3. sınava girerdi), **+N** uygun bir oturumdur ve N, taşınırsa toplam rahatsızlıktaki farktır. Üstteki cümle sonucu özetler; örneğin "uygunların en iyisi bile +24 artırır: şu anki oturum uygunlar arasında en iyisi". Böylece çözücünün kararı kara kutu olmaktan çıkar.
+
+Açıklama, çözücünün kullandığı yapılarla üretilir: çatışma grafının kenar ağırlıkları, öğrenci-gün sayaçları ve artımlı ceza (`scheduling.ExplainSlots`). Testte her "uygun" oturum bağımsız doğrulayıcıda 0 ihlal ve birebir ceza farkı verir; her "uygun değil" oturumda doğrulayıcı da ihlal bulur. `make verify` B3-1 aynı şeyi API takviminden bağımsız hesapla doğrular.
 
 ## Dikkat gerektirenler (Faz 22 C2)
 
@@ -258,7 +266,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 30 satır (31 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 31 satır (32 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

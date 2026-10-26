@@ -20,10 +20,10 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   { // X-2/X-4/X-5: takvim ekranı
     const p = await login('sekreter@sinavplan.test'); await p.goto(BASE + '/#/takvim'); await p.waitForSelector('text=Sınav oturumları');
     // Faz 16: ders listesi süzgeçleri (fakülte → bölüm → sınıf) tabloyu daraltır
-    await p.waitForSelector('tbody tr'); const total = await p.$$eval('tbody tr', (e) => e.length);
+    await p.waitForSelector('[data-testid=exam-table] tbody tr'); const total = await p.$$eval('[data-testid=exam-table] > tbody > tr', (e) => e.length);
     await p.selectOption('select[aria-label=Fakülte]', { label: 'Sağlık Bilimleri Fakültesi' }); await p.selectOption('select[aria-label=Bölüm]', { label: 'Hemşirelik' }); await p.selectOption('select[aria-label=Sınıf]', { label: '4. sınıf' });
-    await p.waitForTimeout(300); const rows = await p.$$eval('tbody tr', (e) => e.length); ok(rows === 5 && rows < total, `F16: süzgeç tabloyu daralttı (${total} → ${rows})`);
-    ok((await p.textContent('tbody')).includes('Hemşirelik'), 'F16: bölüm sütunu görünüyor'); await p.click('button:has-text("Süzgeci temizle")');
+    await p.waitForTimeout(300); const rows = await p.$$eval('[data-testid=exam-table] > tbody > tr', (e) => e.length); ok(rows === 5 && rows < total, `F16: süzgeç tabloyu daralttı (${total} → ${rows})`);
+    ok((await p.textContent('[data-testid=exam-table] tbody')).includes('Hemşirelik'), 'F16: bölüm sütunu görünüyor'); await p.click('button:has-text("Süzgeci temizle")');
     for (const [label, ext] of [['Excel', '.xlsx'], ['CSV', '.csv'], ['iCal', '.ics']]) { const [d] = await Promise.all([p.waitForEvent('download'), p.click(`button:has-text("${label}")`)]); ok(d.suggestedFilename().endsWith(ext), `X-2/3: ${label} indirildi (${d.suggestedFilename()})`); }
     await p.click('.tabs button:has-text("Prova")'); // Faz 20.3: Takvim / Üret / Prova / Karşılaştır sekmeleri
     await p.click('button:has-text("Provayı çalıştır")'); await p.waitForSelector('text=Sert ihlal yok', { timeout: 30000 }); ok(true, 'X-4: tüm kapsamda prova sonucu (sert ihlal yok)');

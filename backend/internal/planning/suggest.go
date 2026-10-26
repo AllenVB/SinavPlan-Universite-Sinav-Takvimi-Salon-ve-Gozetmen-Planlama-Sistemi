@@ -96,3 +96,48 @@ func SuggestFixes(ds *simdata.Dataset, seed int64, slotIDs map[int64]int64, stud
 	}
 	return out, nil
 }
+
+// WhyOption, "bu sınav neden burada?" yanıtının bir slotu (slot kimliği ve saatiyle).
+type WhyOption struct {
+	SlotID   int64     `json:"slot_id"`
+	StartsAt time.Time `json:"starts_at"`
+	Day      int       `json:"day"`
+	Session  int       `json:"session"`
+	Status   string    `json:"status"` // current | ok | conflict | daily_limit | capacity
+	scheduling.SlotOption
+}
+
+// WhyHere, kayıtlı çizelgede bir sınavın tüm slotlardaki durumunu döner (domain ExplainSlots + slot bilgisi).
+func WhyHere(ds *simdata.Dataset, seed int64, slotIDs map[int64]int64, examID int64) ([]WhyOption, error) {
+	in := SchedulingInput(ds, seed)
+	idx := SlotIndex(ds)
+	assign := make(map[int64]int, len(slotIDs))
+	for e, sl := range slotIDs {
+		assign[e] = idx[sl]
+	}
+	opts, err := scheduling.ExplainSlots(in, assign, examID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WhyOption, len(opts))
+	for i, o := range opts {
+		s := ds.Slots[o.Slot]
+		w := WhyOption{SlotID: s.ID, StartsAt: s.StartsAt, Day: s.Day, Session: s.Session, SlotOption: o}
+		switch {
+		case o.Current:
+			w.Status = "current"
+		case len(o.Conflicts) > 0:
+			w.Status = "conflict"
+		case o.DailyLimit > 0:
+			w.Status = "daily_limit"
+		case o.OverCapacity:
+			w.Status = "capacity"
+		case o.Feasible:
+			w.Status = "ok"
+		default:
+			w.Status = "daily_limit"
+		}
+		out[i] = w
+	}
+	return out, nil
+}

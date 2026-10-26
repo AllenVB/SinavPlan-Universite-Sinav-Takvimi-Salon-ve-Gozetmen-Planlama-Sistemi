@@ -301,3 +301,19 @@ tr.tone-info td { background: #f2f5ff; }
 .alertlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .alertlist li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+/* Yoğunluk haritası ve "neden burada?" (Faz 22 B3) */
+table.heat { border-collapse: separate; border-spacing: 3px; width: auto; }
+table.heat th, table.heat td { padding: 0; text-align: center; font-size: .75rem; border: 0; }
+table.heat td { min-width: 30px; height: 28px; border-radius: 5px; background: var(--low); font-weight: 600; color: #111; } /* koyu metin: opaklık ≤ %55 ile her yoğunlukta AA kontrast */
+table.heat th[scope=row] { text-align: right; padding-right: 6px; white-space: nowrap; color: var(--on-var); font-weight: 600; }
+.whypanel { background: var(--low); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+table.why td { background: #fff; }
+.cellbtn { width: 100%; height: 28px; border: 0; background: transparent; font: inherit; font-weight: 700; cursor: pointer; border-radius: 5px; color: inherit; }
+.cellbtn[aria-pressed=true] { outline: 2px solid var(--primary); outline-offset: 1px; }
+.w-cur { background: var(--primary) !important; color: #fff; }
+.w-ok { background: #d6f5e6 !important; color: #08734a; }
+.w-bad { background: #fde2e1 !important; color: #a3261f; }
+.w-lim { background: #fff1cc !important; color: #8a5a00; }
+.w-cap { background: #e8e8f0 !important; color: #454654; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }

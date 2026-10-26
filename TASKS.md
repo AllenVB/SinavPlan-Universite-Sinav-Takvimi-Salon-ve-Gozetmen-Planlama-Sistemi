@@ -255,6 +255,7 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 | Özellik | Durum |
 |---|---|
 | A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
+| B3 Isı haritası + neden burada? | **tamam** — `ExplainSlots` (doğrulayıcıyla tutarlılık testi), `/load` (SQL toplamı = çözücü metriği), `/why`; verify B3-1; `why.cjs` 6/6 (axe 0) |
 | C2 Dikkat gerektirenler | **tamam** — 7 kural (saf fonksiyon + birim test), verify C2-1, `alerts.cjs` 2/2; "%95+ dolu" gürültü olduğu için kapasite aşımı alarmıyla değiştirildi, bitmiş oturum işaretsizleri tek özet |
 | B2 "Ya olursa?" önizlemesi | **tamam** — `?dry_run=true` aynı işlemi koşup geri alır (gözetmen çıkarma + tahliye); verify B2-1; HTTP testi (veri özeti aynı, gerçek uygulama = önizleme); `preview.cjs` 8/8; `confirm()` diyalogları kaldırıldı |
 | A2 Kanıtlar sayfası | **tamam** — 12 bağımsız SQL denetimi + bozulmuş sanal plan, T-5 canlı yazma reddi; verify A2-1; `proofs.cjs` 7/7. Bulunan hata: F-3 sonrası eski istatistikle >60 sn → `SET LOCAL enable_nestloop=off` + seed sonunda `ANALYZE` (1,96 sn) |
