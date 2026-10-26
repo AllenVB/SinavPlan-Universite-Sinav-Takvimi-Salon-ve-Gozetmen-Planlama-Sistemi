@@ -339,3 +339,8 @@ table.why td { background: #fff; }
 .seat.picked { outline: 3px solid var(--tertiary, #b45309); outline-offset: 1px; }
 .seat[role=button] { cursor: pointer; }
 .markbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--low); }
+
+/* Giriş ekranı: tek tıkla doldurulan demo hesapları */
+.demoaccts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.demoacct { display: grid; gap: 2px; text-align: left; justify-items: start; padding: 8px 10px; height: auto; white-space: normal; }
+.demoacct.on { border-color: var(--primary); background: var(--low); }

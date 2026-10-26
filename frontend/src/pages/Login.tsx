@@ -3,12 +3,13 @@ import { fetchHealth } from '../api'
 import { useAuth } from '../auth'
 import { ErrorBox, Field, Pill, useAction, useAsync } from '../ui'
 
+// Demo hesapları: rol, e-posta ve o rolün sistemde ne yaptığı (giriş ekranında tek tıkla doldurulur)
 const DEMO = [
-  ['Bölüm sekreteri', 'seed.mercan@ddo-case.invalid'],
-  ['Öğretim üyesi', 'hoca@sinavplan.test'],
-  ['Gözetmen', 'gozetmen@sinavplan.test'],
-  ['Öğrenci işleri', 'ogrenciisleri@sinavplan.test'],
-  ['Öğrenci', 'ogrenci@sinavplan.test'],
+  ['Bölüm sekreteri', 'seed.mercan@ddo-case.invalid', 'Takvim üretir/yayınlar, salon ve gözetmen planını yönetir'],
+  ['Öğretim üyesi', 'hoca@sinavplan.test', 'Kendi derslerinin takvimini ve oturma planını görür'],
+  ['Gözetmen', 'gozetmen@sinavplan.test', 'Görevlerini görür, QR/6 haneli kodla yoklama alır'],
+  ['Öğrenci işleri', 'ogrenciisleri@sinavplan.test', 'Mazeretleri karara bağlar, sınav gününü izler'],
+  ['Öğrenci', 'ogrenci@sinavplan.test', 'Sınav programı, sınav kartı ve kodla yoklama (demo kodu 111111)'],
 ]
 
 export function Login() {
@@ -52,11 +53,13 @@ export function Login() {
             {act.busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
           </button>
           <div>
-            <div className="caps" style={{ marginBottom: 6 }}>Demo hesapları (parola: Demo!1234)</div>
-            <div className="row">
-              {DEMO.map(([n, m]) => (
-                <button type="button" key={m} className="btn sm" onClick={() => (setEmail(m), setPassword('Demo!1234'))}>
-                  {n}
+            <div className="caps" style={{ marginBottom: 4 }}>Demo hesapları — parola: Demo!1234</div>
+            <p className="small muted" style={{ margin: '0 0 8px' }}>Bir role tıklayın: <b>e-posta ve parola otomatik dolar</b>, sonra <b>Giriş yap</b>'a basın. Her rol yalnızca kendi ekranlarını görür; içerdeyken üst çubuktaki <b>Tur</b> sistemi adım adım tanıtır.</p>
+            <div className="demoaccts">
+              {DEMO.map(([n, m, d]) => (
+                <button type="button" key={m} className={`btn sm demoacct ${email === m ? 'on' : ''}`} aria-pressed={email === m} onClick={() => (setEmail(m), setPassword('Demo!1234'))} title={`${m} ile doldur`}>
+                  <b>{n}</b>
+                  <span className="small muted">{d}</span>
                 </button>
               ))}
             </div>

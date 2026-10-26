@@ -168,10 +168,23 @@ export function Calendar({ initialTab }: { initialTab?: Tab }) {
   )
 }
 
+/** Her sekmenin ne işe yaradığı ve önerilen sıra (sekreter için kısa rehber). */
+const TAB_HELP: Record<Tab, [string, string]> = {
+  takvim: ['Takvim', 'Seçili sürümün sınavlarını gün/oturum/salon olarak gösterir; fakülte → bölüm → sınıf ve gün/saat süzgeçleriyle daraltın, bir sınavda "Neden burada?" ile yerinin gerekçesini görün. Taslak sürümü buradan yayınlarsınız; yayınlanınca öğrenciler ve gözetmenler görür.'],
+  uret: ['Üret', 'Yeni bir takvim sürümü (taslak) oluşturur: sınavlar çakışmasız oturumlara, öğrenciler salon ve koltuklara, gözetmenler görevlere otomatik dağıtılır. Yayındaki takvim değişmez. "Gelişmiş ayarlar"da varyasyon no (farklı ama kurallara uyan başka çözüm), hesaplama kalitesi ve büyük sınavları öne alma seçilir.'],
+  prova: ['Prova', 'Kaydetmeden dener: tüm dönem ya da seçtiğiniz fakülte/bölüm/sınıf için takvimi hesaplar ve yayındakiyle karşılaştırır. Bir ayarı denemeden önce sonucunu görmek için kullanın; hiçbir şey yazılmaz.'],
+  karsilastir: ['Karşılaştır', 'İki sürümü yan yana koyar: rahatsızlık puanı (aynı gün 2 sınav, ardışık gün), kullanılan salon, yer değiştiren sınavlar. Hangi taslağı yayınlayacağınıza burada karar verin.'],
+  duzenle: ['Düzenle', 'Sınavı sürükleyip başka bir oturuma bırakın. Kural bozulursa (ortak öğrenci aynı oturumda, günde 3. sınav, kapasite) taşıma reddedilir; uygunsa yeni bir taslak sürüm oluşur, yayındaki değişmez.'],
+}
+
 function CalTabs({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const [title, text] = TAB_HELP[tab]
   return (
     <div className="noprint" style={{ margin: '4px 0 12px' }}>
       <Tabs value={tab} onChange={setTab} items={[['takvim', 'Takvim'], ['uret', 'Üret'], ['prova', 'Prova'], ['karsilastir', 'Karşılaştır'], ['duzenle', 'Düzenle']]} />
+      <div className="alert" role="note" style={{ marginTop: 8 }} data-testid="tab-help">
+        <div className="small"><b>{title}:</b> {text} <span className="muted">Önerilen sıra: Prova → Üret → Karşılaştır → (gerekirse Düzenle) → Takvim'de yayınla.</span></div>
+      </div>
     </div>
   )
 }
