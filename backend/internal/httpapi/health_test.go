@@ -231,7 +231,7 @@ func TestBuildHeaderOnEveryResponseAndExtraHealthEndpoint(t *testing.T) {
 	} {
 		rec := httptest.NewRecorder()
 		s.ServeHTTP(rec, httptest.NewRequest(c.method, c.path, nil))
-		if got := rec.Header()["X-DDO-Build"]; len(got) != 1 || got[0] != "1e5afd" { // tam bu yazımla (harita anahtarı)
+		if got := rec.Header()["X-DDO-Build"]; len(got) != 1 || got[0] != "1e5afd" { //nolint:staticcheck // SA1008: başlığın tel üzerindeki yazımı (harita anahtarı) bilerek denetlenir
 			t.Errorf("%s %s: X-DDO-Build=%q, [1e5afd] bekleniyordu (HTTP %d)", c.method, c.path, got, rec.Code)
 		}
 		if c.want != 0 && rec.Code != c.want {
