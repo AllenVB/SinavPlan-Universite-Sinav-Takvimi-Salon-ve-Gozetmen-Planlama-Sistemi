@@ -426,3 +426,99 @@ Authorization: Bearer {{secretary}}
 ### İki sürümü karşılaştır
 GET {{host}}/schedules/compare?a=1&b=2
 Authorization: Bearer {{secretary}}
+
+############################################################ EK UÇLAR (Faz 16–23)
+### Ek sağlık ucu (her zaman 200) ve Swagger UI
+GET {{host}}/_hz/1e5a
+
+###
+GET {{host}}/docs
+
+###
+GET {{host}}/faculties
+Authorization: Bearer {{secretary}}
+
+### Canlı izleme (oturum özeti ve olay akışı)
+GET {{host}}/schedules/{{scheduleId}}/live
+Authorization: Bearer {{secretary}}
+
+###
+GET {{host}}/schedules/{{scheduleId}}/live/events?limit=20
+Authorization: Bearer {{secretary}}
+
+### Öğrenci: sınav salonu krokisi (examId: /me/exams çıktısından)
+GET {{host}}/me/exams/1/seatmap
+Authorization: Bearer {{student}}
+
+### Gözetmen: yoklama oturumu aç (slot_id/room_id: /me/duties çıktısından; sınavdan 30 dk önce – bitişten 15 dk sonra)
+# @name checkinSession
+POST {{host}}/checkin-sessions
+Authorization: Bearer {{invigilator}}
+Content-Type: {{json}}
+
+{"slot_id": 1, "room_id": 1}
+
+###
+GET {{host}}/checkin-sessions/{{checkinSession.response.body.id}}
+Authorization: Bearer {{invigilator}}
+
+### Yeni 6 haneli kod üret
+POST {{host}}/checkin-sessions/{{checkinSession.response.body.id}}/code
+Authorization: Bearer {{invigilator}}
+
+###
+POST {{host}}/checkin-sessions/{{checkinSession.response.body.id}}/close
+Authorization: Bearer {{invigilator}}
+
+### Demo yoklama kodu (DEMO_CHECKIN_CODE açıksa "111111")
+GET {{host}}/demo/checkin-code
+
+### Öğrenci: kodla yoklamaya katıl (demo kodu ya da gözetmenin kodu)
+POST {{host}}/me/checkin
+Authorization: Bearer {{student}}
+Content-Type: {{json}}
+
+{"code": "111111"}
+
+### Bildirim kutusu (her rol)
+GET {{host}}/me/notifications
+Authorization: Bearer {{student}}
+
+###
+POST {{host}}/me/notifications/1/read
+Authorization: Bearer {{student}}
+
+###
+POST {{host}}/me/notifications/read-all
+Authorization: Bearer {{student}}
+
+### Salonu bir oturumda kapat / listele / kaldır (sekreter)
+# @name roomBlock
+POST {{host}}/room-blocks
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"room_id": 1, "slot_id": 1, "reason": "Bakım"}
+
+###
+GET {{host}}/room-blocks
+Authorization: Bearer {{secretary}}
+
+###
+DELETE {{host}}/room-blocks/{{roomBlock.response.body.id}}
+Authorization: Bearer {{secretary}}
+
+### Elle gözetmen ataması — önce önizleme (dry_run), sonra uygula (slot/room/user: /schedules/{id}/invigilators çıktısından)
+POST {{host}}/schedules/{{scheduleId}}/invigilators/assign?dry_run=true
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+
+{"slot_id": 1, "room_id": 1, "user_id": 3}
+
+###
+POST {{host}}/schedules/{{scheduleId}}/invigilators/assign
+Authorization: Bearer {{secretary}}
+Content-Type: {{json}}
+Idempotency-Key: manual-assign-1
+
+{"slot_id": 1, "room_id": 1, "user_id": 3}
