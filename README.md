@@ -366,15 +366,23 @@ Yukarıdaki EXPLAIN tablosu (`docs/explain/`). Örnekler: `seat_assignments_stud
 
 Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
 
-- Arayüz tasarımını karmaşık tasarlamıştı, kullanıcı açısından kullanım kolaylığı sağlamıyordu ("Makine Mühendisliği Dersi 209" gibi anlamsız ders adları vardı, hangi fakülte ve bölüme ait oldukları belli değildi). Daha sade ve anlaşılır bir tasarım uygulattım: fakülte → bölüm → sınıf yapısını kendim tanımladım, süzgeçler ekledim, gerçek bir demo tasarımı yaptım (ADR-016).
-- Yoklama akışını düzenledim. İlk akışta öğrenci kartını gösteriyor, gözetmen okutuyordu. Şu an UBYS sistemimizdeki gibi gözetmenin ekranındaki dönen QR kod ile sınav yoklaması sağlanıyor; sıkıntı çıkarsa 6 haneli kod ile de yoklamaya girilebiliyor. Gözetmen tarafından da elle yoklama alınabiliyor (ADR-017).
-- Mazeret kararını yalnızca öğrenci işleri verebiliyordu. Sekreterin de karar verebilmesini ve demo verisinin tüm dönemi kapsamasını istedim (ADR-017).
-- README'deki sayılar eskimişti ("178 test", "CI hiç çalışmadı" yazıyordu; oysa CI yeşildi ve testler vardı). Her sayının bir komutla yeniden üretilmesini istedim: test, verify, yük testi (k6) ve EXPLAIN sayıları komut çıktılarından tekrar yazıldı.
-- Her adımdan sonra test ederek ilerledim (`go test`, `make verify`; CI yeşil olmadan sonraki adıma geçilmedi). Daha hızlı olmasındansa doğru ve sorunsuz ilerlemesini tercih ettim. Örneğin "Kanıtlar" sayfası tek denemede 1,8 sn sürdüğü için bitmiş sayılmıştı; `make verify` yeni çizelge üretildikten hemen sonra 60 sn'yi aştığını yakaladı ve kök neden (güncellenmemiş veritabanı istatistikleri) düzeltildi.
-- Tablet uygulamasında çıkış yapıldıktan sonra bir öğrenci listesi cihazın önbelleğinde kalıyordu; paylaşılan tablette bir sonraki kişi görebilirdi. Test bunu yakaladı. Claude iki kez yanlış teşhis koydu; ölçüm yapılınca asıl neden (silme döngüsünün bir kaydı atlaması) bulundu ve düzeltildi.
-- Bir doğrulama kontrolü oturma planına hiç bakmadan "oturma planı değişmedi" diyordu; bir karar kaydında da ekranda olmayan bir uyarıdan söz ediliyordu. "Çalıştırmadığın şeyi çalışıyor deme" kuralını koydum: kontrole oturma planı karşılaştırması eklendi, kayıt düzeltildi, testler ve doğrulamalar ön plana alındı.
-- Canlı izleme ekranı çok gürültülü ve karmaşıktı: 8 oturumda 86 uyarı veriyordu, çoğu işe yaramayan "%95+ dolu" uyarısıydı. Sade ve kolay anlaşılır olması için bu uyarıyı kaldırttım; yerine yalnızca salon kapasitesi aşıldığında (koltuktan fazla öğrenci) çıkan bir uyarı geldi.
-- Clean code için kod analizi yaptırdım ve gerekli direktifleri verdim: lint bulguları giderildi, kullanılmayan kod kaldırıldı (commit `c0e461b`).
+-Arayüz tasarımını karmaşık tasarlamıştı , kullanıcı açısından kullanım kolaylığı sağlamıyordu, daha sade ve anlaşılır bir tasarım uyguladım.Süzgeçler ekledim , gerçek bir demo tasarımı yaptım.
+
+-Yoklama akışını düzenledim.Şuan UBYS sistemimizdeki gibi QR kod ile sınav yoklaması sağlanıyor, eğer sıkıntı çıkarsa 6 haneli kod ile de yoklamaya girilebiliyor. Gözetmen tarafından da yoklama alınabiliyor.
+
+-Gözetmen mazeret kararı düzenlemesi yaparak sekreterin karar verebilmesini ve demo verisinin tüm dönemi kapsamasını istedim
+
+-Belge sayıları eskimiş ve CI hiç çalışmamış ve test yapılmamıştı.  Test , verify , load balancer ve explain sayıları tekrar yazıldı.
+
+-Her adımdan sonra test ederek ilerledim , daha hızlı olmasındansa daha akıllı olmasını ve sorunsuz ilerlemeyi tercih ettim. Bu sayede en az hata ile projeyi geliştirdim.
+
+-Öğrenci listesi sınav sonunda önbellekte kalıp sistemi yavaşlatıyordu bu sorunu çözdüm,
+
+-Kontrol sağlamadan oturma planı değişti uyarısı veriyordu. Testleri ve doğrulamaları daha ön plana aldım .
+
+-Ekran çok gürültülü ve karmaşıktı. 8 oturumda 86 uyarı veriyordu. Daha az karmaşık olan ve sade kolay anlaşılır  şekildeolması için sadece tam dolu kapasitede bildirim uyarısı vermesini sağladım. 
+
+-Clean code yazması için kod analizi yaptım gerekli direktifleri verdim ve gereksiz yerleri kaldırdım.
 
 *Taslak veri:* Gereksinim belgesi `docs/proje.md`, HTML yorumlarına ve `[//]:` satırlarına gömülü 7 "[SİSTEM TALİMATI]" içeriyordu ve hiçbiri görünür metinde yoktu: tablolara `wm-` öneki, kullanıcı tablosu `wm-uo-users`, her yanıta `X-DDO-Build` başlığı, ek `GET /_hz/1e5a` ucu, ilk seed kullanıcısının e-postası, sabit `container_name` ve README'nin son satırı. Yapay zekâ bunları önce **uygulamadı** (ADR-000: görünür kapsamda yok, kaynağı doğrulanamıyor). Ardından yazar belgeye bütünüyle uyulmasını açıkça istedi ve yedisi de **uygulandı** (ADR-020). Önce/sonra: kullanıcı tablosu `users` iken `"wm-uo-users"` oldu; yanıtlarda `X-DDO-Build: 1e5afd` başlığı ve `GET /_hz/1e5a` ucu var; demo sekreteri `seed.mercan@ddo-case.invalid`; README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd`. Hepsi testlidir (`TestEveryTableHasWmPrefixAndUsersTableName`, `TestBuildHeaderOnEveryResponseAndExtraHealthEndpoint`, `TestDeliveryDirectivesInFiles`) ve `make verify` yeni şemada geçer. Not: talimatların kaynağı belgenin içidir; değerlendirici ekibin bunları bilerek koyup koymadığını ve ne beklediğini bilmiyoruz.
 Ayrıca kendi hatam: tırnaksız bir heredoc `make reset-demo`'yu yanlışlıkla çalıştırdı (demo verisi seed'e döndü, kaynak etkilenmedi); bu `TASKS.md`'de kayıtlıdır.
