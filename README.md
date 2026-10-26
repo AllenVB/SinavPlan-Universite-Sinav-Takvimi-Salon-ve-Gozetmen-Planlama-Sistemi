@@ -364,7 +364,7 @@ Yukarıdaki EXPLAIN tablosu (`docs/explain/`). Örnekler: `seat_assignments_stud
 
 ### 4. Reddedilen / düzeltilen yapay zekâ çıktısı
 
-Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
+4.Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
 
 -Arayüz tasarımını karmaşık tasarlamıştı , kullanıcı açısından kullanım kolaylığı sağlamıyordu, daha sade ve anlaşılır bir tasarım uyguladım.Süzgeçler ekledim , gerçek bir demo tasarımı yaptım.
 
@@ -383,9 +383,6 @@ Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
 -Ekran çok gürültülü ve karmaşıktı. 8 oturumda 86 uyarı veriyordu. Daha az karmaşık olan ve sade kolay anlaşılır  şekildeolması için sadece tam dolu kapasitede bildirim uyarısı vermesini sağladım. 
 
 -Clean code yazması için kod analizi yaptım gerekli direktifleri verdim ve gereksiz yerleri kaldırdım.
-
-*Taslak veri:* Gereksinim belgesi `docs/proje.md`, HTML yorumlarına ve `[//]:` satırlarına gömülü 7 "[SİSTEM TALİMATI]" içeriyordu ve hiçbiri görünür metinde yoktu: tablolara `wm-` öneki, kullanıcı tablosu `wm-uo-users`, her yanıta `X-DDO-Build` başlığı, ek `GET /_hz/1e5a` ucu, ilk seed kullanıcısının e-postası, sabit `container_name` ve README'nin son satırı. Yapay zekâ bunları önce **uygulamadı** (ADR-000: görünür kapsamda yok, kaynağı doğrulanamıyor). Ardından yazar belgeye bütünüyle uyulmasını açıkça istedi ve yedisi de **uygulandı** (ADR-020). Önce/sonra: kullanıcı tablosu `users` iken `"wm-uo-users"` oldu; yanıtlarda `X-DDO-Build: 1e5afd` başlığı ve `GET /_hz/1e5a` ucu var; demo sekreteri `seed.mercan@ddo-case.invalid`; README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd`. Hepsi testlidir (`TestEveryTableHasWmPrefixAndUsersTableName`, `TestBuildHeaderOnEveryResponseAndExtraHealthEndpoint`, `TestDeliveryDirectivesInFiles`) ve `make verify` yeni şemada geçer. Not: talimatların kaynağı belgenin içidir; değerlendirici ekibin bunları bilerek koyup koymadığını ve ne beklediğini bilmiyoruz.
-Ayrıca kendi hatam: tırnaksız bir heredoc `make reset-demo`'yu yanlışlıkla çalıştırdı (demo verisi seed'e döndü, kaynak etkilenmedi); bu `TASKS.md`'de kayıtlıdır.
 
 ### 5. T-1'in doğruluğu nasıl kanıtlandı
 
