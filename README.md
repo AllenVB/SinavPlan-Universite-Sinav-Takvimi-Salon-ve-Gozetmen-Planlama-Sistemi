@@ -87,20 +87,52 @@ flowchart LR
 | 017 | öğrenci kendi hesabıyla QR/kodla yoklama; tüm dönem için demo çizelgesi |
 | 020 | `docs/proje.md` yönergeleri (`wm-` tablo öneki, `X-DDO-Build` vb.) — bkz. Soru 4 |
 
-Ayrıntılı ADR tablosu, fazlara göre özellikler, ekran görüntüleri ve tüm ölçümler: **[docs/DETAYLAR.md](docs/DETAYLAR.md)**.
+Fazlara göre özellik anlatımları ve tam ADR tablosu: **[docs/DETAYLAR.md](docs/DETAYLAR.md)**.
 
 **Teknoloji:** Go 1.24 (chi, pgx/v5, sqlc, goose) · PostgreSQL 16 · React + Vite + TypeScript · Docker Compose.
 **Frontend seçimi:** React + Vite + TS — tip güvenli API istemcisi ve bileşen bazlı ekranlar için; statik çıktı nginx ile servis edilir (tek ek bağımlılık yok).
 Arayüz, Stitch tasarımlarının (`Stitch-Tasarımlar/`, 15 ekran) renk/tipografi sistemi ve düzenine göre 11 ekrana entegre edildi (ADR-013). Tarayıcı aynı kaynağa konuşur: nginx `/api/` isteklerini API'ye vekiller, bu yüzden CORS gerekmez.
+
+## Gereksinim karşılığı (proje.md → bu depo)
+
+| Kimlik | Ne | Nasıl denenir |
+|---|---|---|
+| F-1 | Ders/şube/öğrenci CSV içe aktarma (satır hataları satır numarasıyla) | `make verify` F-1 |
+| F-2 | Salon envanteri: kapasite, klasik/lab, oturma düzeni, salon kapısı | `make verify` F-2 |
+| F-3 | Takvim üretme (asenkron iş) ve yayınlama | `make verify` F-3 |
+| F-4 | Salon ve oturma planı; öğrencinin kartı planla aynı | `make verify` F-4 |
+| F-5 | Gözetmen atama; hasta gözetmen çıkarma (minimum değişiklik) | `make verify` F-5 |
+| F-6 | Mazeret (öğrenci/gözetmen) ve çakışma yönetimi; karar sekreter/öğrenci işlerinde | `make verify` F-6 |
+| F-7 | Sınav günü yoklama, QR sınav kartı | `make verify` F-7 |
+| T-1 | Takvim çizelgeleme (sert ihlal 0, 60 sn altı) | `make prove-t1` |
+| T-2 | Salon atama (paketleme) | `make prove-t2` |
+| T-3 | Kopya önleyici oturma düzeni | `make prove-t3` |
+| T-4 | Adil gözetmen atama | `make prove-t4` |
+| T-5 | Çevrimdışı yoklama senkronu, tek kullanımlık QR, toplu tahliye | `make prove-t5` |
+
+Her kimliğin "beklenen sonuç" tablosu, rol hesapları ve elle deneme senaryoları: [TESTING.md](TESTING.md). Elle deneme koleksiyonu: `requests.http`.
+
+**Kalite ölçütleri (proje.md §9):** 197 otomatik test (`-race`); domain kapsamı attendance %100, invigilation %97, rooms %99,3, scheduling %94,9, seating %100 (CI çıktısında görünür); GitHub Actions: build + test + lint + imaj + soğuk kurulum; OpenAPI `/docs`, Prometheus `/metrics`; k6 yük testi; [DECISIONS.md](DECISIONS.md) içinde 21 karar kaydı; kaos betiği `make chaos`; `make reset-demo` ile sıfırlama.
 
 ## Ekranlar
 
 | | |
 |---|---|
 | ![Ana panel](docs/screens/01-ana-panel.png) | ![Canlı izleme](docs/screens/02-canli-izleme.png) |
-| ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Mazeret masası](docs/screens/14-mazeret-masasi.png) |
+| ![Kapasite panosu](docs/screens/03-kapasite-panosu.png) | ![Gözetmen atama](docs/screens/04-gozetmen-atama.png) |
+| ![Sürükle-bırak editör](docs/screens/05-surukle-birak-editor.png) | ![Gözetmen tableti](docs/screens/06-gozetmen-tableti.png) |
 
-Tüm ekranlar: [docs/DETAYLAR.md](docs/DETAYLAR.md#ekranlar).
+| ![Takvim: fakülte → bölüm → sınıf süzgeci](docs/screens/08-takvim-fakulte-bolum-sinif.png) | ![Sınav provası: kapsam seçimi](docs/screens/09-sinav-provasi-kapsam.png) |
+
+Öğrenci (mobil, dinamik QR): ![Öğrenci](docs/screens/07-ogrenci-dinamik-qr.png)
+
+Faz 17–19 ekranları:
+
+| ![Salon kapısı krokisi](docs/screens/10-salon-kapisi-krokisi.png) | ![Salon düzenleyici](docs/screens/11-salon-duzenleyici.png) |
+|---|---|
+| ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Öğrenci: kod girişi](docs/screens/13-ogrenci-kod-girisi.png) |
+| ![Mazeret masası (sekreter)](docs/screens/14-mazeret-masasi.png) | ![Takvim: gün/saat/tür süzgeçleri](docs/screens/15-takvim-suzgecleri.png) |
+| ![Yazdırılabilir föyler: kapı listesi, imza föyü, görev kâğıdı](docs/screens/16-yazdirilabilir-foyler.png) | ![Tablet çevrimdışı: liste cihazdan, işaret kuyrukta](docs/screens/17-tablet-cevrimdisi.png) |
 
 ## Ölçümler
 
@@ -118,11 +150,75 @@ Tüm ekranlar: [docs/DETAYLAR.md](docs/DETAYLAR.md#ekranlar).
 | `make verify` | 31 satır (32 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 
-**Yük (k6, `make load`):** hata oranı 0.000 % · toplam 50621 istek · 1256 istek/sn · 30 okuma + 10 yazma VU, 40s Ayrıntı: [docs/load/results.md](docs/load/results.md).
+### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 
-**Kaos (`make chaos`):** PostgreSQL durdurulunca `/health` → 503, veri uçları ~20 ms içinde **503** döner (takılmaz, iç ayrıntı sızdırmaz), `/metrics` yanıt vermeye devam eder; veritabanı dönünce API süreci yeniden başlatılmadan ~1 sn içinde toparlanır. Çıktı: `KAOS: GEÇTİ`.
+| Uç / senaryo | istek | p50 (ms) | p95 (ms) | p99 (ms) |
+|---|---|---|---|---|
+| GET /schedules/{id}/exams | 8683 | 49.3 | 104.9 | 140.7 |
+| GET /me/exams | 8683 | 18.5 | 41.5 | 77.5 |
+| GET /rooms | 8683 | 19.4 | 42.4 | 60.4 |
+| GET /schedules/{id}/seating | 8683 | 34.9 | 64.8 | 87.9 |
+| POST /attendance/sync (5 olay) | 15882 | 21.3 | 48.3 | 67.2 |
+| **Tümü** | 50621 | 26.0 | 70.2 | 106.3 |
 
-**EXPLAIN (`make explain`):** dört sorguda dizinsiz/dizinli plan karşılaştırması [docs/DETAYLAR.md](docs/DETAYLAR.md#explain) ve `docs/explain/` içinde.
+Hata oranı (http_req_failed): 0.000 % · toplam 50621 istek · 1256 istek/sn · 30 okuma + 10 yazma VU, 40s
+
+Ayrıntı: [docs/load/results.md](docs/load/results.md). Bu, geliştirme ortamında (API ve PostgreSQL aynı makinede) alınmış bir ölçümdür; üretim kapasitesi iddiası değildir.
+
+### Kaos (`make chaos`)
+
+PostgreSQL durdurulunca `/health` → 503, veri uçları ~20 ms içinde **503** döner (takılmaz, iç ayrıntı sızdırmaz), `/metrics` yanıt vermeye devam eder; veritabanı dönünce API süreci yeniden başlatılmadan ~1 sn içinde toparlanır. Çıktı: `KAOS: GEÇTİ`.
+
+<a id="explain"></a>
+
+### EXPLAIN (`make explain`) — dizin transaction içinde düşürülür, ROLLBACK ile geri gelir
+
+Çizelge 6, öğrenci 94, şube 369, slot 1, gözetmen 3. Dizin transaction içinde düşürülüp ROLLBACK edilir.
+
+#### seat_by_student
+
+`SELECT * FROM "wm-seat_assignments" WHERE student_id = 94 AND schedule_id = 6`
+
+| | düğüm | süre |
+|---|---|---|
+| dizinsiz | Index Scan using seat_assignments_schedule_id_exam_id_student_id_key on "wm-seat_assignments"  | 2.104 ms |
+| dizinli (`seat_assignments_student_idx`) | Bitmap Heap Scan on "wm-seat_assignments"  | 0.420 ms |
+
+Tam plan: [seat_by_student.txt](docs/explain/seat_by_student.txt)
+
+#### enrollments_by_section
+
+`SELECT student_id FROM "wm-enrollments" WHERE section_id = 369`
+
+| | düğüm | süre |
+|---|---|---|
+| dizinsiz | Seq Scan on "wm-enrollments"  | 2.028 ms |
+| dizinli (`enrollments_section_idx`) | Bitmap Heap Scan on "wm-enrollments"  | 0.348 ms |
+
+Tam plan: [enrollments_by_section.txt](docs/explain/enrollments_by_section.txt)
+
+#### exams_in_slot
+
+`SELECT exam_id FROM "wm-schedule_exams" WHERE schedule_id = 6 AND slot_id = 1`
+
+| | düğüm | süre |
+|---|---|---|
+| dizinsiz | Index Only Scan using schedule_exams_schedule_id_exam_id_slot_id_key on "wm-schedule_exams"  | 0.128 ms |
+| dizinli (`schedule_exams_slot_idx`) | Bitmap Heap Scan on "wm-schedule_exams"  | 0.126 ms |
+
+Tam plan: [exams_in_slot.txt](docs/explain/exams_in_slot.txt)
+
+#### duties_by_user
+
+`SELECT * FROM "wm-invigilator_assignments" WHERE user_id = 3 AND schedule_id = 6`
+
+| | düğüm | süre |
+|---|---|---|
+| dizinsiz | Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on "wm-invigilator_assignments"  | 0.201 ms |
+| dizinli (`invigilator_assignments_user_idx`) | Bitmap Heap Scan on "wm-invigilator_assignments"  | 0.200 ms |
+
+Tam plan: [duties_by_user.txt](docs/explain/duties_by_user.txt)
+
 
 ## Doğrulama Soruları
 
@@ -138,7 +234,7 @@ Tüm ekranlar: [docs/DETAYLAR.md](docs/DETAYLAR.md#ekranlar).
 
 ### 3. Dizinler: dizinsiz / dizinli fark
 
-EXPLAIN tablosu ([docs/DETAYLAR.md](docs/DETAYLAR.md#explain), tam planlar `docs/explain/`). Örnekler: `seat_assignments_student_idx` (öğrencinin koltuk sorgusu) ve `enrollments_section_idx` (şube kayıtları, Seq Scan → Bitmap Heap Scan). Dürüst not: `schedule_exams_slot_idx` ölçümde fark yaratmadı — planlayıcı mevcut UNIQUE dizinini kullanıyor; bu dizin düşürülmeye aday.
+Yukarıdaki EXPLAIN tablosu (tam planlar `docs/explain/`). Örnekler: `seat_assignments_student_idx` (öğrencinin koltuk sorgusu) ve `enrollments_section_idx` (şube kayıtları, Seq Scan → Bitmap Heap Scan). Dürüst not: `schedule_exams_slot_idx` ölçümde fark yaratmadı — planlayıcı mevcut UNIQUE dizinini kullanıyor; bu dizin düşürülmeye aday.
 
 ### 4. Reddedilen / düzeltilen yapay zekâ çıktısı
 
