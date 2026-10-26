@@ -1,5 +1,6 @@
 import jsQR from 'jsqr'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cached } from '../offline'
 import { all, download, fmtDateTime, fmtTime, get, idemKey, post } from '../api'
 import { Icon } from '../icons'
 import { LiveBadge, useLive, useNow } from '../live'
@@ -32,7 +33,8 @@ function uuidv7() {
 
 export function Tablet() {
   const now = useNow()
-  const duties = useAsync(async () => (await all<Duty>('/me/duties')).sort((a, b) => a.starts_at.localeCompare(b.starts_at)))
+  // Faz 22 C3: listeler son başarılı yanıttan da açılır (ağ yokken sayfa yenilenirse) — bkz. offline.ts
+  const duties = useAsync(async () => (await cached('duties', () => all<Duty>('/me/duties'))).sort((a, b) => a.starts_at.localeCompare(b.starts_at)))
   const [duty, setDuty] = useState<Duty | null>(null)
   const [online, setOnline] = useState(navigator.onLine)
   const [queue, setQueue] = useState<Ev[]>(() => load(QKEY, []))
@@ -46,16 +48,16 @@ export function Tablet() {
     return () => { removeEventListener('online', on); removeEventListener('offline', off) }
   }, [])
 
-  const sched = useAsync(async () => ((await get('/schedules?limit=100')).items as { id: number; status: string }[]).find((s) => s.status === 'published')?.id ?? null)
-  const cal = useAsync(async () => (sched.data ? all<Cal>(`/schedules/${sched.data}/exams`) : []), [sched.data])
+  const sched = useAsync(async () => ((await cached('schedules', () => get('/schedules?limit=100'))).items as { id: number; status: string }[]).find((s) => s.status === 'published')?.id ?? null)
+  const cal = useAsync(async () => (sched.data ? cached(`cal:${sched.data}`, () => all<Cal>(`/schedules/${sched.data}/exams`)) : []), [sched.data])
   const endOf = (examId: number) => { const e = cal.data?.find((x) => x.exam_id === examId); return e ? new Date(e.ends_at).getTime() : null }
 
   const roster = useAsync(async () => {
     if (!duty || !sched.data) return null
-    return (await all<Seat>(`/schedules/${sched.data}/seating?exam_id=${duty.exam_id}&room_id=${duty.room_id}`)).sort((a, b) => a.seat_row - b.seat_row || a.seat_col - b.seat_col)
+    return (await cached(`roster:${duty.id}`, () => all<Seat>(`/schedules/${sched.data}/seating?exam_id=${duty.exam_id}&room_id=${duty.room_id}`))).sort((a, b) => a.seat_row - b.seat_row || a.seat_col - b.seat_col)
   }, [duty?.id, sched.data])
   // sunucudaki yoklama durumu (5 sn'de bir) — yerel kuyruk üstüne biner
-  const att = useLive(async () => (duty ? all<Att>(`/exams/${duty.exam_id}/attendance`) : []), [duty?.id], 5000, !!duty)
+  const att = useLive(async () => (duty ? cached(`att:${duty.exam_id}`, () => all<Att>(`/exams/${duty.exam_id}/attendance`)) : []), [duty?.id], 5000, !!duty)
 
   const local = useMemo(() => new Map(queue.filter((e) => e.exam_id === duty?.exam_id).map((e) => [e.student_id, e.status])), [queue, duty])
   const serverMap = useMemo(() => new Map((att.data ?? []).map((a) => [a.student_id, a])), [att.data])

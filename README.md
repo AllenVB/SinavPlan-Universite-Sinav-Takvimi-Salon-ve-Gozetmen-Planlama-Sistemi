@@ -135,6 +135,16 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 9 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını, mazeret masasını ve kuralların canlı doğrulandığı Kanıtlar sayfasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
 
+## Tablet uygulaması: kurulabilir ve çevrimdışı açılır (Faz 22 C3)
+
+Arayüz bir **PWA**'dır (manifest, ikonlar, service worker). Gözetmen tableti tarayıcının "Ana ekrana ekle / Yükle" seçeneğiyle uygulama gibi kurulur ve doğrudan "Yoklama ve görevlerim" ekranıyla açılır.
+- **Ağ yokken sayfa yenilense bile** uygulama açılır, giriş ekranına düşmez. Görev listesi ve salonun yoklama listesi cihazda saklanan son halden gelir. Elle işaretlenen yoklama cihazdaki kuyruğa girer ("eşitlenmedi"); ağ gelince kendiliğinden ve idempotent olarak senkronlanır (T-5).
+- **Ne önbelleğe alınır:** yalnız uygulama kabuğu (HTML/JS/CSS/ikon) ve son başarılı liste yanıtları. API isteği service worker'da **asla** önbelleğe alınmaz. Sunucu hatası (4xx/5xx) eski veriyle gizlenmez; saklanan veri yalnız ağ hatasında kullanılır.
+- **Gizlilik:** saklanan listeler kullanıcıya bağlıdır ve **çıkışta silinir**; paylaşılan tablette sonraki kişi önceki listeyi görmez. Senkronlanmamış yoklama kuyruğu ise bilerek cihazda kalır, yoksa veri kaybolurdu.
+- **Sınırlar:** oturum jetonu güvenlik için sekme belleğindedir (sessionStorage). Uygulama tamamen kapatılıp açılırsa yeniden giriş, dolayısıyla bir kez ağ gerekir. Çevrimdışıyken QR okutma çalışmaz, çünkü tek kullanımlık doğrulama sunucuda yapılır; liste üzerinden elle işaretlenir.
+
+Doğrulama, üretim derlemesinde (`vite preview`) ağ kesilerek yapılır (`deploy/ui-smoke/pwa.cjs`, 9 kontrol). Bu test bir hatayı da yakaladı: çıkışta önbellek temizlenirken tarayıcı `localStorage` anahtar sırasını değiştirdiği için bir liste atlanıyordu; anahtarlar artık önce toplanıp sonra siliniyor.
+
 ## Yoğunluk haritası ve "Bu sınav neden burada?" (Faz 22 B3)
 
 Takvim sekmesinde:
@@ -232,7 +242,7 @@ Faz 17–19 ekranları:
 |---|---|
 | ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Öğrenci: kod girişi](docs/screens/13-ogrenci-kod-girisi.png) |
 | ![Mazeret masası (sekreter)](docs/screens/14-mazeret-masasi.png) | ![Takvim: gün/saat/tür süzgeçleri](docs/screens/15-takvim-suzgecleri.png) |
-| ![Yazdırılabilir föyler: kapı listesi, imza föyü, görev kâğıdı](docs/screens/16-yazdirilabilir-foyler.png) | |
+| ![Yazdırılabilir föyler: kapı listesi, imza föyü, görev kâğıdı](docs/screens/16-yazdirilabilir-foyler.png) | ![Tablet çevrimdışı: liste cihazdan, işaret kuyrukta](docs/screens/17-tablet-cevrimdisi.png) |
 
 ## Canlı arayüz (Faz 12–15)
 

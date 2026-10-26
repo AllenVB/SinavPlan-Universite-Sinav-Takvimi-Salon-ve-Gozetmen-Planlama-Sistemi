@@ -255,6 +255,7 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 | Özellik | Durum |
 |---|---|
 | A1 Rehberli tur | **tamam** — 8 adım, rol değiştirme, `tour.cjs` 10/10 |
+| C3 Tablet PWA | **tamam** — manifest/ikon/service worker (API önbelleğe alınmaz), `offline.ts` son başarılı yanıt (yalnız ağ hatasında), çıkışta temizlik; `pwa.cjs` 9/9 üretim derlemesinde ağ kesilerek; bulunan hata: `clearCache` anahtar atlıyordu |
 | B3 Isı haritası + neden burada? | **tamam** — `ExplainSlots` (doğrulayıcıyla tutarlılık testi), `/load` (SQL toplamı = çözücü metriği), `/why`; verify B3-1; `why.cjs` 6/6 (axe 0) |
 | C2 Dikkat gerektirenler | **tamam** — 7 kural (saf fonksiyon + birim test), verify C2-1, `alerts.cjs` 2/2; "%95+ dolu" gürültü olduğu için kapasite aşımı alarmıyla değiştirildi, bitmiş oturum işaretsizleri tek özet |
 | B2 "Ya olursa?" önizlemesi | **tamam** — `?dry_run=true` aynı işlemi koşup geri alır (gözetmen çıkarma + tahliye); verify B2-1; HTTP testi (veri özeti aynı, gerçek uygulama = önizleme); `preview.cjs` 8/8; `confirm()` diyalogları kaldırıldı |
