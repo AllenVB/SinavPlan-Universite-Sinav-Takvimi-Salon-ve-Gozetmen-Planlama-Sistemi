@@ -874,3 +874,64 @@ func checkR1(ctx context.Context, e *env, f *failures) string {
 	}
 	return fmt.Sprintf("kapatma 201 (etkilenen sınav %d), yinelenen 409, öğrenci/gözetmen/öğretim üyesi 403, kaldırma 204", num(created.body, "affected_exams"))
 }
+
+// G-1 (Faz 23): elle gözetmen ataması — önizleme (dry_run) kuralı bozan adayı ihlalleriyle, uygun adayı yük farkıyla
+// döner ve hiçbir şey yazmaz; kuralı bozan atama uygulanırsa 409 invigilation_rules; gözetmen/öğrenci 403.
+func checkG1(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	sp := fmt.Sprintf("/schedules/%d", e.sched2)
+	duties, err := e.a.all(ctx, sp+"/invigilators", sec)
+	if err != nil || len(duties) == 0 {
+		f.check(false, "görev listesi alınamadı: %v", err)
+		return ""
+	}
+	d := duties[0]
+	people := map[int64]bool{}
+	for _, x := range duties {
+		people[num(x, "user_id")] = true
+	}
+	before := len(duties)
+	base := M{"slot_id": num(d, "slot_id"), "room_id": num(d, "room_id"), "replace_user_id": num(d, "user_id")}
+	var good, bad int64
+	for u := range people {
+		if u == num(d, "user_id") || (good != 0 && bad != 0) {
+			continue
+		}
+		body := M{"user_id": u}
+		for k, v := range base {
+			body[k] = v
+		}
+		r, err := e.a.post(ctx, sp+"/invigilators/assign?dry_run=true", sec, body)
+		if err != nil || r.code != 200 {
+			f.check(false, "önizleme %d: %v", r.code, err)
+			return ""
+		}
+		if boolean(r.body, "ok") && good == 0 {
+			good = u
+		} else if !boolean(r.body, "ok") && bad == 0 {
+			bad = u
+			f.check(len(arr(r.body, "violations")) > 0, "reddedilen önizlemede ihlal listesi boş")
+		}
+	}
+	f.check(good != 0 && bad != 0, "uygun ve kuralı bozan aday bulunamadı (uygun %d, bozan %d)", good, bad)
+	if bad != 0 {
+		body := M{"user_id": bad}
+		for k, v := range base {
+			body[k] = v
+		}
+		r, err := e.a.post(ctx, sp+"/invigilators/assign", sec, body, "Idempotency-Key", fmt.Sprintf("verify-g1-%d", time.Now().UnixNano()))
+		if err == nil {
+			eb, _ := r.body["error"].(map[string]any)
+			f.check(r.code == 409 && eb["code"] == "invigilation_rules", "kuralı bozan atama 409 invigilation_rules olmalı: %d %v", r.code, r.body)
+		}
+		for _, role := range []string{"invigilator", "student"} {
+			if r, err := e.a.post(ctx, sp+"/invigilators/assign?dry_run=true", e.tok[role], body); err == nil {
+				f.check(r.code == 403, "%s elle atama yapamaz: %d", role, r.code)
+			}
+		}
+	}
+	after, _ := e.a.all(ctx, sp+"/invigilators", sec)
+	f.check(len(after) == before, "önizleme/ret sonrası görev sayısı değişti: %d -> %d", before, len(after))
+	return fmt.Sprintf("görev %d (salon %d): uygun aday önizlemesi ok, kuralı bozan aday ihlalli; uygulama 409 invigilation_rules; gözetmen/öğrenci 403; veri değişmedi",
+		num(d, "id"), num(d, "room_id"))
+}

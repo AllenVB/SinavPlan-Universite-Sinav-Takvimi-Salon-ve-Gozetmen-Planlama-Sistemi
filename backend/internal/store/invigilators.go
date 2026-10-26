@@ -49,96 +49,14 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var period int64
-	if err := tx.QueryRow(ctx, `SELECT period_id FROM "wm-schedules" WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return RemoveInvigilatorResult{}, ErrNotFound
-		}
-		return RemoveInvigilatorResult{}, err
-	}
-	ds, err := LoadDataset(ctx, pool, period, 0)
+	st, err := loadInvigilation(ctx, tx, pool, scheduleID)
 	if err != nil {
 		return RemoveInvigilatorResult{}, err
 	}
-	excused, err := ExcusedSlots(ctx, pool, ds)
-	if err != nil {
-		return RemoveInvigilatorResult{}, err
-	}
-	slotIdx := map[int64]int{}
-	for i, s := range ds.Slots {
-		slotIdx[s.ID] = i
-	}
-
-	// Görevler: (slot, salon) -> öğrenci sayısı ve sınavlar.
-	in := invigilation.Input{SessionsPerDay: ds.Period.SessionsPerDay}
-	rows, err := tx.Query(ctx, `SELECT slot_id, room_id, sum(seat_count)::int, array_agg(exam_id ORDER BY exam_id)
-		FROM "wm-room_assignments" WHERE schedule_id = $1 GROUP BY slot_id, room_id ORDER BY slot_id, room_id`, scheduleID)
-	if err != nil {
-		return RemoveInvigilatorResult{}, err
-	}
-	type dutyRef struct {
-		slotID, roomID, anchor int64
-	}
-	refs := map[int64]dutyRef{}
-	for rows.Next() {
-		var slot, room int64
-		var n int
-		var exams []int64
-		if err := rows.Scan(&slot, &room, &n, &exams); err != nil {
-			rows.Close()
-			return RemoveInvigilatorResult{}, err
-		}
-		id := dutyKey(slotIdx[slot], room)
-		in.Duties = append(in.Duties, invigilation.Duty{ID: id, Slot: slotIdx[slot], RoomID: room, Students: n, Exams: exams})
-		refs[id] = dutyRef{slot, room, exams[0]}
-	}
-	rows.Close()
-
-	// Gözetmenler: invigilator rolü; kendi dersleri; onaylı mazeretleri.
-	examOfCourse := map[int64]int64{}
-	for _, e := range ds.Exams {
-		examOfCourse[e.CourseID] = e.ID
-	}
-	lecUser := map[int64]int64{}
-	for _, l := range ds.Lecturers {
-		lecUser[l.ID] = l.UserID
-	}
-	own := map[int64][]int64{}
-	for _, sec := range ds.Sections {
-		if ex, ok := examOfCourse[sec.CourseID]; ok {
-			u := lecUser[sec.LecturerID]
-			own[u] = append(own[u], ex)
-		}
-	}
-	found := false
-	for _, u := range ds.Users {
-		for _, r := range u.Roles {
-			if r == "invigilator" {
-				iv := invigilation.Invigilator{ID: u.ID, OwnExams: own[u.ID], Unavailable: excused[u.ID]}
-				sort.Slice(iv.OwnExams, func(a, b int) bool { return iv.OwnExams[a] < iv.OwnExams[b] })
-				in.Invigilators = append(in.Invigilators, iv)
-				found = found || u.ID == userID
-			}
-		}
-	}
-	if !found {
+	if !st.isInvigilator(userID) {
 		return RemoveInvigilatorResult{}, ErrNotFound
 	}
-
-	var plan invigilation.Plan
-	rows, err = tx.Query(ctx, `SELECT slot_id, room_id, user_id FROM "wm-invigilator_assignments" WHERE schedule_id = $1`, scheduleID)
-	if err != nil {
-		return RemoveInvigilatorResult{}, err
-	}
-	for rows.Next() {
-		var slot, room, u int64
-		if err := rows.Scan(&slot, &room, &u); err != nil {
-			rows.Close()
-			return RemoveInvigilatorResult{}, err
-		}
-		plan.Assignments = append(plan.Assignments, invigilation.Assignment{DutyID: dutyKey(slotIdx[slot], room), InvigilatorID: u})
-	}
-	rows.Close()
+	in, plan, refs := st.in, st.plan, st.refs
 
 	res, err := invigilation.Reassign(in, plan, userID)
 	if err != nil {
@@ -226,4 +144,113 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 		return out, nil // ertelenmiş Rollback: hiçbir şey kalıcı olmaz
 	}
 	return out, tx.Commit(ctx)
+}
+
+// dutyRef, bir görevin (slot, salon) veritabanı karşılığı; anchor = salonun ilk sınavı (atama satırının exam_id'si).
+type dutyRef struct {
+	slotID, roomID, anchor int64
+}
+
+// invState, bir çizelgenin gözetmen problemi: görevler, gözetmenler (kendi dersleri, mazeretleri) ve mevcut plan.
+type invState struct {
+	in      invigilation.Input
+	plan    invigilation.Plan
+	refs    map[int64]dutyRef
+	slotIdx map[int64]int
+}
+
+func (st *invState) isInvigilator(id int64) bool {
+	for _, v := range st.in.Invigilators {
+		if v.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// loadInvigilation, çizelge satırını kilitler (FOR UPDATE) ve gözetmen problemini işlem içinden kurar.
+func loadInvigilation(ctx context.Context, tx pgx.Tx, pool *pgxpool.Pool, scheduleID int64) (*invState, error) {
+	var period int64
+	if err := tx.QueryRow(ctx, `SELECT period_id FROM "wm-schedules" WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	ds, err := LoadDataset(ctx, pool, period, 0)
+	if err != nil {
+		return nil, err
+	}
+	excused, err := ExcusedSlots(ctx, pool, ds)
+	if err != nil {
+		return nil, err
+	}
+	slotIdx := map[int64]int{}
+	for i, s := range ds.Slots {
+		slotIdx[s.ID] = i
+	}
+
+	// Görevler: (slot, salon) -> öğrenci sayısı ve sınavlar.
+	in := invigilation.Input{SessionsPerDay: ds.Period.SessionsPerDay}
+	rows, err := tx.Query(ctx, `SELECT slot_id, room_id, sum(seat_count)::int, array_agg(exam_id ORDER BY exam_id)
+		FROM "wm-room_assignments" WHERE schedule_id = $1 GROUP BY slot_id, room_id ORDER BY slot_id, room_id`, scheduleID)
+	if err != nil {
+		return nil, err
+	}
+	refs := map[int64]dutyRef{}
+	for rows.Next() {
+		var slot, room int64
+		var n int
+		var exams []int64
+		if err := rows.Scan(&slot, &room, &n, &exams); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		id := dutyKey(slotIdx[slot], room)
+		in.Duties = append(in.Duties, invigilation.Duty{ID: id, Slot: slotIdx[slot], RoomID: room, Students: n, Exams: exams})
+		refs[id] = dutyRef{slot, room, exams[0]}
+	}
+	rows.Close()
+
+	// Gözetmenler: invigilator rolü; kendi dersleri; onaylı mazeretleri.
+	examOfCourse := map[int64]int64{}
+	for _, e := range ds.Exams {
+		examOfCourse[e.CourseID] = e.ID
+	}
+	lecUser := map[int64]int64{}
+	for _, l := range ds.Lecturers {
+		lecUser[l.ID] = l.UserID
+	}
+	own := map[int64][]int64{}
+	for _, sec := range ds.Sections {
+		if ex, ok := examOfCourse[sec.CourseID]; ok {
+			u := lecUser[sec.LecturerID]
+			own[u] = append(own[u], ex)
+		}
+	}
+	for _, u := range ds.Users {
+		for _, r := range u.Roles {
+			if r == "invigilator" {
+				iv := invigilation.Invigilator{ID: u.ID, OwnExams: own[u.ID], Unavailable: excused[u.ID]}
+				sort.Slice(iv.OwnExams, func(a, b int) bool { return iv.OwnExams[a] < iv.OwnExams[b] })
+				in.Invigilators = append(in.Invigilators, iv)
+			}
+		}
+	}
+	var plan invigilation.Plan
+	rows, err = tx.Query(ctx, `SELECT slot_id, room_id, user_id FROM "wm-invigilator_assignments" WHERE schedule_id = $1`, scheduleID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var slot, room, u int64
+		if err := rows.Scan(&slot, &room, &u); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		plan.Assignments = append(plan.Assignments, invigilation.Assignment{DutyID: dutyKey(slotIdx[slot], room), InvigilatorID: u})
+	}
+	rows.Close()
+
+	return &invState{in: in, plan: plan, refs: refs, slotIdx: slotIdx}, nil
 }

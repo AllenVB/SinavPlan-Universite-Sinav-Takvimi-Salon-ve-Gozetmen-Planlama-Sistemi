@@ -495,6 +495,23 @@ paths:
         - {$ref: "#/components/parameters/After"}
       responses:
         "200": {description: Sayfa, content: {application/json: {schema: {$ref: "#/components/schemas/Page"}}}}
+  /schedules/{id}/invigilators/assign:
+    post:
+      tags: [Gözetmen]
+      summary: Elle gözetmen ataması (istenen gözetmeni istenen salona)
+      description: "Rol: secretary. Görev = oturum (slot_id) × salon (room_id). `replace_user_id` verilirse o gözetmenin yerine geçer, verilmezse ek gözetmen olarak eklenir. Atama T-4 kurallarıyla (kendi dersi, mazeretli oturum, aynı oturumda iki görev, aynı gün ardışık oturum) bağımsız doğrulayıcıdan geçer; yeni ihlal doğurursa 409 `invigilation_rules` (ihlaller `fields` içinde) ve hiçbir şey yazılmaz. `?dry_run=true`: önizleme (`ok`, `violations`, yük farkı önce/sonra); hiçbir şey değişmez. Uygulanınca denetim kaydı ve iki gözetmene bildirim yazılır."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+        - {name: dry_run, in: query, schema: {type: boolean}}
+        - {name: Idempotency-Key, in: header, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [slot_id, room_id, user_id], properties: {slot_id: {type: integer}, room_id: {type: integer}, user_id: {type: integer}, replace_user_id: {type: integer}}}}}
+      responses:
+        "200": {description: "Uygulandı ya da önizleme", content: {application/json: {schema: {type: object, properties: {ok: {type: boolean}, dry_run: {type: boolean}, violations: {type: array, items: {type: object}}, duty: {type: object}, spread_before: {type: integer}, spread_after: {type: integer}, user_duties: {type: integer}}}}}}
+        "404": {description: Görev ya da gözetmen yok, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "409": {description: "Kural ihlali (invigilation_rules) ya da gözetmen zaten bu görevde", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/Validation"}
   /schedules/{id}/invigilators/{userId}/remove:
     post:
       tags: [Gözetmen (F-5)]

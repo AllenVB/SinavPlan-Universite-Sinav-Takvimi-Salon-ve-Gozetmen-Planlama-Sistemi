@@ -1,13 +1,65 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { all, fmtDateTime, idemKey, post } from '../api'
 import { useAuth } from '../auth'
 import { Icon } from '../icons'
-import { Async, Bar, Card, ErrorBox, Pill, StatCard, Status, useAction, useAsync } from '../ui'
+import { Async, Bar, Card, ErrorBox, Field, Pill, StatCard, Status, useAction, useAsync } from '../ui'
 import { DutyRoster } from './DutyRoster'
 import { hasRole, ScheduleSelect, useSchedules } from './common'
 
-type Duty = { id: number; user_id: number; full_name: string; slot_id: number; day: number; session: number; starts_at: string; room_code: string; building: string; exam_id: number; course_code: string }
+type Duty = { id: number; user_id: number; full_name: string; slot_id: number; room_id: number; day: number; session: number; starts_at: string; room_code: string; building: string; exam_id: number; course_code: string }
 type Removal = { vacated: number; swaps: number; violations: number; changes: { duty_id: number; from: number; to: number }[]; unfilled: unknown[]; untouched: number; total: number; dry_run: boolean; duties: Record<string, { starts_at: string; room_code: string }> }
+
+type AssignRes = { ok: boolean; dry_run: boolean; violations: { kind: string; detail: string }[]; duty: { starts_at: string; room_code: string }; spread_before: number; spread_after: number; user_duties: number }
+const KIND_TR: Record<string, string> = { own_exam: 'Kendi dersi', excused: 'Mazeretli', double_slot: 'Aynı oturumda iki görev', consecutive_session: 'Ardışık oturum', duplicate: 'Zaten bu görevde' }
+type DutyPick = { slot: number; room: number; replace: number }
+
+/**
+ * Elle atama (sekreter): istenen gözetmeni istenen salona — bir görevin yerine geçerek ya da ek gözetmen olarak.
+ * Önce önizleme (kurallar + yük farkı), sonra "Uygula". Kuralı bozan atama sunucuda reddedilir.
+ */
+function ManualAssign({ schedule, duties, pick, onDone }: { schedule: number; duties: Duty[]; pick: DutyPick | null; onDone: () => void }) {
+  const slots = useMemo(() => [...new Map(duties.map((d) => [d.slot_id, d])).values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at)), [duties])
+  const people = useMemo(() => [...new Map(duties.map((d) => [d.user_id, d.full_name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'tr')), [duties])
+  const load = useMemo(() => { const m = new Map<number, number>(); duties.forEach((d) => m.set(d.user_id, (m.get(d.user_id) ?? 0) + 1)); return m }, [duties])
+  const [slot, setSlot] = useState(0)
+  const [room, setRoom] = useState(0)
+  const [replace, setReplace] = useState(0)
+  const [user, setUser] = useState(0)
+  useEffect(() => { if (pick) { setSlot(pick.slot); setRoom(pick.room); setReplace(pick.replace); setUser(0) } }, [pick])
+  const rooms = useMemo(() => [...new Map(duties.filter((d) => d.slot_id === slot).map((d) => [d.room_id, d])).values()].sort((a, b) => a.room_code.localeCompare(b.room_code)), [duties, slot])
+  const current = duties.filter((d) => d.slot_id === slot && d.room_id === room)
+  const body = { slot_id: slot, room_id: room, user_id: user, ...(replace ? { replace_user_id: replace } : {}) }
+  const [pv, setPv] = useState<AssignRes | null>(null)
+  useEffect(() => setPv(null), [slot, room, replace, user])
+  const preview = useAction(async () => { const r = await post<AssignRes>(`/schedules/${schedule}/invigilators/assign?dry_run=true`, body); setPv(r); return r })
+  const apply = useAction(async () => {
+    const r = await post<AssignRes>(`/schedules/${schedule}/invigilators/assign`, body, { 'Idempotency-Key': idemKey(`assign-${schedule}-${slot}-${room}-${user}-${replace}`) })
+    setPv(null); setUser(0); onDone(); return r
+  })
+  const ready = slot > 0 && room > 0 && user > 0
+  return (
+    <Card title="Elle atama" aside={<span className="small muted">istenen gözetmeni istenen salona</span>}>
+      <div data-testid="manual-assign" id="manual-assign">
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <Field label="Oturum" id="ma-slot"><select id="ma-slot" value={slot} onChange={(e) => { setSlot(Number(e.target.value)); setRoom(0); setReplace(0) }} style={{ width: 'auto' }}><option value={0}>Oturum seçin…</option>{slots.map((d) => <option key={d.slot_id} value={d.slot_id}>{fmtDateTime(d.starts_at)}</option>)}</select></Field>
+          <Field label="Salon" id="ma-room"><select id="ma-room" value={room} disabled={!slot} onChange={(e) => { setRoom(Number(e.target.value)); setReplace(0) }} style={{ width: 'auto' }}><option value={0}>Salon seçin…</option>{rooms.map((d) => <option key={d.room_id} value={d.room_id}>{d.room_code} · {d.building} · {d.course_code}</option>)}</select></Field>
+          <Field label="Nasıl" id="ma-mode"><select id="ma-mode" value={replace} disabled={!room} onChange={(e) => setReplace(Number(e.target.value))} style={{ width: 'auto' }}><option value={0}>Ek gözetmen olarak ekle</option>{current.map((d) => <option key={d.user_id} value={d.user_id}>{d.full_name} yerine</option>)}</select></Field>
+          <Field label="Gözetmen" id="ma-user"><select id="ma-user" value={user} disabled={!room} onChange={(e) => setUser(Number(e.target.value))} style={{ width: 'auto' }}><option value={0}>Gözetmen seçin…</option>{people.filter(([id]) => !current.some((d) => d.user_id === id)).map(([id, n]) => <option key={id} value={id}>{n} ({load.get(id) ?? 0} görev)</option>)}</select></Field>
+          <button className="btn" disabled={!ready || preview.busy} onClick={() => void preview.run()}>{preview.busy ? 'Denetleniyor…' : 'Önizle'}</button>
+          <button className="btn primary" disabled={!ready || !pv?.ok || apply.busy} onClick={() => void apply.run()} data-testid="ma-apply">{apply.busy ? 'Uygulanıyor…' : 'Uygula'}</button>
+        </div>
+        {room > 0 && <p className="small muted" style={{ margin: '8px 0 0' }}>Bu görevde şu an: {current.map((d) => d.full_name).join(', ') || 'gözetmen yok'}.</p>}
+        {pv && (pv.ok ? (
+          <div className="alert ok" role="status" data-testid="ma-preview"><div className="small"><b>Kurallara uygun.</b> {pv.duty.room_code} · {fmtDateTime(pv.duty.starts_at)}. Gözetmenin görev sayısı {pv.user_duties} olur; en çok–en az görev farkı {pv.spread_before} → {pv.spread_after}{pv.spread_after > pv.spread_before && ' (adalet biraz bozulur)'}. Henüz hiçbir şey değişmedi.</div></div>
+        ) : (
+          <div className="alert err" role="alert" data-testid="ma-preview"><div className="small"><b>Bu atama yapılamaz:</b><ul style={{ margin: '4px 0 0' }}>{pv.violations.map((v, i) => <li key={i}>{KIND_TR[v.kind] ?? v.kind}: {v.detail}</li>)}</ul></div></div>
+        ))}
+        {apply.result && !pv && <div className="alert ok" role="status" style={{ marginTop: 8 }}><div className="small"><b>Atama yapıldı.</b> {apply.result.duty.room_code} · {fmtDateTime(apply.result.duty.starts_at)}. Gözetmenlere bildirim gönderildi.</div></div>}
+        {(preview.error || apply.error) && <ErrorBox error={(preview.error ?? apply.error)!} />}
+      </div>
+    </Card>
+  )
+}
 
 export function Invigilators() {
   const { user } = useAuth()
@@ -55,6 +107,7 @@ export function Invigilators() {
     setPv(null)
     duties.reload()
   })
+  const [pick, setPick] = useState<DutyPick | null>(null)
   const who = useMemo(() => new Map((duties.data ?? []).map((d) => [d.user_id, d.full_name])), [duties.data])
   return (
     <>
@@ -113,6 +166,7 @@ export function Invigilators() {
         </div>
       )}
       {(remove.error || preview.error) && <ErrorBox error={(remove.error ?? preview.error)!} />}
+      {secretary && sch.sel && duties.data && <ManualAssign schedule={sch.sel} duties={duties.data} pick={pick} onDone={() => duties.reload()} />}
       <DutyRoster schedule={sch.sel} />
       <Card title="Görev listesi" aside={<input className="input" style={{ width: 260 }} placeholder="Gözetmen, salon veya ders ara…" aria-label="Ara" value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} />}>
         <Async s={duties} empty={(d) => d.length === 0}>
@@ -125,7 +179,7 @@ export function Invigilators() {
                     {rows.slice(page * 50, page * 50 + 50).map((d) => (
                       <tr key={d.id}>
                         <td>{d.full_name}</td><td>{fmtDateTime(d.starts_at)}</td><td>{d.room_code} <span className="muted small">{d.building}</span></td><td>{d.course_code}</td>
-                        {secretary && <td><button className="btn sm danger" disabled={remove.busy || preview.busy} onClick={() => void preview.run(d.user_id, d.full_name)}>{preview.busy ? 'Hesaplanıyor…' : 'Hasta / çıkar'}</button></td>}
+                        {secretary && <td><div className="row" style={{ flexWrap: 'nowrap' }}><button className="btn sm" onClick={() => { setPick({ slot: d.slot_id, room: d.room_id, replace: d.user_id }); setTimeout(() => document.getElementById('manual-assign')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50) }} aria-label={`${d.full_name} görevini değiştir`}>Değiştir</button><button className="btn sm danger" disabled={remove.busy || preview.busy} onClick={() => void preview.run(d.user_id, d.full_name)}>{preview.busy ? 'Hesaplanıyor…' : 'Hasta / çıkar'}</button></div></td>}
                       </tr>
                     ))}
                   </tbody>

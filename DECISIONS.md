@@ -604,3 +604,13 @@ goose'un sürüm tablosu da `wm-goose_db_version` adıyla tutulur (özel bir `da
 **Alternatifler.** Bildirim için zamanlayıcı/arka plan iş (yeni süreç ve çift üretim riski; okuma anında idempotent üretim yeterli); e-posta/SMS (gerçek sağlayıcı olmadan "gönderildi" iddiası yapılamaz, kapsam dışı); salon kapatmayı mevcut çizelgeye otomatik uygulamak (yayındaki planı sessizce bozar); FrontLoad'u varsayılan açmak (README/EXPLAIN sayılarını ve öğrenci rahatlığını değiştirir).
 
 **Sonuçlar.** Bildirim kutusu ilk açılışta hesaplama yapar (öğrenci başına tek sorgu); çok büyük kullanıcı sayısında zamanlayıcıya taşınmalı. Salon kapatma yeni plan üretilene dek yayındaki planı etkilemez. FrontLoad yalnız Takvim → Üret → Gelişmiş ayarlar'da açılır; "büyük sınav" eşiği 100 öğrencidir (küçük veri kümelerinde `Input.LargeExamStudents` ile değişir). Testler: `TestAbsentNotificationOnlyAfterGraceAndOnlyOnce`, `TestNoAbsentNotificationWhenPresent`, `TestReminderNotificationsForExamAndDuty`, `TestExcuseDecisionNotifiesOwner`, `TestRemoveInvigilatorNotifiesAssignees`, `TestRoomChangeMovesEveryoneAtomically` (bildirim), `TestRoomBlocksLifecycleAndRoles`, `TestBlockedRoomsAreNeverUsedAndValidatorCatchesMisuse`, `TestFrontLoadPenaltyMatchesValidatorAndPullsLargeExamsEarlier`; `make verify` N-1, R-1.
+
+## ADR-023 — Elle gözetmen ataması
+
+**Bağlam.** Sekreter, çözücünün atamasını belirli bir görevde (oturum × salon) değiştirmek ya da bir salona ek gözetmen koymak istiyor.
+
+**Karar.** `POST /schedules/{id}/invigilators/assign` (yalnız sekreter, `Idempotency-Key`, `?dry_run=true`). İstek, mevcut planın kopyasında uygulanır ve T-4'ün bağımsız doğrulayıcısından (`invigilation.Validate`) geçer; yalnız bu atamanın **yeni** doğurduğu ihlaller sayılır. İhlal varsa hiçbir şey yazılmaz (409 `invigilation_rules`, ihlaller okunur metinle). Uygunsa tek işlemde yazılır; denetim kaydı ve iki gözetmene bildirim eklenir. Yük farkı (adalet) engel değil, önizlemede bilgi olarak gösterilir. Gözetmen problemi `loadInvigilation` ile tek yerden kurulur (gözetmen çıkarma ile ortak).
+
+**Alternatifler.** Adalet farkını da engel saymak (sekreterin bilinçli tercihini engeller); kuralı bozan atamaya "yine de uygula" seçeneği (T-4 garantisini bozar, reddedildi).
+
+**Sonuçlar.** Elle atama adalet farkını büyütebilir; ekran bunu önce/sonra olarak gösterir. Testler: `TestManualInvigilatorAssignment`, `make verify` G-1, `deploy/ui-smoke/manual-assign.cjs`.

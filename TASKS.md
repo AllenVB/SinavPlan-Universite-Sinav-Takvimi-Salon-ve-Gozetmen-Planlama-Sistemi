@@ -302,3 +302,6 @@ Faz 22 sırasında bulunup düzeltilen hatalar: kanıtlar F-3 sonrası eski ista
 
 ### Faz 23 (26 Ekim 2026) — benzer sistem araştırmasından #2, #3, #4, #6 — ADR-022
 Bildirim kutusu (+ "yoklamanız alınmadı"), krokiden yoklama, kapalı salonlar, büyük sınavı öne alma. Doğrulama: `go test -race ./...` **211 PASS**, 0 FAIL, 1 SKIP; `make verify` **33 satır (34 kimlik)** PASS (yeni: N-1, R-1); UI duman: roster, exam-room, inbox, notifications, alerts, simple, tour, palette PASS. **Doğrulanmayan:** `a11y.cjs` (bu ortamda axe-core yok), yeni bildirim paneli/krokideki işaret çubuğu için erişilebilirlik taraması. README son satırı `DDO Case Kodu: MERCAN-1e5afd` kalmalı.
+
+### Elle gözetmen ataması (26 Ekim 2026) — ADR-023
+Gözetmen atama → Elle atama / "Değiştir". Doğrulama: `TestManualInvigilatorAssignment` + ilgili httpapi testleri PASS, `make verify` 34 satır (35 kimlik) PASS, `manual-assign.cjs` 8 PASS. Tam `go test -race` CI'da koşar.

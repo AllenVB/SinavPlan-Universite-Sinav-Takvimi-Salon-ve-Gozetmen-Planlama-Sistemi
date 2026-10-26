@@ -234,6 +234,7 @@ func (s *Server) routes(reg *prometheus.Registry) {
 	s.handle(r, http.MethodGet, "/schedules/{id}/fix-suggestions", Roles(auth.RoleSecretary, auth.RoleStudentAffairs), s.fixSuggestions, slow(60*time.Second))
 	s.handle(r, http.MethodGet, "/schedules/{id}/invigilators", Roles(auth.RoleSecretary, auth.RoleLecturer, auth.RoleInvigilator, auth.RoleStudentAffairs), s.scheduleInvigilators)
 	s.handle(r, http.MethodPost, "/schedules/{id}/invigilators/{userId}/remove", Roles(auth.RoleSecretary), s.removeInvigilator, idempotent())
+	s.handle(r, http.MethodPost, "/schedules/{id}/invigilators/assign", Roles(auth.RoleSecretary), s.assignInvigilator, idempotent())
 	s.handle(r, http.MethodGet, "/me/duties", Roles(auth.RoleInvigilator), s.myDuties)
 
 	s.handle(r, http.MethodPost, "/excuses", Roles(auth.RoleStudent, auth.RoleInvigilator), s.createExcuse)
