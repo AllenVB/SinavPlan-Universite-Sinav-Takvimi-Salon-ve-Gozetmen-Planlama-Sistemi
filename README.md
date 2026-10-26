@@ -40,7 +40,7 @@ Seed deterministiktir: 300 üretilmiş sınav + 1 demo sınavı (*Prompt Mühend
 
 | Komut | Ne yapar |
 |---|---|
-| `make verify` | uçtan uca doğrulama tablosu (29 satır = 30 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
+| `make verify` | uçtan uca doğrulama tablosu (30 satır = 31 kimlik, ~30 sn, hata varsa exit 1) — bkz. [TESTING.md](TESTING.md) |
 | `make test` | tüm testler, `-race` (gerçek PostgreSQL ister; `make test-integration` compose içinde çalıştırır) |
 | `make prove-all` | T-1..T-5 kanıt çıktıları |
 | `make load` | k6 yük testi → `docs/load/results.md` |
@@ -134,6 +134,22 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 ## İlk 5 dakika: rehberli tur (Faz 22)
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 9 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını, mazeret masasını ve kuralların canlı doğrulandığı Kanıtlar sayfasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
+
+## Dikkat gerektirenler (Faz 22 C2)
+
+Sınav günü izleme ekranının başındaki **Dikkat gerektirenler** kartı, sunucudaki kurallarla üretilen uyarıları önem sırasıyla (kritik, uyarı, bilgi) listeler. Salon koduna tıklanınca salon listesi o salona süzülür.
+
+| Kural | Önem |
+|---|---|
+| öğrencisi olan salonda gözetmen yok | kritik |
+| kapasite aşıldı (T-2 bunu engeller; görünürse veri bütünlüğü sorunu) | kritik |
+| 50+ öğrencili salonda 2'den az gözetmen | uyarı |
+| sınav başlayalı 15 dk oldu, salonda hiç yoklama yok | uyarı |
+| 15 dk sonra gelenler oturanların yarısından az | uyarı |
+| oturum bitti, işaretsiz öğrenci kaldı (oturum başına tek özet) | uyarı |
+| sınav sürerken son yoklama olayı 10 dk'dan eski ve işaretsiz öğrenci var (tablet çevrimdışı olabilir) | bilgi |
+
+Kurallar saf bir Go fonksiyonudur (`store.LiveAlerts`, birim testli). **Kaldırılan kural:** "%95+ dolu" uyarısı denendi; T-2 salon sayısını azaltmak için salonları bilerek sıkı doldurduğundan salonların çoğunda eyleme dönüşmeyen gürültü üretiyordu. Bitmiş oturumlardaki işaretsiz öğrenciler de aynı nedenle salon başına değil, oturum başına tek uyarıda toplanır. `make verify` C2-1, zamandan bağımsız kuralları API'nin salon verisinden bağımsız yeniden hesaplayıp uyarı kümesiyle karşılaştırır.
 
 ## "Ya olursa?" önizlemesi (Faz 22 B2)
 
@@ -242,7 +258,7 @@ Faz 17–19 ekranları:
 | T-4 | 933 görev (canlı verify: 934); gözetmen yükü min 9 / max 10 (fark 1 = ideal); gözetmen 3 çıkarılınca 10 görev boşalır, 10 değişiklik (= boşalan + 0 takas), 923/933 atamaya dokunulmaz, ihlal 0 |
 | T-5 | 20 (store/HTTP testinde 50) eşzamanlı QR → tam 1 başarı + diğerleri 409; eşzamanlı tahliye → 1 başarı + 1 kapasite hatası |
 | Testler | **185 test** (`go test ./... -v \| grep -c "^--- PASS"`; 0 FAIL), CI'da `-race`; domain kapsamı: scheduling %95,3 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
-| `make verify` | 29 satır (30 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
+| `make verify` | 30 satır (31 kimlik; X-5/X-7 tek satır), hepsi PASS, ~30 sn |
 
 ### Yük testi (k6, `make load`) — 30 okuma + 10 yazma VU, 40 sn, tek makine/Docker
 

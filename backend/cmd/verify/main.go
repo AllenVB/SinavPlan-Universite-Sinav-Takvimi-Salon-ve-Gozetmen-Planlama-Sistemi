@@ -68,6 +68,7 @@ func main() {
 		{"A3-1", checkA3},
 		{"A2-1", checkA2},
 		{"B2-1", checkB2},
+		{"C2-1", checkC2},
 	}
 	var results []result
 	for _, c := range checks {

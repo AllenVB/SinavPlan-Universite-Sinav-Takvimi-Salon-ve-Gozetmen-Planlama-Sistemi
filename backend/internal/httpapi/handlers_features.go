@@ -271,6 +271,7 @@ func (s *Server) live(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	out.Alerts = store.LiveAlerts(out, time.Now())
 	w.Header().Set("Cache-Control", "no-store")
 	WriteJSON(w, http.StatusOK, out)
 	return nil

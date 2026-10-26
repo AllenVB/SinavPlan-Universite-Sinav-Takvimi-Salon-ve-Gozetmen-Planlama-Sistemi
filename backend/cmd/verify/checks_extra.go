@@ -662,3 +662,69 @@ func checkB2(ctx context.Context, e *env, f *failures) string {
 	return fmt.Sprintf("gözetmen %d çıkarılırsa %d görev boşalır, %d değişir (ihlal 0); tahliyede %d öğrenci taşınır — görevler, oturma, sürümler, olay akışı değişmedi; öğrenci 403",
 		uid, num(r.body, "vacated"), len(arr(r.body, "changes")), moved)
 }
+
+// C2-1 (Faz 22): "Dikkat gerektirenler". Zamandan bağımsız kurallar (gözetmensiz salon, 50+ öğrencide 2'den
+// az gözetmen, kapasite aşımı) API'nin salon verisinden bağımsız yeniden hesaplanır ve uyarı kümesiyle
+// birebir karşılaştırılır; uyarılar önem sırasıyla gelir; öğrenci 403.
+func checkC2(ctx context.Context, e *env, f *failures) string {
+	sec := e.tok["secretary"]
+	slots := []int64{0} // 0 = sunucu seçsin (süren/sıradaki)
+	if sl, err := e.a.get(ctx, fmt.Sprintf("/periods/%d/slots", e.periodID), sec); err == nil {
+		for i, it := range arr(sl.body, "items") {
+			if i%7 == 0 { // birkaç farklı oturum
+				slots = append(slots, num(it.(M), "id"))
+			}
+		}
+	}
+	rank := map[string]int{"err": 0, "warn": 1, "info": 2}
+	total, rooms := 0, 0
+	for _, slot := range slots {
+		path := fmt.Sprintf("/schedules/%d/live", e.sched2)
+		if slot > 0 {
+			path += fmt.Sprintf("?slot_id=%d", slot)
+		}
+		r, err := e.a.get(ctx, path, sec)
+		if !f.expectCode("canlı", r, err, 200) {
+			return ""
+		}
+		want := map[string]bool{}
+		for _, it := range arr(r.body, "rooms") {
+			rm := it.(M)
+			seated, inv, capa := num(rm, "seated"), int64(len(arr(rm, "invigilators"))), num(rm, "capacity")
+			code := str(rm, "room_code")
+			rooms++
+			if seated == 0 {
+				continue
+			}
+			if inv == 0 {
+				want[code+":no_invigilator"] = true
+			} else if seated > 50 && inv < 2 {
+				want[code+":understaffed"] = true
+			}
+			if capa > 0 && seated > capa {
+				want[code+":over_capacity"] = true
+			}
+		}
+		got := map[string]bool{}
+		prev := -1
+		for _, it := range arr(r.body, "alerts") {
+			a := it.(M)
+			k := str(a, "kind")
+			if k == "no_invigilator" || k == "understaffed" || k == "over_capacity" {
+				got[str(a, "room_code")+":"+k] = true
+			}
+			f.check(rank[str(a, "level")] >= prev, "uyarılar önem sırasında değil (%v)", a)
+			prev = rank[str(a, "level")]
+			total++
+		}
+		for k := range want {
+			f.check(got[k], "slot %d: beklenen uyarı yok: %s", slot, k)
+		}
+		for k := range got {
+			f.check(want[k], "slot %d: gereksiz uyarı: %s", slot, k)
+		}
+	}
+	s, _ := e.a.get(ctx, fmt.Sprintf("/schedules/%d/live", e.sched2), e.tok["student"])
+	f.check(s.code == 403, "öğrenci canlı: HTTP %d (403)", s.code)
+	return fmt.Sprintf("%d oturum, %d salon: gözetmen/kapasite kuralları bağımsız hesapla birebir; %d uyarı önem sırasında; öğrenci 403", len(slots), rooms, total)
+}

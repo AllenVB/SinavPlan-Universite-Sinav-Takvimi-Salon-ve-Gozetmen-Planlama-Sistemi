@@ -61,10 +61,11 @@ type LiveTotals struct {
 
 // LiveOverview, GET /schedules/{id}/live yanıtı.
 type LiveOverview struct {
-	Slot        LiveSlot   `json:"slot"`
-	Totals      LiveTotals `json:"totals"`
-	Rooms       []LiveRoom `json:"rooms"`
-	GeneratedAt time.Time  `json:"generated_at"`
+	Slot        LiveSlot    `json:"slot"`
+	Totals      LiveTotals  `json:"totals"`
+	Rooms       []LiveRoom  `json:"rooms"`
+	GeneratedAt time.Time   `json:"generated_at"`
+	Alerts      []LiveAlert `json:"alerts"` // Faz 22 C2: "Dikkat gerektirenler"
 }
 
 // PickLiveSlot, slotID verilmişse onu; verilmemişse şu an süren, yoksa sıradaki, yoksa son oturumu seçer.

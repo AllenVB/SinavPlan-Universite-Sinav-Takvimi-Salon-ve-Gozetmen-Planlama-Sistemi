@@ -6,7 +6,9 @@ import { ScheduleSelect, useSchedules } from './common'
 
 type Room = { room_id: number; room_code: string; building: string; room_type: string; capacity: number; seated: number; present: number; absent: number; unmarked: number; last_event_at: string | null; devices: number; exams: { exam_id: number; course_code: string; course_name: string; seated: number }[]; invigilators: { user_id: number; full_name: string }[] }
 type Slot = { id: number; day: number; session: number; starts_at: string; ends_at: string; mode: 'active' | 'upcoming' | 'past' }
-type Overview = { slot: Slot; totals: { rooms: number; seated: number; present: number; absent: number; unmarked: number }; rooms: Room[] }
+type Alert = { level: 'err' | 'warn' | 'info'; kind: string; room_id: number; room_code: string; message: string }
+type Overview = { slot: Slot; totals: { rooms: number; seated: number; present: number; absent: number; unmarked: number }; rooms: Room[]; alerts?: Alert[] }
+const LEVEL: Record<Alert['level'], [string, 'err' | 'warn' | 'info']> = { err: ['Kritik', 'err'], warn: ['Uyarı', 'warn'], info: ['Bilgi', 'info'] }
 type Ev = { event_id: string; received_at: string; status: 'present' | 'absent'; source: 'qr' | 'manual'; device_id: string; exam_id: number; course_code: string; student_no: string; full_name: string; room_code: string | null }
 type Act = { id: number; action: string; entity: string; entity_id: string; actor?: string; detail?: Record<string, unknown>; created_at: string }
 
@@ -57,7 +59,6 @@ export function Live() {
   const t = ov.data?.totals
   const pct = t && t.seated ? (t.present / t.seated) * 100 : 0
   const devices = rooms.reduce((a, r) => a + r.devices, 0)
-  const silent = slot?.mode === 'active' ? rooms.filter((r) => r.seated > 0 && !r.last_event_at && now - new Date(slot.starts_at).getTime() > 10 * 60_000) : []
   const untilStart = slot?.mode === 'upcoming' ? new Date(slot.starts_at).getTime() - now : 0
   const countdown = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); const d = Math.floor(s / 86400); const h = Math.floor((s % 86400) / 3600); const m = Math.floor((s % 3600) / 60); return `${d ? d + ' g ' : ''}${h} sa ${m} dk ${s % 60} sn` }
 
@@ -83,7 +84,22 @@ export function Live() {
       {slot && <Banner tone={slot.mode === 'active' ? 'ok' : slot.mode === 'upcoming' ? 'info' : 'warn'} icon="clock" title={`${MODE[slot.mode][0]}: ${slot.day + 1}. gün, ${slot.session + 1}. oturum — ${fmtDateTime(slot.starts_at)}–${fmtTime(slot.ends_at)}`}>
         {slot.mode === 'upcoming' ? `Başlamasına ${countdown(untilStart)} var.` : slot.mode === 'active' ? 'Yoklama alınıyor.' : 'Bu oturum bitti; kayıtlar arşiv niteliğindedir.'}
       </Banner>}
-      {silent.length > 0 && <Banner tone="warn" icon="alert" title={`${silent.length} salondan hiç yoklama gelmedi`}>Oturum başlayalı 10 dakikadan fazla oldu: {silent.slice(0, 6).map((r) => r.room_code).join(', ')}{silent.length > 6 ? '…' : ''}. Gözetmen tabletleri çevrimdışı olabilir.</Banner>}
+      {ov.data && (
+        <Card title="Dikkat gerektirenler" aside={<Pill kind={(ov.data.alerts ?? []).some((a) => a.level === 'err') ? 'err' : (ov.data.alerts ?? []).length ? 'warn' : 'ok'}>{(ov.data.alerts ?? []).length ? `${ov.data.alerts!.length} madde` : 'Her şey yolunda'}</Pill>}>
+          <div data-testid="live-alerts">
+            {(ov.data.alerts ?? []).length === 0 ? (
+              <p className="small muted" style={{ margin: 0 }}>Gözetmensiz ya da eksik gözetmenli salon, başlamayan yoklama, düşük katılım, sessiz tablet, bitişte işaretsiz öğrenci, kapasite aşımı denetlendi; uyarı yok.</p>
+            ) : (
+              <ul className="alertlist">
+                {ov.data.alerts!.slice(0, 12).map((a, i) => (
+                  <li key={i}><Pill kind={LEVEL[a.level][1]}>{LEVEL[a.level][0]}</Pill> {a.room_code && <button className="linkbtn" onClick={() => setQ(a.room_code)} title="Bu salonu listede göster">{a.room_code}</button>} <span className="small">{a.message}</span></li>
+                ))}
+                {ov.data.alerts!.length > 12 && <li className="small muted">… {ov.data.alerts!.length - 12} madde daha</li>}
+              </ul>
+            )}
+          </div>
+        </Card>
+      )}
 
       <div className="grid g4">
         <StatCard icon="building" tone="info" label="Aktif salon" value={t?.rooms ?? '—'} note={`${rooms.filter((r) => roomState(r)[2] === 'done').length} salonda yoklama tamam`} />
