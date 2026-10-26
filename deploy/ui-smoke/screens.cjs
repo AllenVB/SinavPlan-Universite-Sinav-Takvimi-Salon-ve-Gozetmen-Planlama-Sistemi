@@ -6,7 +6,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
   const mk = async (email, vp) => { const ctx = await b.newContext({ viewport: vp, permissions: ['camera'] }); const p = await ctx.newPage(); await p.goto(BASE); await p.fill('#email', email); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell'); return p; };
   const D = { width: 1280, height: 900 };
-  let p = await mk('sekreter@sinavplan.test', D);
+  let p = await mk('seed.mercan@ddo-case.invalid', D);
   await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/01-ana-panel.png` });
   await p.goto(BASE + '/#/takvim'); await p.waitForSelector('tbody tr'); await p.selectOption('select[aria-label=Fakülte]', { label: 'Mühendislik Fakültesi' }); await p.selectOption('select[aria-label=Bölüm]', { label: 'Bilgisayar Mühendisliği' }); await p.selectOption('select[aria-label=Sınıf]', { label: '2. sınıf' }); await p.waitForTimeout(500);
   await p.locator('text=Sınav oturumları').first().scrollIntoViewIfNeeded(); await p.screenshot({ path: `${out}/08-takvim-fakulte-bolum-sinif.png` });
@@ -23,7 +23,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   // --- Faz 17–19 ekranları: kapı krokisi, salon düzenleyici, QR + kod, mazeret masası, takvim süzgeçleri
   const API = process.env.API_URL || 'http://localhost:8080';
   const tok = async (email) => (await (await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Demo!1234' }) })).json()).access_token;
-  p = await mk('sekreter@sinavplan.test', D);
+  p = await mk('seed.mercan@ddo-case.invalid', D);
   await p.goto(BASE + '/#/salonlar'); await p.click('button:has-text("Salon envanteri")'); await p.waitForSelector('text=Düzeni gör'); await p.waitForTimeout(800);
   await p.click('button:has-text("Düzeni gör") >> nth=0'); await p.waitForSelector('[data-testid=room-door]'); await p.locator('[data-testid=room-door]').scrollIntoViewIfNeeded(); await p.waitForTimeout(500);
   await p.screenshot({ path: `${out}/10-salon-kapisi-krokisi.png` });

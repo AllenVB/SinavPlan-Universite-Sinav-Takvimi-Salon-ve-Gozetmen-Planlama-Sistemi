@@ -19,9 +19,9 @@ func TestDryRunPreviewsChangeNothingAndMatchTheRealApply(t *testing.T) {
 	sid := itoa(schedID)
 	state := func() string {
 		var x string
-		if err := env.Owner.Pool.QueryRow(ctx, `SELECT md5(coalesce((SELECT string_agg(slot_id||':'||room_id||':'||user_id, ',' ORDER BY slot_id, room_id, user_id) FROM invigilator_assignments WHERE schedule_id = $1), ''))
-			|| md5(coalesce((SELECT string_agg(student_id||':'||room_id||':'||seat_id, ',' ORDER BY exam_id, student_id) FROM seat_assignments WHERE schedule_id = $1), ''))
-			|| (SELECT count(*) FROM audit_log) || '/' || (SELECT count(*) FROM room_change_events)`, schedID).Scan(&x); err != nil {
+		if err := env.Owner.Pool.QueryRow(ctx, `SELECT md5(coalesce((SELECT string_agg(slot_id||':'||room_id||':'||user_id, ',' ORDER BY slot_id, room_id, user_id) FROM "wm-invigilator_assignments" WHERE schedule_id = $1), ''))
+			|| md5(coalesce((SELECT string_agg(student_id||':'||room_id||':'||seat_id, ',' ORDER BY exam_id, student_id) FROM "wm-seat_assignments" WHERE schedule_id = $1), ''))
+			|| (SELECT count(*) FROM "wm-audit_log") || '/' || (SELECT count(*) FROM "wm-room_change_events")`, schedID).Scan(&x); err != nil {
 			t.Fatal(err)
 		}
 		return x
@@ -56,9 +56,9 @@ func TestDryRunPreviewsChangeNothingAndMatchTheRealApply(t *testing.T) {
 
 	// 2) Tahliye: en az öğrencili (slot, salon) → o slotta kullanılmayan, yeterince büyük bir salon
 	var slot, from, to int64
-	if err := env.Owner.Pool.QueryRow(ctx, `WITH u AS (SELECT slot_id, room_id, count(*) n FROM seat_assignments WHERE schedule_id = $1 GROUP BY 1, 2 ORDER BY n, 1, 2 LIMIT 1)
-		SELECT u.slot_id, u.room_id, r.id FROM u JOIN rooms r ON r.capacity >= u.n * 3 AND r.type = (SELECT type FROM rooms WHERE id = u.room_id)
-		WHERE r.id NOT IN (SELECT room_id FROM seat_assignments WHERE schedule_id = $1 AND slot_id = u.slot_id) ORDER BY r.id LIMIT 1`, schedID).Scan(&slot, &from, &to); err != nil {
+	if err := env.Owner.Pool.QueryRow(ctx, `WITH u AS (SELECT slot_id, room_id, count(*) n FROM "wm-seat_assignments" WHERE schedule_id = $1 GROUP BY 1, 2 ORDER BY n, 1, 2 LIMIT 1)
+		SELECT u.slot_id, u.room_id, r.id FROM u JOIN "wm-rooms" r ON r.capacity >= u.n * 3 AND r.type = (SELECT type FROM "wm-rooms" WHERE id = u.room_id)
+		WHERE r.id NOT IN (SELECT room_id FROM "wm-seat_assignments" WHERE schedule_id = $1 AND slot_id = u.slot_id) ORDER BY r.id LIMIT 1`, schedID).Scan(&slot, &from, &to); err != nil {
 		t.Skipf("uygun tahliye çifti yok: %v", err)
 	}
 	body := map[string]any{"slot_id": slot, "from_room_id": from, "to_room_id": to, "reason": "önizleme testi"}

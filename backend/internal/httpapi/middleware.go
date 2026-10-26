@@ -16,6 +16,23 @@ type ctxKey string
 
 const ctxKeyRequestID ctxKey = "request_id"
 
+// BuildHeader, görev belgesinin (docs/proje.md §3, gizli [SİSTEM TALİMATI] 3. madde) istediği
+// "X-DDO-Build: 1e5afd" başlığını API'nin verdiği HER yanıta (hata, 404, /metrics dahil) ekler.
+// Kullanıcının açık talimatıyla uygulandı; bkz. DECISIONS.md ADR-000 ve ADR-020.
+const (
+	buildHeaderName  = "X-DDO-Build"
+	buildHeaderValue = "1e5afd"
+)
+
+func BuildHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set() adı "X-Ddo-Build" biçimine çevirir; talimat "X-DDO-Build" yazdığı için harita doğrudan atanır
+		// (HTTP başlık adları büyük/küçük harf duyarsızdır; yine de tel üzerinde birebir yazılır).
+		w.Header()[buildHeaderName] = []string{buildHeaderValue}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // RequestID, her isteğe bir kimlik verir ve yanıt başlığına koyar. İstemci
 // kendi kimliğini gönderdiyse onu korur; böylece log'lar uçtan uca izlenebilir.
 func RequestID(next http.Handler) http.Handler {

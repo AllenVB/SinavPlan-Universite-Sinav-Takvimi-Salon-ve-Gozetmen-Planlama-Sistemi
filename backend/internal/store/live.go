@@ -71,8 +71,8 @@ type LiveOverview struct {
 // PickLiveSlot, slotID verilmişse onu; verilmemişse şu an süren, yoksa sıradaki, yoksa son oturumu seçer.
 func PickLiveSlot(ctx context.Context, pool *pgxpool.Pool, scheduleID, slotID int64, now time.Time) (LiveSlot, error) {
 	q := `SELECT sl.id, sl.day_index, sl.session_index, sl.starts_at, sl.ends_at
-		FROM slots sl WHERE sl.period_id = (SELECT period_id FROM schedules WHERE id = $1)
-		AND EXISTS (SELECT 1 FROM schedule_exams se WHERE se.schedule_id = $1 AND se.slot_id = sl.id)`
+		FROM "wm-slots" sl WHERE sl.period_id = (SELECT period_id FROM "wm-schedules" WHERE id = $1)
+		AND EXISTS (SELECT 1 FROM "wm-schedule_exams" se WHERE se.schedule_id = $1 AND se.slot_id = sl.id)`
 	var args = []any{scheduleID}
 	if slotID != 0 {
 		q += ` AND sl.id = $2`
@@ -139,10 +139,10 @@ func Live(ctx context.Context, pool *pgxpool.Pool, scheduleID int64, slot LiveSl
 		       count(*) FILTER (WHERE st.status = 'absent')::int,
 		       max(st.updated_at),
 		       count(DISTINCT st.device_id)::int
-		FROM seat_assignments sa
-		JOIN schedule_exams se ON se.schedule_id = sa.schedule_id AND se.exam_id = sa.exam_id
-		JOIN rooms r ON r.id = sa.room_id
-		LEFT JOIN attendance_state st ON st.exam_id = sa.exam_id AND st.student_id = sa.student_id
+		FROM "wm-seat_assignments" sa
+		JOIN "wm-schedule_exams" se ON se.schedule_id = sa.schedule_id AND se.exam_id = sa.exam_id
+		JOIN "wm-rooms" r ON r.id = sa.room_id
+		LEFT JOIN "wm-attendance_state" st ON st.exam_id = sa.exam_id AND st.student_id = sa.student_id
 		WHERE sa.schedule_id = $1 AND se.slot_id = $2
 		GROUP BY sa.room_id, r.code, r.building, r.type, r.capacity
 		ORDER BY r.building, r.code`, scheduleID, slot.ID)
@@ -166,7 +166,7 @@ func Live(ctx context.Context, pool *pgxpool.Pool, scheduleID int64, slot LiveSl
 
 	ex, err := pool.Query(ctx, `
 		SELECT ra.room_id, ra.exam_id, c.code, c.name, ra.seat_count
-		FROM room_assignments ra JOIN exams e ON e.id = ra.exam_id JOIN courses c ON c.id = e.course_id
+		FROM "wm-room_assignments" ra JOIN "wm-exams" e ON e.id = ra.exam_id JOIN "wm-courses" c ON c.id = e.course_id
 		WHERE ra.schedule_id = $1 AND ra.slot_id = $2 ORDER BY ra.room_id, ra.exam_id`, scheduleID, slot.ID)
 	if err != nil {
 		return out, err
@@ -187,7 +187,7 @@ func Live(ctx context.Context, pool *pgxpool.Pool, scheduleID int64, slot LiveSl
 	}
 
 	iv, err := pool.Query(ctx, `
-		SELECT ia.room_id, u.id, u.full_name FROM invigilator_assignments ia JOIN users u ON u.id = ia.user_id
+		SELECT ia.room_id, u.id, u.full_name FROM "wm-invigilator_assignments" ia JOIN "wm-uo-users" u ON u.id = ia.user_id
 		WHERE ia.schedule_id = $1 AND ia.slot_id = $2 ORDER BY ia.room_id, u.full_name`, scheduleID, slot.ID)
 	if err != nil {
 		return out, err
@@ -238,7 +238,7 @@ func ActivityPage(ctx context.Context, pool *pgxpool.Pool, f ActivityFilter) ([]
 	}
 	rows, err := pool.Query(ctx, `
 		SELECT a.id, a.action, a.entity, a.entity_id, u.full_name, coalesce(a.new_value, 'null'::jsonb), a.created_at
-		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
+		FROM "wm-audit_log" a LEFT JOIN "wm-uo-users" u ON u.id = a.actor_id
 		WHERE ($1 = '' OR a.action LIKE $1 || '%') AND ($2 = 0 OR a.actor_id = $2)
 		  AND ($3 = 0 OR a.id > $3) AND ($4 = 0 OR a.id < $4)
 		ORDER BY a.id DESC LIMIT $5`, f.ActionPrefix, f.ActorID, f.After, f.Before, f.Limit)
@@ -256,7 +256,7 @@ func ActivityPage(ctx context.Context, pool *pgxpool.Pool, f ActivityFilter) ([]
 	})
 	var latest int64
 	if err == nil {
-		err = pool.QueryRow(ctx, `SELECT coalesce(max(id), 0) FROM audit_log`).Scan(&latest)
+		err = pool.QueryRow(ctx, `SELECT coalesce(max(id), 0) FROM "wm-audit_log"`).Scan(&latest)
 	}
 	return items, latest, err
 }
@@ -279,12 +279,12 @@ type LiveEvent struct {
 func LiveEvents(ctx context.Context, pool *pgxpool.Pool, scheduleID, slotID int64, since *time.Time, limit int) ([]LiveEvent, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT ev.event_id::text, ev.received_at, ev.status, ev.source, ev.device_id, ev.exam_id, c.code, st.student_no, st.full_name, r.code
-		FROM attendance_events ev
-		JOIN schedule_exams se ON se.schedule_id = $1 AND se.exam_id = ev.exam_id
-		JOIN exams e ON e.id = ev.exam_id JOIN courses c ON c.id = e.course_id
-		JOIN students st ON st.id = ev.student_id
-		LEFT JOIN seat_assignments sa ON sa.schedule_id = $1 AND sa.exam_id = ev.exam_id AND sa.student_id = ev.student_id
-		LEFT JOIN rooms r ON r.id = sa.room_id
+		FROM "wm-attendance_events" ev
+		JOIN "wm-schedule_exams" se ON se.schedule_id = $1 AND se.exam_id = ev.exam_id
+		JOIN "wm-exams" e ON e.id = ev.exam_id JOIN "wm-courses" c ON c.id = e.course_id
+		JOIN "wm-students" st ON st.id = ev.student_id
+		LEFT JOIN "wm-seat_assignments" sa ON sa.schedule_id = $1 AND sa.exam_id = ev.exam_id AND sa.student_id = ev.student_id
+		LEFT JOIN "wm-rooms" r ON r.id = sa.room_id
 		WHERE se.slot_id = $2 AND ($3::timestamptz IS NULL OR ev.received_at > $3)
 		ORDER BY ev.received_at DESC, ev.event_id DESC LIMIT $4`, scheduleID, slotID, since, limit)
 	if err != nil {
@@ -324,9 +324,9 @@ func StudentSeatMap(ctx context.Context, pool *pgxpool.Pool, studentID, examID i
 	var roomID int64
 	err := pool.QueryRow(ctx, `
 		SELECT r.id, r.code, r.building, r.seat_rows, r.seat_cols, rs.row_no, rs.col_no, r.door_side, r.door_pos
-		FROM seat_assignments sa
-		JOIN schedules sch ON sch.id = sa.schedule_id AND sch.status = 'published'
-		JOIN rooms r ON r.id = sa.room_id JOIN room_seats rs ON rs.id = sa.seat_id
+		FROM "wm-seat_assignments" sa
+		JOIN "wm-schedules" sch ON sch.id = sa.schedule_id AND sch.status = 'published'
+		JOIN "wm-rooms" r ON r.id = sa.room_id JOIN "wm-room_seats" rs ON rs.id = sa.seat_id
 		WHERE sa.student_id = $1 AND sa.exam_id = $2`, studentID, examID).
 		Scan(&roomID, &m.RoomCode, &m.Building, &m.Rows, &m.Cols, &m.MineRow, &m.MineCol, &m.DoorSide, &m.DoorPos)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -335,7 +335,7 @@ func StudentSeatMap(ctx context.Context, pool *pgxpool.Pool, studentID, examID i
 	if err != nil {
 		return SeatMap{}, err
 	}
-	rows, err := pool.Query(ctx, `SELECT row_no, col_no, is_active, is_accessible FROM room_seats WHERE room_id = $1 ORDER BY row_no, col_no`, roomID)
+	rows, err := pool.Query(ctx, `SELECT row_no, col_no, is_active, is_accessible FROM "wm-room_seats" WHERE room_id = $1 ORDER BY row_no, col_no`, roomID)
 	if err != nil {
 		return SeatMap{}, err
 	}

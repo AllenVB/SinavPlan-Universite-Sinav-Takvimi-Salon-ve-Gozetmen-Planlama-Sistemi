@@ -13,7 +13,7 @@ import (
 
 const listDeviceExamEvents = `-- name: ListDeviceExamEvents :many
 SELECT event_id, student_id, status, source, hlc_wall, hlc_counter
-FROM attendance_events
+FROM "wm-attendance_events"
 WHERE device_id = $1 AND exam_id = $2
 ORDER BY hlc_wall, hlc_counter, event_id
 `
@@ -61,7 +61,7 @@ func (q *Queries) ListDeviceExamEvents(ctx context.Context, arg ListDeviceExamEv
 }
 
 const useQRToken = `-- name: UseQRToken :one
-UPDATE qr_tokens
+UPDATE "wm-qr_tokens"
 SET used_at = now(), used_by_device = $2
 WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 RETURNING id, exam_id, student_id

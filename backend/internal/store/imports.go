@@ -197,7 +197,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 
 	switch kind {
 	case "students":
-		depts, err := lookup(`SELECT code, id FROM departments`)
+		depts, err := lookup(`SELECT code, id FROM "wm-departments"`)
 		if err != nil {
 			return rep, err
 		}
@@ -238,12 +238,12 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 		if _, err := tx.Exec(ctx, `CREATE TEMP TABLE tmp_students (student_no text, full_name text, department_id bigint, disability_flag boolean) ON COMMIT DROP`); err != nil {
 			return rep, err
 		}
-		upsert = `INSERT INTO students (student_no, full_name, department_id, disability_flag)
+		upsert = `INSERT INTO "wm-students" (student_no, full_name, department_id, disability_flag)
 			SELECT student_no, full_name, department_id, disability_flag FROM tmp_students
 			ON CONFLICT (student_no) DO UPDATE SET full_name = EXCLUDED.full_name, department_id = EXCLUDED.department_id,
 				disability_flag = EXCLUDED.disability_flag RETURNING (xmax = 0)`
 	case "courses":
-		depts, err2 := lookup(`SELECT code, id FROM departments`)
+		depts, err2 := lookup(`SELECT code, id FROM "wm-departments"`)
 		if err2 != nil {
 			return rep, err2
 		}
@@ -286,16 +286,16 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 		}
 		table, cols = "tmp_courses", []string{"code", "name", "department_id", "year", "requires_lab"}
 		_, err = tx.Exec(ctx, `CREATE TEMP TABLE tmp_courses (code text, name text, department_id bigint, year smallint, requires_lab boolean) ON COMMIT DROP`)
-		upsert = `INSERT INTO courses (code, name, department_id, year, requires_lab)
+		upsert = `INSERT INTO "wm-courses" (code, name, department_id, year, requires_lab)
 			SELECT code, name, department_id, year, requires_lab FROM tmp_courses
 			ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, department_id = EXCLUDED.department_id,
 				year = EXCLUDED.year, requires_lab = EXCLUDED.requires_lab RETURNING (xmax = 0)`
 	case "sections":
-		courses, err2 := lookup(`SELECT code, id FROM courses`)
+		courses, err2 := lookup(`SELECT code, id FROM "wm-courses"`)
 		if err2 != nil {
 			return rep, err2
 		}
-		lecs, err2 := lookup(`SELECT u.email, l.id FROM lecturers l JOIN users u ON u.id = l.user_id`)
+		lecs, err2 := lookup(`SELECT u.email, l.id FROM "wm-lecturers" l JOIN "wm-uo-users" u ON u.id = l.user_id`)
 		if err2 != nil {
 			return rep, err2
 		}
@@ -326,14 +326,14 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 		}
 		table, cols = "tmp_sections", []string{"course_id", "code", "lecturer_id"}
 		_, err = tx.Exec(ctx, `CREATE TEMP TABLE tmp_sections (course_id bigint, code text, lecturer_id bigint) ON COMMIT DROP`)
-		upsert = `INSERT INTO sections (course_id, code, lecturer_id) SELECT course_id, code, lecturer_id FROM tmp_sections
+		upsert = `INSERT INTO "wm-sections" (course_id, code, lecturer_id) SELECT course_id, code, lecturer_id FROM tmp_sections
 			ON CONFLICT (course_id, code) DO UPDATE SET lecturer_id = EXCLUDED.lecturer_id RETURNING (xmax = 0)`
 	case "enrollments":
-		studs, err2 := lookup(`SELECT student_no, id FROM students`)
+		studs, err2 := lookup(`SELECT student_no, id FROM "wm-students"`)
 		if err2 != nil {
 			return rep, err2
 		}
-		secs, err2 := lookup(`SELECT c.code || '|' || s.code, s.id FROM sections s JOIN courses c ON c.id = s.course_id`)
+		secs, err2 := lookup(`SELECT c.code || '|' || s.code, s.id FROM "wm-sections" s JOIN "wm-courses" c ON c.id = s.course_id`)
 		if err2 != nil {
 			return rep, err2
 		}
@@ -360,7 +360,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 		}
 		table, cols = "tmp_enrollments", []string{"student_id", "section_id"}
 		_, err = tx.Exec(ctx, `CREATE TEMP TABLE tmp_enrollments (student_id bigint, section_id bigint) ON COMMIT DROP`)
-		upsert = `INSERT INTO enrollments (student_id, section_id) SELECT student_id, section_id FROM tmp_enrollments
+		upsert = `INSERT INTO "wm-enrollments" (student_id, section_id) SELECT student_id, section_id FROM tmp_enrollments
 			ON CONFLICT DO NOTHING RETURNING true`
 	}
 	if err != nil {
@@ -369,6 +369,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, kind string, r io.Reader, a
 	rep.Valid = len(valid)
 
 	if len(valid) > 0 {
+		// table burada GEÇİCİ (CREATE TEMP … ON COMMIT DROP) hazırlama tablosudur; şemada kalıcı tablo değildir, "wm-" öneki almaz.
 		if _, err := tx.CopyFrom(ctx, pgx.Identifier{table}, cols, pgx.CopyFromRows(valid)); err != nil {
 			return rep, fmt.Errorf("toplu yazım (COPY) başarısız: %w", err)
 		}

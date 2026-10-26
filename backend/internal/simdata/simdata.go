@@ -52,7 +52,7 @@ func (c Config) usedDepartments() int {
 
 // Demo hesapları (parola DEMO_PASSWORD env'inden gelir).
 const (
-	EmailSecretary      = "sekreter@sinavplan.test"
+	EmailSecretary      = "seed.mercan@ddo-case.invalid"
 	EmailLecturer       = "hoca@sinavplan.test"
 	EmailInvigilator    = "gozetmen@sinavplan.test"
 	EmailStudentAffairs = "ogrenciisleri@sinavplan.test"

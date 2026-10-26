@@ -25,7 +25,7 @@ type env struct {
 }
 
 var accounts = map[string]string{
-	"secretary":   "sekreter@sinavplan.test",
+	"secretary":   "seed.mercan@ddo-case.invalid",
 	"lecturer":    "hoca@sinavplan.test",
 	"invigilator": "gozetmen@sinavplan.test",
 	"affairs":     "ogrenciisleri@sinavplan.test",

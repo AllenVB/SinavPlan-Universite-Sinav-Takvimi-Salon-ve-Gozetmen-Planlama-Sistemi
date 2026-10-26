@@ -17,7 +17,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   ok((await a.textContent('[data-testid=fix-panel]')).includes('İhlal 0'), 'seçenekler bağımsız doğrulayıcıdan geçti (İhlal 0)');
   ok(!(await a.$('[data-testid=fix-panel] button:has-text("Uygula")')), 'öğrenci işleri uygulayamaz (yetki sekreterde)');
 
-  const s = await login('sekreter@sinavplan.test');
+  const s = await login('seed.mercan@ddo-case.invalid');
   await (await pickRow(s)).locator('button:has-text("Çöz")').click();
   await s.waitForSelector('[data-testid=fix-panel] button:has-text("Uygula")', { timeout: 15000 });
   await s.click('[data-testid=fix-panel] button:has-text("Uygula") >> nth=0');

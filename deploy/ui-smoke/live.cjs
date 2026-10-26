@@ -10,7 +10,7 @@ const API = process.env.API_URL || 'http://localhost:8080';
   const login = async (email, vp = { width: 1280, height: 900 }) => { const ctx = await b.newContext({ viewport: vp, permissions: ['camera'] }); const p = await ctx.newPage(); await p.goto(BASE); await p.fill('#email', email); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell'); return p; };
 
   { // F13: canlı izleme — salon kartları + "Son güncelleme" sayacı gerçekten ilerliyor + yenileme olayı gerçek istek
-    const p = await login('sekreter@sinavplan.test'); let liveCalls = 0; p.on('request', (r) => { if (r.url().includes('/live')) liveCalls++; });
+    const p = await login('seed.mercan@ddo-case.invalid'); let liveCalls = 0; p.on('request', (r) => { if (r.url().includes('/live')) liveCalls++; });
     await p.goto(BASE + '/#/canli'); await p.waitForSelector('.roomcard', { timeout: 15000 });
     ok((await p.$$('.roomcard')).length > 0, 'F13: salon kartları çizildi');
     ok(await p.$('.segbar') !== null, 'F13: yoklama çubukları var');

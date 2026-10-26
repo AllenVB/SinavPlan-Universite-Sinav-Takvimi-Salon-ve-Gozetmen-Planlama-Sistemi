@@ -12,7 +12,7 @@ import (
 )
 
 const createRefreshToken = `-- name: CreateRefreshToken :one
-INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
+INSERT INTO "wm-refresh_tokens" (user_id, token_hash, family_id, expires_at)
 VALUES ($1, $2, $3, $4) RETURNING id
 `
 
@@ -36,7 +36,7 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 }
 
 const getLecturerByUserID = `-- name: GetLecturerByUserID :one
-SELECT id, department_id FROM lecturers WHERE user_id = $1
+SELECT id, department_id FROM "wm-lecturers" WHERE user_id = $1
 `
 
 type GetLecturerByUserIDRow struct {
@@ -53,7 +53,7 @@ func (q *Queries) GetLecturerByUserID(ctx context.Context, userID int64) (GetLec
 
 const getRefreshTokenForUpdate = `-- name: GetRefreshTokenForUpdate :one
 SELECT id, user_id, family_id, expires_at, revoked_at, replaced_by
-FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE
+FROM "wm-refresh_tokens" WHERE token_hash = $1 FOR UPDATE
 `
 
 type GetRefreshTokenForUpdateRow struct {
@@ -80,7 +80,7 @@ func (q *Queries) GetRefreshTokenForUpdate(ctx context.Context, tokenHash []byte
 }
 
 const getStudentByUserID = `-- name: GetStudentByUserID :one
-SELECT id, student_no, full_name, department_id, disability_flag FROM students WHERE user_id = $1
+SELECT id, student_no, full_name, department_id, disability_flag FROM "wm-students" WHERE user_id = $1
 `
 
 type GetStudentByUserIDRow struct {
@@ -105,7 +105,7 @@ func (q *Queries) GetStudentByUserID(ctx context.Context, userID pgtype.Int8) (G
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, full_name, active FROM users WHERE email = lower($1)
+SELECT id, email, password_hash, full_name, active FROM "wm-uo-users" WHERE email = lower($1)
 `
 
 type GetUserByEmailRow struct {
@@ -130,7 +130,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEm
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, full_name, active FROM users WHERE id = $1
+SELECT id, email, full_name, active FROM "wm-uo-users" WHERE id = $1
 `
 
 type GetUserByIDRow struct {
@@ -154,7 +154,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 
 const listStudentsAfter = `-- name: ListStudentsAfter :many
 SELECT id, student_no, full_name, department_id, disability_flag
-FROM students WHERE id > $1 ORDER BY id LIMIT $2
+FROM "wm-students" WHERE id > $1 ORDER BY id LIMIT $2
 `
 
 type ListStudentsAfterParams struct {
@@ -199,7 +199,7 @@ func (q *Queries) ListStudentsAfter(ctx context.Context, arg ListStudentsAfterPa
 }
 
 const listUserRoles = `-- name: ListUserRoles :many
-SELECT role FROM user_roles WHERE user_id = $1 ORDER BY role
+SELECT role FROM "wm-user_roles" WHERE user_id = $1 ORDER BY role
 `
 
 func (q *Queries) ListUserRoles(ctx context.Context, userID int64) ([]string, error) {
@@ -223,7 +223,7 @@ func (q *Queries) ListUserRoles(ctx context.Context, userID int64) ([]string, er
 }
 
 const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
-UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2 WHERE id = $1 AND revoked_at IS NULL
+UPDATE "wm-refresh_tokens" SET revoked_at = now(), replaced_by = $2 WHERE id = $1 AND revoked_at IS NULL
 `
 
 type RevokeRefreshTokenParams struct {
@@ -237,7 +237,7 @@ func (q *Queries) RevokeRefreshToken(ctx context.Context, arg RevokeRefreshToken
 }
 
 const revokeRefreshTokenFamily = `-- name: RevokeRefreshTokenFamily :exec
-UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL
+UPDATE "wm-refresh_tokens" SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error {

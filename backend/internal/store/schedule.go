@@ -56,14 +56,14 @@ func CreateSchedule(ctx context.Context, pool *pgxpool.Pool, p SchedulePlan) (in
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var one int
-	if err := tx.QueryRow(ctx, `SELECT 1 FROM exam_periods WHERE id = $1 FOR UPDATE`, p.PeriodID).Scan(&one); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT 1 FROM "wm-exam_periods" WHERE id = $1 FOR UPDATE`, p.PeriodID).Scan(&one); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, 0, ErrNotFound
 		}
 		return 0, 0, err
 	}
 	var version int
-	if err := tx.QueryRow(ctx, `SELECT coalesce(max(version), 0) + 1 FROM schedules WHERE period_id = $1`, p.PeriodID).Scan(&version); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT coalesce(max(version), 0) + 1 FROM "wm-schedules" WHERE period_id = $1`, p.PeriodID).Scan(&version); err != nil {
 		return 0, 0, err
 	}
 	metrics, err := json.Marshal(p.Metrics)
@@ -76,13 +76,13 @@ func CreateSchedule(ctx context.Context, pool *pgxpool.Pool, p SchedulePlan) (in
 	}
 	var id int64
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO schedules (period_id, version, seed, metrics, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+		`INSERT INTO "wm-schedules" (period_id, version, seed, metrics, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
 		p.PeriodID, version, p.Seed, metrics, createdBy).Scan(&id); err != nil {
 		return 0, 0, err
 	}
 
 	copyN := func(table string, cols []string, n int, row func(int) []any) error {
-		_, err := tx.CopyFrom(ctx, pgx.Identifier{table}, cols, pgx.CopyFromSlice(n, func(i int) ([]any, error) { return row(i), nil }))
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{TableName(table)}, cols, pgx.CopyFromSlice(n, func(i int) ([]any, error) { return row(i), nil }))
 		if err != nil {
 			return fmt.Errorf("%s yazılamadı: %w", table, err)
 		}
@@ -126,7 +126,7 @@ func PublishSchedule(ctx context.Context, pool *pgxpool.Pool, scheduleID, actor 
 
 	var period int64
 	var status string
-	err = tx.QueryRow(ctx, `SELECT period_id, status FROM schedules WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period, &status)
+	err = tx.QueryRow(ctx, `SELECT period_id, status FROM "wm-schedules" WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -137,13 +137,13 @@ func PublishSchedule(ctx context.Context, pool *pgxpool.Pool, scheduleID, actor 
 		return ErrConflict
 	}
 	// Dönem kilidi: eşzamanlı iki yayınlama sıraya girer.
-	if _, err := tx.Exec(ctx, `SELECT 1 FROM exam_periods WHERE id = $1 FOR UPDATE`, period); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM "wm-exam_periods" WHERE id = $1 FOR UPDATE`, period); err != nil {
 		return err
 	}
 	var prev *int64
-	_ = tx.QueryRow(ctx, `UPDATE schedules SET status = 'draft', published_at = NULL
+	_ = tx.QueryRow(ctx, `UPDATE "wm-schedules" SET status = 'draft', published_at = NULL
 		WHERE period_id = $1 AND status = 'published' RETURNING id`, period).Scan(&prev)
-	if _, err := tx.Exec(ctx, `UPDATE schedules SET status = 'published', published_at = now() WHERE id = $1`, scheduleID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE "wm-schedules" SET status = 'published', published_at = now() WHERE id = $1`, scheduleID); err != nil {
 		return err
 	}
 	if err := audit.Write(ctx, tx, audit.Entry{ActorID: actor, Action: "schedule.publish", Entity: "schedule",

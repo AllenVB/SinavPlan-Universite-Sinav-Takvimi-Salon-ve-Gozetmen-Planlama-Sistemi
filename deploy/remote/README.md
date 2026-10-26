@@ -32,7 +32,7 @@ yüzden CORS gerekmez — yerelde nginx'in yaptığı işin aynısı.
 ## 3. Vercel — arayüz
 1. Vercel → **Add New → Project** → bu depo, **Root Directory: `frontend`** (Vite otomatik algılanır).
 2. Render adresi `sinavplan-api.onrender.com` değilse `frontend/vercel.json` içindeki `destination`'ı düzeltin.
-3. Yayın adresini açın, demo hesaplarıyla girin (`sekreter@sinavplan.test` / `Demo!1234`).
+3. Yayın adresini açın, demo hesaplarıyla girin (`seed.mercan@ddo-case.invalid` / `Demo!1234`).
 
 ## Bilinmesi gerekenler
 - **Demo hesapları herkese açık parolayla gelir** ve veriler kurgusaldır; gerçek kişisel veri girmeyin.

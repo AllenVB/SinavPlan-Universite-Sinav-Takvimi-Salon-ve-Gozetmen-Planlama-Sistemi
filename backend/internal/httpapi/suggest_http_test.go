@@ -15,8 +15,8 @@ func TestFixSuggestionsResolveStudentsSameDay(t *testing.T) {
 	s, env, _, schedID := scheduledServer(t)
 	ctx := context.Background()
 	// Oturumların hepsi gelecekte olsun (başlamış oturumlar kilitlidir).
-	if _, err := env.Owner.Pool.Exec(ctx, `UPDATE slots SET starts_at = starts_at - (SELECT min(starts_at) FROM slots) + now() + interval '1 day',
-		ends_at = ends_at - (SELECT min(starts_at) FROM slots) + now() + interval '1 day'`); err != nil {
+	if _, err := env.Owner.Pool.Exec(ctx, `UPDATE "wm-slots" SET starts_at = starts_at - (SELECT min(starts_at) FROM "wm-slots") + now() + interval '1 day',
+		ends_at = ends_at - (SELECT min(starts_at) FROM "wm-slots") + now() + interval '1 day'`); err != nil {
 		t.Fatal(err)
 	}
 	sec, _ := login(t, s, simdata.EmailSecretary)
@@ -34,7 +34,7 @@ func TestFixSuggestionsResolveStudentsSameDay(t *testing.T) {
 	day := int(row["day"].(float64))
 
 	var versions int
-	_ = env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM schedules`).Scan(&versions)
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-schedules"`).Scan(&versions)
 	code, out := do(t, s, http.MethodGet, fmt.Sprintf("/schedules/%s/fix-suggestions?student_id=%d", sid, student), aff, "", "")
 	if code != http.StatusOK || out["mode"] != "student" {
 		t.Fatalf("öneri: %d %v", code, out)
@@ -50,7 +50,7 @@ func TestFixSuggestionsResolveStudentsSameDay(t *testing.T) {
 		}
 	}
 	var after int
-	_ = env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM schedules`).Scan(&after)
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-schedules"`).Scan(&after)
 	if after != versions {
 		t.Fatalf("öneri isteği sürüm oluşturmamalı: %d → %d", versions, after)
 	}

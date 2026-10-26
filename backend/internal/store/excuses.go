@@ -57,8 +57,8 @@ func CreateStudentExcuse(ctx context.Context, pool *pgxpool.Pool, studentID, exa
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var ok bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM exams e JOIN sections s ON s.course_id = e.course_id
-		JOIN enrollments en ON en.section_id = s.id WHERE e.id = $1 AND en.student_id = $2)`, examID, studentID).Scan(&ok); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-exams" e JOIN "wm-sections" s ON s.course_id = e.course_id
+		JOIN "wm-enrollments" en ON en.section_id = s.id WHERE e.id = $1 AND en.student_id = $2)`, examID, studentID).Scan(&ok); err != nil {
 		return Excuse{}, err
 	}
 	if !ok {
@@ -69,14 +69,14 @@ func CreateStudentExcuse(ctx context.Context, pool *pgxpool.Pool, studentID, exa
 		return Excuse{}, err
 	}
 	var dup bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM excuses WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status IN ('pending','approved'))`,
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-excuses" WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status IN ('pending','approved'))`,
 		studentID, examID).Scan(&dup); err != nil {
 		return Excuse{}, err
 	}
 	if dup {
 		return Excuse{}, ErrConflict
 	}
-	e, err := scanExcuse(tx.QueryRow(ctx, `INSERT INTO excuses (kind, student_id, exam_id, reason) VALUES ('student',$1,$2,$3) RETURNING `+excuseCols, studentID, examID, reason))
+	e, err := scanExcuse(tx.QueryRow(ctx, `INSERT INTO "wm-excuses" (kind, student_id, exam_id, reason) VALUES ('student',$1,$2,$3) RETURNING `+excuseCols, studentID, examID, reason))
 	if err != nil {
 		return Excuse{}, err
 	}
@@ -97,7 +97,7 @@ func CreateInvigilatorExcuse(ctx context.Context, pool *pgxpool.Pool, userID, sl
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var ok bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM slots WHERE id = $1)`, slotID).Scan(&ok); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-slots" WHERE id = $1)`, slotID).Scan(&ok); err != nil {
 		return Excuse{}, err
 	}
 	if !ok {
@@ -107,14 +107,14 @@ func CreateInvigilatorExcuse(ctx context.Context, pool *pgxpool.Pool, userID, sl
 		return Excuse{}, err
 	}
 	var dup bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM excuses WHERE kind='invigilator' AND user_id=$1 AND slot_id=$2 AND status IN ('pending','approved'))`,
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-excuses" WHERE kind='invigilator' AND user_id=$1 AND slot_id=$2 AND status IN ('pending','approved'))`,
 		userID, slotID).Scan(&dup); err != nil {
 		return Excuse{}, err
 	}
 	if dup {
 		return Excuse{}, ErrConflict
 	}
-	e, err := scanExcuse(tx.QueryRow(ctx, `INSERT INTO excuses (kind, user_id, slot_id, reason) VALUES ('invigilator',$1,$2,$3) RETURNING `+excuseCols, userID, slotID, reason))
+	e, err := scanExcuse(tx.QueryRow(ctx, `INSERT INTO "wm-excuses" (kind, user_id, slot_id, reason) VALUES ('invigilator',$1,$2,$3) RETURNING `+excuseCols, userID, slotID, reason))
 	if err != nil {
 		return Excuse{}, err
 	}
@@ -129,12 +129,12 @@ func CreateInvigilatorExcuse(ctx context.Context, pool *pgxpool.Pool, userID, sl
 func ListExcuses(ctx context.Context, pool *pgxpool.Pool, status, kind string, ownerStudent, ownerUser, after int64, limit int) ([]Excuse, error) {
 	rows, err := pool.Query(ctx, `SELECT x.id, x.kind, x.student_id, x.user_id, x.exam_id, x.slot_id, x.reason, x.status, x.decided_by, x.decided_at, x.decision_note, x.created_at,
 		       coalesce(CASE WHEN x.kind = 'student'
-		         THEN (SELECT st.full_name || ' (' || st.student_no || ')' FROM students st WHERE st.id = x.student_id)
-		         ELSE (SELECT u.full_name FROM users u WHERE u.id = x.user_id) END, ''),
+		         THEN (SELECT st.full_name || ' (' || st.student_no || ')' FROM "wm-students" st WHERE st.id = x.student_id)
+		         ELSE (SELECT u.full_name FROM "wm-uo-users" u WHERE u.id = x.user_id) END, ''),
 		       coalesce(CASE WHEN x.kind = 'student'
-		         THEN (SELECT c.code || ' — ' || c.name FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = x.exam_id)
-		         ELSE (SELECT to_char(sl.starts_at AT TIME ZONE 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') || ' oturumu' FROM slots sl WHERE sl.id = x.slot_id) END, '')
-		FROM excuses x
+		         THEN (SELECT c.code || ' — ' || c.name FROM "wm-exams" e JOIN "wm-courses" c ON c.id = e.course_id WHERE e.id = x.exam_id)
+		         ELSE (SELECT to_char(sl.starts_at AT TIME ZONE 'Europe/Istanbul', 'DD.MM.YYYY HH24:MI') || ' oturumu' FROM "wm-slots" sl WHERE sl.id = x.slot_id) END, '')
+		FROM "wm-excuses" x
 		WHERE x.id > $1 AND ($2 = '' OR x.status = $2) AND ($3 = '' OR x.kind = $3)
 		  AND ($4 = 0 OR x.student_id = $4) AND ($5 = 0 OR x.user_id = $5)
 		ORDER BY x.id LIMIT $6`, after, status, kind, ownerStudent, ownerUser, limit)
@@ -162,7 +162,7 @@ func DecideExcuse(ctx context.Context, pool *pgxpool.Pool, id, decider int64, ap
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var status string
-	if err := tx.QueryRow(ctx, `SELECT status FROM excuses WHERE id = $1 FOR UPDATE`, id).Scan(&status); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT status FROM "wm-excuses" WHERE id = $1 FOR UPDATE`, id).Scan(&status); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Excuse{}, ErrNotFound
 		}
@@ -179,7 +179,7 @@ func DecideExcuse(ctx context.Context, pool *pgxpool.Pool, id, decider int64, ap
 	if note != "" {
 		n = note
 	}
-	e, err := scanExcuse(tx.QueryRow(ctx, `UPDATE excuses SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING `+excuseCols,
+	e, err := scanExcuse(tx.QueryRow(ctx, `UPDATE "wm-excuses" SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING `+excuseCols,
 		id, next, decider, n))
 	if err != nil {
 		return Excuse{}, err
@@ -194,7 +194,7 @@ func DecideExcuse(ctx context.Context, pool *pgxpool.Pool, id, decider int64, ap
 // HasApprovedExcuse: öğrencinin bu sınav için onaylanmış mazereti var mı?
 func HasApprovedExcuse(ctx context.Context, pool *pgxpool.Pool, studentID, examID int64) (bool, error) {
 	var ok bool
-	err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM excuses WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status='approved')`,
+	err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-excuses" WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status='approved')`,
 		studentID, examID).Scan(&ok)
 	return ok, err
 }

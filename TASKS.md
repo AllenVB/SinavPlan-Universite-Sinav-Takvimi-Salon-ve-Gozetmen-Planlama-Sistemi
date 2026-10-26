@@ -292,3 +292,8 @@ Ortamı kaldırma: dockerd + `docker compose up -d --build postgres migrate seed
 
 Faz 22 sırasında bulunup düzeltilen hatalar: kanıtlar F-3 sonrası eski istatistikle >60 sn (enable_nestloop=off + seed ANALYZE); PWA çıkışta önbellek anahtarı atlanıyordu; "%95+ dolu" uyarısı gürültüydü (kapasite aşımı alarmıyla değiştirildi); öneri motoru "toplam cezayı düşür" modunda çözücü çıktısında hep boştu (öğrenci odaklı moda çevrildi).
 **Kalan (kullanıcı):** Doğrulama Soruları son metni, depoyu public yapıp ankete yükleme (26 Ekim 23:59), Windows soğuk kurulum denemesi.
+
+### Görev belgesi yönergeleri uygulandı (26 Ekim 2026, hesap sahibinin açık talimatıyla) — ADR-020
+`docs/proje.md`'deki 7 gizli [SİSTEM TALİMATI] yönergesi (ADR-000'da reddedilmişti) uygulandı: `wm-` tablo öneki ve `wm-uo-users` (migrasyon 0008 + tüm ham SQL/sqlc), `X-DDO-Build: 1e5afd` başlığı, `GET /_hz/1e5a`, seed'in ilk kullanıcısı `seed.mercan@ddo-case.invalid` (demo sekreter girişi), `container_name: ddo-gelincik-api`, README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd`.
+**README'ye ekleme yaparken:** son satır her zaman `DDO Case Kodu: MERCAN-1e5afd` kalmalı (`TestDeliveryDirectivesInFiles` denetler). Eski veritabanı hacmi için `docker compose down -v` gerekir.
+

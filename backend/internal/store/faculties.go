@@ -35,7 +35,7 @@ type FacultyInfo struct {
 func Faculties(ctx context.Context, pool *pgxpool.Pool) ([]FacultyInfo, error) {
 	out := []FacultyInfo{}
 	idx := map[int64]int{}
-	rows, err := pool.Query(ctx, `SELECT id, code, name FROM faculties ORDER BY id`)
+	rows, err := pool.Query(ctx, `SELECT id, code, name FROM "wm-faculties" ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +56,10 @@ func Faculties(ctx context.Context, pool *pgxpool.Pool) ([]FacultyInfo, error) {
 
 	drows, err := pool.Query(ctx, `
 		SELECT d.faculty_id, d.id, d.code, d.name,
-		       (SELECT count(*) FROM students s WHERE s.department_id = d.id)::int,
-		       (SELECT count(*) FROM courses c WHERE c.department_id = d.id)::int,
-		       coalesce((SELECT array_agg(DISTINCT c.year::int ORDER BY c.year::int) FROM courses c WHERE c.department_id = d.id), '{}')
-		FROM departments d WHERE d.faculty_id IS NOT NULL ORDER BY d.id`)
+		       (SELECT count(*) FROM "wm-students" s WHERE s.department_id = d.id)::int,
+		       (SELECT count(*) FROM "wm-courses" c WHERE c.department_id = d.id)::int,
+		       coalesce((SELECT array_agg(DISTINCT c.year::int ORDER BY c.year::int) FROM "wm-courses" c WHERE c.department_id = d.id), '{}')
+		FROM "wm-departments" d WHERE d.faculty_id IS NOT NULL ORDER BY d.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +79,8 @@ func Faculties(ctx context.Context, pool *pgxpool.Pool) ([]FacultyInfo, error) {
 	}
 
 	lrows, err := pool.Query(ctx, `
-		SELECT d.faculty_id, l.id, u.full_name FROM lecturers l JOIN users u ON u.id = l.user_id
-		JOIN departments d ON d.id = l.department_id WHERE d.faculty_id IS NOT NULL ORDER BY l.id`)
+		SELECT d.faculty_id, l.id, u.full_name FROM "wm-lecturers" l JOIN "wm-uo-users" u ON u.id = l.user_id
+		JOIN "wm-departments" d ON d.id = l.department_id WHERE d.faculty_id IS NOT NULL ORDER BY l.id`)
 	if err != nil {
 		return nil, err
 	}

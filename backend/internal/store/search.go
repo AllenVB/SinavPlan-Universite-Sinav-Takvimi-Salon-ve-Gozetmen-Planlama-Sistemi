@@ -33,12 +33,12 @@ func Search(ctx context.Context, pool *pgxpool.Pool, q string, perKind int) ([]S
 	}
 	pre, sub := likeEscape(q)+"%", "%"+likeEscape(q)+"%"
 	queries := []struct{ kind, sql string }{
-		{"student", `SELECT s.id, s.student_no || ' · ' || s.full_name, d.name FROM students s JOIN departments d ON d.id = s.department_id
+		{"student", `SELECT s.id, s.student_no || ' · ' || s.full_name, d.name FROM "wm-students" s JOIN "wm-departments" d ON d.id = s.department_id
 			WHERE s.student_no LIKE $1 ESCAPE '\' OR s.full_name ILIKE $2 ESCAPE '\' ORDER BY s.student_no LIMIT $3`},
-		{"course", `SELECT c.id, c.code || ' · ' || c.name, d.name || ' · ' || c.year || '. sınıf' FROM courses c JOIN departments d ON d.id = c.department_id
+		{"course", `SELECT c.id, c.code || ' · ' || c.name, d.name || ' · ' || c.year || '. sınıf' FROM "wm-courses" c JOIN "wm-departments" d ON d.id = c.department_id
 			WHERE c.code ILIKE $1 ESCAPE '\' OR c.name ILIKE $2 ESCAPE '\' ORDER BY c.code LIMIT $3`},
 		{"room", `SELECT r.id, r.code, 'Bina ' || r.building || ' · ' || CASE r.type WHEN 'lab' THEN 'Laboratuvar' ELSE 'Derslik' END || ' · ' || r.capacity || ' kişi'
-			FROM rooms r WHERE r.code ILIKE $1 ESCAPE '\' ORDER BY r.code LIMIT $2`},
+			FROM "wm-rooms" r WHERE r.code ILIKE $1 ESCAPE '\' ORDER BY r.code LIMIT $2`},
 	}
 	for _, x := range queries {
 		args := []any{pre, sub, perKind}
@@ -95,7 +95,7 @@ type StudentExcuse struct {
 func GetStudentOverview(ctx context.Context, pool *pgxpool.Pool, id int64) (StudentOverview, error) {
 	o := StudentOverview{Attendance: map[int64]StudentAttendance{}, Excuses: []StudentExcuse{}}
 	err := pool.QueryRow(ctx, `SELECT s.id, s.student_no, s.full_name, d.name, coalesce(f.name, ''), s.disability_flag
-		FROM students s JOIN departments d ON d.id = s.department_id LEFT JOIN faculties f ON f.id = d.faculty_id WHERE s.id = $1`, id).
+		FROM "wm-students" s JOIN "wm-departments" d ON d.id = s.department_id LEFT JOIN "wm-faculties" f ON f.id = d.faculty_id WHERE s.id = $1`, id).
 		Scan(&o.ID, &o.StudentNo, &o.FullName, &o.Department, &o.Faculty, &o.Disability)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return o, ErrNotFound
@@ -103,7 +103,7 @@ func GetStudentOverview(ctx context.Context, pool *pgxpool.Pool, id int64) (Stud
 	if err != nil {
 		return o, err
 	}
-	rows, err := pool.Query(ctx, `SELECT exam_id, status, source, updated_at FROM attendance_state WHERE student_id = $1`, id)
+	rows, err := pool.Query(ctx, `SELECT exam_id, status, source, updated_at FROM "wm-attendance_state" WHERE student_id = $1`, id)
 	if err != nil {
 		return o, err
 	}
@@ -117,8 +117,8 @@ func GetStudentOverview(ctx context.Context, pool *pgxpool.Pool, id int64) (Stud
 		o.Attendance[e] = a
 	}
 	rows.Close()
-	rows, err = pool.Query(ctx, `SELECT e.id, e.exam_id, c.code, e.reason, e.status, e.created_at FROM excuses e
-		LEFT JOIN exams x ON x.id = e.exam_id LEFT JOIN courses c ON c.id = x.course_id
+	rows, err = pool.Query(ctx, `SELECT e.id, e.exam_id, c.code, e.reason, e.status, e.created_at FROM "wm-excuses" e
+		LEFT JOIN "wm-exams" x ON x.id = e.exam_id LEFT JOIN "wm-courses" c ON c.id = x.course_id
 		WHERE e.student_id = $1 ORDER BY e.id DESC LIMIT 50`, id)
 	if err != nil {
 		return o, err

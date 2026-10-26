@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.UI_URL || 'http://localhost:3000';
 const AXE = process.env.AXE_PATH || require.resolve('axe-core/axe.min.js');
 const roles = [
-  ['sekreter@sinavplan.test', ['panel', 'takvim', 'takvim?tab=uret', 'takvim?tab=prova', 'salonlar', 'gozetmenler', 'canli', 'mazeret', 'cakisma', 'ice-aktar']],
+  ['seed.mercan@ddo-case.invalid', ['panel', 'takvim', 'takvim?tab=uret', 'takvim?tab=prova', 'salonlar', 'gozetmenler', 'canli', 'mazeret', 'cakisma', 'ice-aktar']],
   ['hoca@sinavplan.test', ['takvim', 'salonlar']],
   ['gozetmen@sinavplan.test', ['yoklama', 'salonlar', 'mazeret']],
   ['ogrenciisleri@sinavplan.test', ['mazeret', 'canli']],
@@ -26,7 +26,7 @@ const roles = [
   };
   // giriş ekranı: tarama + klavyeyle doldurup gönderme
   { const p = await (await b.newContext()).newPage(); await p.goto(BASE); await p.waitForSelector('#email'); await scan(p, 'giriş');
-    await p.focus('#email'); await p.keyboard.type('sekreter@sinavplan.test'); await p.keyboard.press('Tab');
+    await p.focus('#email'); await p.keyboard.type('seed.mercan@ddo-case.invalid'); await p.keyboard.press('Tab');
     ok(await p.evaluate(() => document.activeElement?.id === 'pw'), 'klavye: Tab e-postadan parolaya geçer');
     await p.keyboard.type('Demo!1234'); await p.keyboard.press('Enter'); await p.waitForSelector('.shell', { timeout: 8000 }).then(() => ok(true, 'klavye: Enter ile giriş'), () => ok(false, 'klavye: Enter ile giriş'));
     await p.keyboard.press('Tab');

@@ -26,7 +26,7 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 
 	var seededSeed int64
 	var seededHash string
-	err := conn.QueryRow(ctx, `SELECT seed, dataset_hash FROM seed_meta`).Scan(&seededSeed, &seededHash)
+	err := conn.QueryRow(ctx, `SELECT seed, dataset_hash FROM "wm-seed_meta"`).Scan(&seededSeed, &seededHash)
 	switch {
 	case err == nil && seededHash == hash:
 		log.Info("veri zaten yüklü, atlanıyor", slog.Int64("seed", seededSeed), slog.String("hash", hash[:12]))
@@ -52,7 +52,7 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	copyRows := func(table string, cols []string, n int, row func(i int) []any) error {
-		_, err := tx.CopyFrom(ctx, pgx.Identifier{table}, cols, pgx.CopyFromSlice(n, func(i int) ([]any, error) {
+		_, err := tx.CopyFrom(ctx, pgx.Identifier{TableName(table)}, cols, pgx.CopyFromSlice(n, func(i int) ([]any, error) {
 			return row(i), nil
 		}))
 		if err != nil {
@@ -162,13 +162,13 @@ func Seed(ctx context.Context, conn *pgx.Conn, ds *simdata.Dataset, demoPassword
 	}
 
 	for _, t := range identityTables {
-		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%s','id'), (SELECT max(id) FROM %s))`, t, t)
+		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('public."%s"','id'), (SELECT max(id) FROM "%s"))`, TableName(t), TableName(t))
 		if _, err := tx.Exec(ctx, q); err != nil {
 			return fmt.Errorf("%s dizisi ayarlanamadı: %w", t, err)
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `INSERT INTO seed_meta (seed, dataset_hash) VALUES ($1, $2)`, ds.Config.Seed, hash); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO "wm-seed_meta" (seed, dataset_hash) VALUES ($1, $2)`, ds.Config.Seed, hash); err != nil {
 		return fmt.Errorf("seed_meta yazılamadı: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {

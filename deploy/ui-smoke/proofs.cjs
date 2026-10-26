@@ -7,7 +7,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   const b = await chromium.launch();
   let fail = 0; const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) fail++; };
   const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
-  await p.goto(BASE); await p.fill('#email', 'sekreter@sinavplan.test'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
+  await p.goto(BASE); await p.fill('#email', 'seed.mercan@ddo-case.invalid'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
   await p.goto(BASE + '/#/ice-aktar'); await p.click('.tabs button:has-text("Kanıtlar")');
   await p.waitForSelector('[data-testid=proofs-summary]', { timeout: 30000 });
   const sum = await p.textContent('[data-testid=proofs-summary]');

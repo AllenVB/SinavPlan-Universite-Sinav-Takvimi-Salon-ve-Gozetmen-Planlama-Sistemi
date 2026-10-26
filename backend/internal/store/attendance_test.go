@@ -63,8 +63,8 @@ func TestScheduleVersionsAndPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	var st1, st2 string
-	_ = env.App.Pool.QueryRow(ctx, `SELECT status FROM schedules WHERE id=$1`, first).Scan(&st1)
-	_ = env.App.Pool.QueryRow(ctx, `SELECT status FROM schedules WHERE id=$1`, second).Scan(&st2)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT status FROM "wm-schedules" WHERE id=$1`, first).Scan(&st1)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT status FROM "wm-schedules" WHERE id=$1`, second).Scan(&st2)
 	if st1 != "draft" || st2 != "published" {
 		t.Fatalf("yeni sürüm yayınlanınca eskisi taslağa dönmeli: %s / %s", st1, st2)
 	}
@@ -75,7 +75,7 @@ func TestScheduleVersionsAndPublish(t *testing.T) {
 		t.Fatalf("olmayan çizelge: %v", err)
 	}
 	var n int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE entity='schedule'`).Scan(&n)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-audit_log" WHERE entity='schedule'`).Scan(&n)
 	if n != 4 { // 2 create + 2 publish
 		t.Fatalf("4 denetim kaydı bekleniyordu: %d", n)
 	}
@@ -103,7 +103,7 @@ func TestSyncIsIdempotentAndRejectsInvalid(t *testing.T) {
 		t.Fatalf("tekrar gönderim idempotent olmalı: %+v %v", r2, err)
 	}
 	var n int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM attendance_events`).Scan(&n)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-attendance_events"`).Scan(&n)
 	if n != 2 {
 		t.Fatalf("2 olay bekleniyordu: %d", n)
 	}
@@ -135,8 +135,8 @@ func TestSyncRecordsConflictWithDeterministicRule(t *testing.T) {
 		t.Fatalf("1 çakışma bekleniyordu: %+v %v", r, err)
 	}
 	var status, src, rule string
-	_ = env.App.Pool.QueryRow(ctx, `SELECT status, source FROM attendance_state WHERE exam_id=$1 AND student_id=$2`, s.ExamID, s.StudentID).Scan(&status, &src)
-	_ = env.App.Pool.QueryRow(ctx, `SELECT rule FROM attendance_conflicts`).Scan(&rule)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT status, source FROM "wm-attendance_state" WHERE exam_id=$1 AND student_id=$2`, s.ExamID, s.StudentID).Scan(&status, &src)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT rule FROM "wm-attendance_conflicts"`).Scan(&rule)
 	if status != "present" || src != "qr" || rule != "qr_present" {
 		t.Fatalf("QR present kazanmalı: %s/%s kural %s", status, src, rule)
 	}
@@ -183,7 +183,7 @@ func TestConcurrentSyncConvergesToResolve(t *testing.T) {
 	}
 	for _, want := range attendance.Resolve(all) {
 		var got string
-		if err := env.App.Pool.QueryRow(ctx, `SELECT event_id::text FROM attendance_state WHERE exam_id=$1 AND student_id=$2`,
+		if err := env.App.Pool.QueryRow(ctx, `SELECT event_id::text FROM "wm-attendance_state" WHERE exam_id=$1 AND student_id=$2`,
 			want.ExamID, want.StudentID).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +191,7 @@ func TestConcurrentSyncConvergesToResolve(t *testing.T) {
 			t.Fatalf("öğrenci %d: durum %s, Resolve kazananı %s", want.StudentID, got, want.Winner.ID)
 		}
 		var n int
-		_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM attendance_conflicts WHERE exam_id=$1 AND student_id=$2 AND winner_event_id=$3`,
+		_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-attendance_conflicts" WHERE exam_id=$1 AND student_id=$2 AND winner_event_id=$3`,
 			want.ExamID, want.StudentID, want.Winner.ID).Scan(&n)
 		if n != len(want.Conflicts) {
 			t.Fatalf("öğrenci %d: %d çakışma kaydı, Resolve %d", want.StudentID, n, len(want.Conflicts))
@@ -237,7 +237,7 @@ func TestQRSingleUseUnderFiftyConcurrentScans(t *testing.T) {
 		t.Fatalf("1 başarı + 49 ErrQRUsed bekleniyordu: %d başarı, %d kullanılmış, %d diğer", ok.Load(), used.Load(), other.Load())
 	}
 	var events int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM attendance_events WHERE source='qr'`).Scan(&events)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-attendance_events" WHERE source='qr'`).Scan(&events)
 	if events != 1 {
 		t.Fatalf("tam 1 QR yoklama olayı yazılmalı: %d", events)
 	}
@@ -272,7 +272,7 @@ func TestQRForgedRevokedExpired(t *testing.T) {
 	}
 	// DB'de token'ın kendisi değil yalnızca özeti var.
 	var n int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM qr_tokens WHERE token_hash = convert_to($1, 'UTF8')`, fresh).Scan(&n)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-qr_tokens" WHERE token_hash = convert_to($1, 'UTF8')`, fresh).Scan(&n)
 	if n != 0 {
 		t.Fatal("ham token veritabanında saklanmamalı")
 	}
@@ -282,7 +282,7 @@ func TestQRForgedRevokedExpired(t *testing.T) {
 
 func occupancy(t *testing.T, env *testdb.Env, schedule int64) map[[2]int64]int {
 	rows, err := env.App.Pool.Query(context.Background(),
-		`SELECT slot_id, room_id, count(*) FROM seat_assignments WHERE schedule_id=$1 GROUP BY 1,2`, schedule)
+		`SELECT slot_id, room_id, count(*) FROM "wm-seat_assignments" WHERE schedule_id=$1 GROUP BY 1,2`, schedule)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,17 +341,17 @@ func TestRoomChangeMovesEveryoneAtomically(t *testing.T) {
 		t.Fatalf("doluluk: kaynak %d, hedef %d", after[[2]int64{req.SlotID, req.FromRoomID}], after[[2]int64{req.SlotID, req.ToRoomID}])
 	}
 	var ev, au int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM room_change_events`).Scan(&ev)
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action='room.change'`).Scan(&au)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-room_change_events"`).Scan(&ev)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-audit_log" WHERE action='room.change'`).Scan(&au)
 	if ev != 1 || au != 1 {
 		t.Fatalf("olay ve denetim kaydı: %d / %d", ev, au)
 	}
 	// Yeni yerleşimde yan yana aynı sınav yok.
 	var adj int
 	_ = env.App.Pool.QueryRow(ctx, `
-		SELECT count(*) FROM seat_assignments a JOIN room_seats sa ON sa.id=a.seat_id
-		JOIN seat_assignments b ON b.schedule_id=a.schedule_id AND b.slot_id=a.slot_id AND b.room_id=a.room_id AND b.exam_id=a.exam_id
-		JOIN room_seats sb ON sb.id=b.seat_id
+		SELECT count(*) FROM "wm-seat_assignments" a JOIN "wm-room_seats" sa ON sa.id=a.seat_id
+		JOIN "wm-seat_assignments" b ON b.schedule_id=a.schedule_id AND b.slot_id=a.slot_id AND b.room_id=a.room_id AND b.exam_id=a.exam_id
+		JOIN "wm-room_seats" sb ON sb.id=b.seat_id
 		WHERE a.schedule_id=$1 AND a.room_id=$2 AND sa.row_no=sb.row_no AND sb.col_no=sa.col_no+1`, sid, req.ToRoomID).Scan(&adj)
 	if adj != 0 {
 		t.Fatalf("hedef salonda %d yan yana ihlali", adj)
@@ -365,7 +365,7 @@ func TestRoomChangeMovesEveryoneAtomically(t *testing.T) {
 }
 
 func loadSeatingRoom(t *testing.T, env *testdb.Env, id int64) seating.Room {
-	rows, err := env.App.Pool.Query(context.Background(), `SELECT id, row_no, col_no, is_active, is_accessible FROM room_seats WHERE room_id=$1`, id)
+	rows, err := env.App.Pool.Query(context.Background(), `SELECT id, row_no, col_no, is_active, is_accessible FROM "wm-room_seats" WHERE room_id=$1`, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +383,7 @@ func loadSeatingRoom(t *testing.T, env *testdb.Env, id int64) seating.Room {
 
 func loadGroups(t *testing.T, env *testdb.Env, schedule, slot, room int64) []seating.Group {
 	rows, err := env.App.Pool.Query(context.Background(), `SELECT sa.exam_id, sa.student_id, st.disability_flag
-		FROM seat_assignments sa JOIN students st ON st.id = sa.student_id
+		FROM "wm-seat_assignments" sa JOIN "wm-students" st ON st.id = sa.student_id
 		WHERE sa.schedule_id=$1 AND sa.slot_id=$2 AND sa.room_id=$3 ORDER BY 1,2`, schedule, slot, room)
 	if err != nil {
 		t.Fatal(err)
@@ -490,13 +490,13 @@ func TestConcurrentEvacuationsIntoSameRoom(t *testing.T) {
 		t.Fatalf("hedef salon aşıldı: %d > %d", after[[2]int64{c.slot, c.target}], act[c.target])
 	}
 	var dup int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM (SELECT slot_id, seat_id FROM seat_assignments WHERE schedule_id=$1
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM (SELECT slot_id, seat_id FROM "wm-seat_assignments" WHERE schedule_id=$1
 		GROUP BY 1,2 HAVING count(*) > 1) x`, sid).Scan(&dup)
 	if dup != 0 {
 		t.Fatalf("%d koltuk çift rezerve", dup)
 	}
 	var ev int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM room_change_events`).Scan(&ev)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-room_change_events"`).Scan(&ev)
 	if ev != 1 {
 		t.Fatalf("tam 1 salon değişikliği olayı: %d", ev)
 	}

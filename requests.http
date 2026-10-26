@@ -22,7 +22,7 @@ GET {{host}}/openapi.yaml
 POST {{host}}/auth/login
 Content-Type: {{json}}
 
-{"email": "sekreter@sinavplan.test", "password": "{{password}}"}
+{"email": "seed.mercan@ddo-case.invalid", "password": "{{password}}"}
 
 ###
 @secretary = {{loginSecretary.response.body.access_token}}
@@ -72,7 +72,7 @@ Content-Type: {{json}}
 POST {{host}}/auth/login
 Content-Type: {{json}}
 
-{"email": "sekreter@sinavplan.test", "password": "yanlis"}
+{"email": "seed.mercan@ddo-case.invalid", "password": "yanlis"}
 
 ### Oturum sahibi
 GET {{host}}/me

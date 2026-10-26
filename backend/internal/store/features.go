@@ -11,7 +11,7 @@ import (
 
 // ScheduleAssignment, çizelgedeki sınav -> slot kimliği eşlemesi.
 func ScheduleAssignment(ctx context.Context, pool *pgxpool.Pool, scheduleID int64) (map[int64]int64, error) {
-	rows, err := pool.Query(ctx, `SELECT exam_id, slot_id FROM schedule_exams WHERE schedule_id = $1`, scheduleID)
+	rows, err := pool.Query(ctx, `SELECT exam_id, slot_id FROM "wm-schedule_exams" WHERE schedule_id = $1`, scheduleID)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ type SlotInfo struct {
 
 // PeriodSlots, dönemin tüm slotlarını (kullanılmayanlar dahil) sırayla döner.
 func PeriodSlots(ctx context.Context, pool *pgxpool.Pool, periodID int64) ([]SlotInfo, error) {
-	rows, err := pool.Query(ctx, `SELECT id, day_index, session_index, starts_at, ends_at FROM slots WHERE period_id = $1 ORDER BY day_index, session_index`, periodID)
+	rows, err := pool.Query(ctx, `SELECT id, day_index, session_index, starts_at, ends_at FROM "wm-slots" WHERE period_id = $1 ORDER BY day_index, session_index`, periodID)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +76,9 @@ type Moved struct {
 func MovedExams(ctx context.Context, pool *pgxpool.Pool, a, b int64) ([]Moved, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT e.id, c.code, c.name, sa.slot_id, sb.slot_id, la.starts_at, lb.starts_at
-		FROM schedule_exams sa JOIN schedule_exams sb ON sb.exam_id = sa.exam_id AND sb.schedule_id = $2
-		JOIN exams e ON e.id = sa.exam_id JOIN courses c ON c.id = e.course_id
-		JOIN slots la ON la.id = sa.slot_id JOIN slots lb ON lb.id = sb.slot_id
+		FROM "wm-schedule_exams" sa JOIN "wm-schedule_exams" sb ON sb.exam_id = sa.exam_id AND sb.schedule_id = $2
+		JOIN "wm-exams" e ON e.id = sa.exam_id JOIN "wm-courses" c ON c.id = e.course_id
+		JOIN "wm-slots" la ON la.id = sa.slot_id JOIN "wm-slots" lb ON lb.id = sb.slot_id
 		WHERE sa.schedule_id = $1 AND sa.slot_id <> sb.slot_id ORDER BY e.id`, a, b)
 	if err != nil {
 		return nil, err

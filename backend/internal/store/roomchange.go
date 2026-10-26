@@ -50,7 +50,7 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	lo, hi := min(req.FromRoomID, req.ToRoomID), max(req.FromRoomID, req.ToRoomID)
-	rows, err := tx.Query(ctx, `SELECT id FROM rooms WHERE id IN ($1, $2) ORDER BY id FOR UPDATE`, lo, hi)
+	rows, err := tx.Query(ctx, `SELECT id FROM "wm-rooms" WHERE id IN ($1, $2) ORDER BY id FOR UPDATE`, lo, hi)
 	if err != nil {
 		return RoomChangeResult{}, err
 	}
@@ -69,7 +69,7 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 	}
 	rows, err = tx.Query(ctx, `
 		SELECT sa.id, sa.exam_id, sa.student_id, st.disability_flag
-		FROM seat_assignments sa JOIN students st ON st.id = sa.student_id
+		FROM "wm-seat_assignments" sa JOIN "wm-students" st ON st.id = sa.student_id
 		WHERE sa.schedule_id = $1 AND sa.slot_id = $2 AND sa.room_id = $3
 		ORDER BY sa.exam_id, sa.student_id
 		FOR UPDATE OF sa`, req.ScheduleID, req.SlotID, req.FromRoomID)
@@ -95,7 +95,7 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 
 	// Hedef salonun koltukları ve mevcut öğrencileri.
 	target := seating.Room{ID: req.ToRoomID}
-	rows, err = tx.Query(ctx, `SELECT id, row_no, col_no, is_active, is_accessible FROM room_seats WHERE room_id = $1`, req.ToRoomID)
+	rows, err = tx.Query(ctx, `SELECT id, row_no, col_no, is_active, is_accessible FROM "wm-room_seats" WHERE room_id = $1`, req.ToRoomID)
 	if err != nil {
 		return RoomChangeResult{}, err
 	}
@@ -112,7 +112,7 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 	rows.Close()
 	rows, err = tx.Query(ctx, `
 		SELECT sa.exam_id, sa.student_id, sa.seat_id, rs.row_no, rs.col_no
-		FROM seat_assignments sa JOIN room_seats rs ON rs.id = sa.seat_id
+		FROM "wm-seat_assignments" sa JOIN "wm-room_seats" rs ON rs.id = sa.seat_id
 		WHERE sa.schedule_id = $1 AND sa.slot_id = $2 AND sa.room_id = $3
 		FOR UPDATE OF sa`, req.ScheduleID, req.SlotID, req.ToRoomID)
 	if err != nil {
@@ -159,24 +159,24 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 		perExam[m.exam]++
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE seat_assignments sa SET room_id = $1, seat_id = u.seat_id
+		UPDATE "wm-seat_assignments" sa SET room_id = $1, seat_id = u.seat_id
 		FROM unnest($2::bigint[], $3::bigint[]) AS u(id, seat_id) WHERE sa.id = u.id`, req.ToRoomID, ids, seats); err != nil {
 		return RoomChangeResult{}, fmt.Errorf("koltuklar taşınamadı: %w", err)
 	}
 	for exam, c := range perExam {
-		if _, err := tx.Exec(ctx, `DELETE FROM room_assignments WHERE schedule_id = $1 AND exam_id = $2 AND room_id = $3`,
+		if _, err := tx.Exec(ctx, `DELETE FROM "wm-room_assignments" WHERE schedule_id = $1 AND exam_id = $2 AND room_id = $3`,
 			req.ScheduleID, exam, req.FromRoomID); err != nil {
 			return RoomChangeResult{}, err
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO room_assignments (schedule_id, exam_id, slot_id, room_id, seat_count) VALUES ($1,$2,$3,$4,$5)
-			ON CONFLICT (schedule_id, exam_id, room_id) DO UPDATE SET seat_count = room_assignments.seat_count + EXCLUDED.seat_count`,
+			INSERT INTO "wm-room_assignments" (schedule_id, exam_id, slot_id, room_id, seat_count) VALUES ($1,$2,$3,$4,$5)
+			ON CONFLICT (schedule_id, exam_id, room_id) DO UPDATE SET seat_count = "wm-room_assignments".seat_count + EXCLUDED.seat_count`,
 			req.ScheduleID, exam, req.SlotID, req.ToRoomID, c); err != nil {
 			return RoomChangeResult{}, err
 		}
 	}
 	// Gözetmenler öğrencileriyle birlikte hedef salona geçer.
-	if _, err := tx.Exec(ctx, `UPDATE invigilator_assignments SET room_id = $1
+	if _, err := tx.Exec(ctx, `UPDATE "wm-invigilator_assignments" SET room_id = $1
 		WHERE schedule_id = $2 AND slot_id = $3 AND room_id = $4`, req.ToRoomID, req.ScheduleID, req.SlotID, req.FromRoomID); err != nil {
 		return RoomChangeResult{}, err
 	}
@@ -186,7 +186,7 @@ func RoomChange(ctx context.Context, pool *pgxpool.Pool, req RoomChangeRequest) 
 		actor = req.ActorID
 	}
 	var res RoomChangeResult
-	if err := tx.QueryRow(ctx, `INSERT INTO room_change_events (schedule_id, slot_id, from_room_id, to_room_id, reason, moved_count, actor_id)
+	if err := tx.QueryRow(ctx, `INSERT INTO "wm-room_change_events" (schedule_id, slot_id, from_room_id, to_room_id, reason, moved_count, actor_id)
 		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
 		req.ScheduleID, req.SlotID, req.FromRoomID, req.ToRoomID, req.Reason, len(mv), actor).Scan(&res.EventID); err != nil {
 		return RoomChangeResult{}, err

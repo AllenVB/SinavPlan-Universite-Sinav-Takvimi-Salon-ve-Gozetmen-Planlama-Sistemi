@@ -1,22 +1,22 @@
--- SELECT * FROM invigilator_assignments WHERE user_id = 3 AND schedule_id = 3
+-- SELECT * FROM "wm-invigilator_assignments" WHERE user_id = 3 AND schedule_id = 6
 == DİZİNSİZ (invigilator_assignments_user_idx düşürüldü) ==
-Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on invigilator_assignments (actual rows=10 loops=1)
-  Index Cond: ((schedule_id = 3) AND (user_id = 3))
+Index Scan using invigilator_assignments_schedule_id_slot_id_user_id_key on "wm-invigilator_assignments" (actual rows=10 loops=1)
+  Index Cond: ((schedule_id = 6) AND (user_id = 3))
   Buffers: shared hit=18
 Planning:
-  Buffers: shared hit=143
-Planning Time: 1.601 ms
-Execution Time: 0.211 ms
+  Buffers: shared hit=136
+Planning Time: 1.241 ms
+Execution Time: 0.201 ms
 
 == DİZİNLİ ==
-Bitmap Heap Scan on invigilator_assignments (actual rows=10 loops=1)
-  Recheck Cond: ((user_id = 3) AND (schedule_id = 3))
+Bitmap Heap Scan on "wm-invigilator_assignments" (actual rows=10 loops=1)
+  Recheck Cond: ((user_id = 3) AND (schedule_id = 6))
   Heap Blocks: exact=7
   Buffers: shared hit=12
   ->  Bitmap Index Scan on invigilator_assignments_user_idx (actual rows=10 loops=1)
-        Index Cond: ((user_id = 3) AND (schedule_id = 3))
+        Index Cond: ((user_id = 3) AND (schedule_id = 6))
         Buffers: shared hit=5
 Planning:
-  Buffers: shared hit=155
-Planning Time: 1.141 ms
-Execution Time: 0.161 ms
+  Buffers: shared hit=152
+Planning Time: 1.235 ms
+Execution Time: 0.200 ms

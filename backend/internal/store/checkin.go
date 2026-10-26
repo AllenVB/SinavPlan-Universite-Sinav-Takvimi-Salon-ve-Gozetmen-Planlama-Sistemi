@@ -95,10 +95,10 @@ func (q *QR) parseCheckinToken(token string, now time.Time) (int64, error) {
 
 const checkinSelect = `SELECT cs.id, cs.slot_id, cs.room_id, r.code, cs.code, cs.code_expires_at, cs.ends_at,
 	cs.schedule_id,
-	(SELECT count(*) FROM attendance_state a JOIN seat_assignments sa ON sa.exam_id = a.exam_id AND sa.student_id = a.student_id
+	(SELECT count(*) FROM "wm-attendance_state" a JOIN "wm-seat_assignments" sa ON sa.exam_id = a.exam_id AND sa.student_id = a.student_id
 	  WHERE sa.schedule_id = cs.schedule_id AND sa.slot_id = cs.slot_id AND sa.room_id = cs.room_id AND a.status = 'present'),
-	(SELECT count(*) FROM seat_assignments sa WHERE sa.schedule_id = cs.schedule_id AND sa.slot_id = cs.slot_id AND sa.room_id = cs.room_id)
-	FROM checkin_sessions cs JOIN rooms r ON r.id = cs.room_id `
+	(SELECT count(*) FROM "wm-seat_assignments" sa WHERE sa.schedule_id = cs.schedule_id AND sa.slot_id = cs.slot_id AND sa.room_id = cs.room_id)
+	FROM "wm-checkin_sessions" cs JOIN "wm-rooms" r ON r.id = cs.room_id `
 
 func scanCheckin(row pgx.Row) (CheckinSession, int64, error) {
 	var c CheckinSession
@@ -121,9 +121,9 @@ func (q *QR) StartCheckin(ctx context.Context, pool *pgxpool.Pool, userID, slotI
 	var sched int64
 	var starts, ends time.Time
 	err = tx.QueryRow(ctx, `SELECT ia.schedule_id, sl.starts_at, sl.ends_at
-		FROM invigilator_assignments ia
-		JOIN schedules sc ON sc.id = ia.schedule_id AND sc.status = 'published'
-		JOIN slots sl ON sl.id = ia.slot_id
+		FROM "wm-invigilator_assignments" ia
+		JOIN "wm-schedules" sc ON sc.id = ia.schedule_id AND sc.status = 'published'
+		JOIN "wm-slots" sl ON sl.id = ia.slot_id
 		WHERE ia.user_id = $1 AND ia.slot_id = $2 AND ia.room_id = $3
 		LIMIT 1`, userID, slotID, roomID).Scan(&sched, &starts, &ends)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -139,12 +139,12 @@ func (q *QR) StartCheckin(ctx context.Context, pool *pgxpool.Pool, userID, slotI
 	if err != nil {
 		return CheckinSession{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE checkin_sessions SET closed_at = now()
+	if _, err := tx.Exec(ctx, `UPDATE "wm-checkin_sessions" SET closed_at = now()
 		WHERE schedule_id = $1 AND slot_id = $2 AND room_id = $3 AND closed_at IS NULL`, sched, slotID, roomID); err != nil {
 		return CheckinSession{}, err
 	}
 	var id int64
-	if err := tx.QueryRow(ctx, `INSERT INTO checkin_sessions (schedule_id, slot_id, room_id, started_by, code, code_expires_at, ends_at)
+	if err := tx.QueryRow(ctx, `INSERT INTO "wm-checkin_sessions" (schedule_id, slot_id, room_id, started_by, code, code_expires_at, ends_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, sched, slotID, roomID, userID, code, now.Add(CheckinCodeTTL), ends.Add(15*time.Minute)).Scan(&id); err != nil {
 		return CheckinSession{}, err
 	}
@@ -174,7 +174,7 @@ func (q *QR) RotateCheckinCode(ctx context.Context, pool *pgxpool.Pool, userID, 
 	if err != nil {
 		return CheckinSession{}, err
 	}
-	tag, err := pool.Exec(ctx, `UPDATE checkin_sessions SET code = $3, code_expires_at = $4
+	tag, err := pool.Exec(ctx, `UPDATE "wm-checkin_sessions" SET code = $3, code_expires_at = $4
 		WHERE id = $1 AND started_by = $2 AND closed_at IS NULL`, id, userID, code, now.Add(CheckinCodeTTL))
 	if err != nil {
 		return CheckinSession{}, err
@@ -187,7 +187,7 @@ func (q *QR) RotateCheckinCode(ctx context.Context, pool *pgxpool.Pool, userID, 
 
 // CloseCheckin, oturumu kapatır (QR ve kod artık çalışmaz).
 func CloseCheckin(ctx context.Context, pool *pgxpool.Pool, userID, id int64) error {
-	tag, err := pool.Exec(ctx, `UPDATE checkin_sessions SET closed_at = now() WHERE id = $1 AND started_by = $2 AND closed_at IS NULL`, id, userID)
+	tag, err := pool.Exec(ctx, `UPDATE "wm-checkin_sessions" SET closed_at = now() WHERE id = $1 AND started_by = $2 AND closed_at IS NULL`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -223,8 +223,8 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 	} else {
 		method = "code"
 		// Kod, öğrencinin şu an açık oturumu olan salon+slotundaki oturumlarla karşılaştırılır.
-		rows, err := pool.Query(ctx, `SELECT cs.id, cs.code, cs.code_expires_at FROM checkin_sessions cs
-			JOIN seat_assignments sa ON sa.schedule_id = cs.schedule_id AND sa.slot_id = cs.slot_id AND sa.room_id = cs.room_id
+		rows, err := pool.Query(ctx, `SELECT cs.id, cs.code, cs.code_expires_at FROM "wm-checkin_sessions" cs
+			JOIN "wm-seat_assignments" sa ON sa.schedule_id = cs.schedule_id AND sa.slot_id = cs.slot_id AND sa.room_id = cs.room_id
 			WHERE sa.student_id = $1 AND cs.closed_at IS NULL AND cs.ends_at > $2`, studentID, now)
 		if err != nil {
 			return CheckinResult{}, err
@@ -259,7 +259,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 
 	var sched, slotID, roomID int64
 	var ends time.Time
-	err = tx.QueryRow(ctx, `SELECT schedule_id, slot_id, room_id, ends_at FROM checkin_sessions WHERE id = $1 AND closed_at IS NULL`, sessionID).
+	err = tx.QueryRow(ctx, `SELECT schedule_id, slot_id, room_id, ends_at FROM "wm-checkin_sessions" WHERE id = $1 AND closed_at IS NULL`, sessionID).
 		Scan(&sched, &slotID, &roomID, &ends)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !now.Before(ends)) {
 		return CheckinResult{}, ErrCheckinClosed
@@ -270,7 +270,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 	var res CheckinResult
 	res.Method = method
 	err = tx.QueryRow(ctx, `SELECT sa.exam_id, co.code, co.name, r.code
-		FROM seat_assignments sa JOIN exams e ON e.id = sa.exam_id JOIN courses co ON co.id = e.course_id JOIN rooms r ON r.id = sa.room_id
+		FROM "wm-seat_assignments" sa JOIN "wm-exams" e ON e.id = sa.exam_id JOIN "wm-courses" co ON co.id = e.course_id JOIN "wm-rooms" r ON r.id = sa.room_id
 		WHERE sa.schedule_id = $1 AND sa.slot_id = $2 AND sa.room_id = $3 AND sa.student_id = $4`, sched, slotID, roomID, studentID).
 		Scan(&res.ExamID, &res.CourseCode, &res.CourseName, &res.RoomCode)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -280,7 +280,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 		return CheckinResult{}, err
 	}
 	var excused bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM excuses WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status='approved')`,
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-excuses" WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status='approved')`,
 		studentID, res.ExamID).Scan(&excused); err != nil {
 		return CheckinResult{}, err
 	}
@@ -288,7 +288,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 		return CheckinResult{}, ErrCheckinExcused
 	}
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status FROM attendance_state WHERE exam_id = $1 AND student_id = $2`, res.ExamID, studentID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status FROM "wm-attendance_state" WHERE exam_id = $1 AND student_id = $2`, res.ExamID, studentID).Scan(&status)
 	if err == nil && status == "present" {
 		res.AlreadyMarked = true
 		return res, nil
@@ -308,7 +308,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 	if method == "code" {
 		source = "manual"
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO attendance_events (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
+	if _, err := tx.Exec(ctx, `INSERT INTO "wm-attendance_events" (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
 		VALUES ($1,$2,$3,$4,'present',$5,$6,$7,$8)`, id.String(), fmt.Sprintf("self-checkin-%d", sessionID), res.ExamID, studentID, source, ts.Wall, ts.Counter, userID); err != nil {
 		return CheckinResult{}, err
 	}

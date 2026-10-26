@@ -8,20 +8,20 @@ cd "$(dirname "$0")/../.."
 PSQL=(docker compose exec -T postgres psql -U "${POSTGRES_USER:-sinavplan}" -d "${POSTGRES_DB:-sinavplan}" -v ON_ERROR_STOP=1 -X -q -t -A)
 out=docs/explain; mkdir -p "$out"
 
-SCHED=$("${PSQL[@]}" -c "SELECT id FROM schedules WHERE status='published' ORDER BY id DESC LIMIT 1")
+SCHED=$("${PSQL[@]}" -c "SELECT id FROM \"wm-schedules\" WHERE status='published' ORDER BY id DESC LIMIT 1")
 [ -n "$SCHED" ] || { echo "yayınlanmış çizelge yok; önce make verify" >&2; exit 1; }
-STUDENT=$("${PSQL[@]}" -c "SELECT student_id FROM seat_assignments WHERE schedule_id=$SCHED ORDER BY student_id LIMIT 1 OFFSET 500")
-SECTION=$("${PSQL[@]}" -c "SELECT section_id FROM enrollments GROUP BY section_id ORDER BY count(*) DESC, section_id LIMIT 1")
-SLOT=$("${PSQL[@]}" -c "SELECT slot_id FROM schedule_exams WHERE schedule_id=$SCHED ORDER BY slot_id LIMIT 1")
-INV=$("${PSQL[@]}" -c "SELECT user_id FROM invigilator_assignments WHERE schedule_id=$SCHED ORDER BY user_id LIMIT 1")
+STUDENT=$("${PSQL[@]}" -c "SELECT student_id FROM \"wm-seat_assignments\" WHERE schedule_id=$SCHED ORDER BY student_id LIMIT 1 OFFSET 500")
+SECTION=$("${PSQL[@]}" -c "SELECT section_id FROM \"wm-enrollments\" GROUP BY section_id ORDER BY count(*) DESC, section_id LIMIT 1")
+SLOT=$("${PSQL[@]}" -c "SELECT slot_id FROM \"wm-schedule_exams\" WHERE schedule_id=$SCHED ORDER BY slot_id LIMIT 1")
+INV=$("${PSQL[@]}" -c "SELECT user_id FROM \"wm-invigilator_assignments\" WHERE schedule_id=$SCHED ORDER BY user_id LIMIT 1")
 "${PSQL[@]}" -c "ANALYZE" >/dev/null
 
 # ad | dizin | sorgu
 cases=(
-"seat_by_student|seat_assignments_student_idx|SELECT * FROM seat_assignments WHERE student_id = $STUDENT AND schedule_id = $SCHED"
-"enrollments_by_section|enrollments_section_idx|SELECT student_id FROM enrollments WHERE section_id = $SECTION"
-"exams_in_slot|schedule_exams_slot_idx|SELECT exam_id FROM schedule_exams WHERE schedule_id = $SCHED AND slot_id = $SLOT"
-"duties_by_user|invigilator_assignments_user_idx|SELECT * FROM invigilator_assignments WHERE user_id = $INV AND schedule_id = $SCHED"
+"seat_by_student|seat_assignments_student_idx|SELECT * FROM \"wm-seat_assignments\" WHERE student_id = $STUDENT AND schedule_id = $SCHED"
+"enrollments_by_section|enrollments_section_idx|SELECT student_id FROM \"wm-enrollments\" WHERE section_id = $SECTION"
+"exams_in_slot|schedule_exams_slot_idx|SELECT exam_id FROM \"wm-schedule_exams\" WHERE schedule_id = $SCHED AND slot_id = $SLOT"
+"duties_by_user|invigilator_assignments_user_idx|SELECT * FROM \"wm-invigilator_assignments\" WHERE user_id = $INV AND schedule_id = $SCHED"
 )
 plan() { # $1=dizin düşür mü, $2=sorgu
   local drop=""

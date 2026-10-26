@@ -37,12 +37,12 @@ func checkinFixture(t *testing.T) checkinFx {
 	if f.examID == 0 {
 		t.Fatal("öğrenci 1 için koltuk bulunamadı")
 	}
-	if err := e.Owner.Pool.QueryRow(ctx, `SELECT slot_id FROM schedule_exams WHERE exam_id = $1 AND schedule_id IN (SELECT id FROM schedules WHERE status='published')`, f.examID).Scan(&f.slotID); err != nil {
+	if err := e.Owner.Pool.QueryRow(ctx, `SELECT slot_id FROM "wm-schedule_exams" WHERE exam_id = $1 AND schedule_id IN (SELECT id FROM "wm-schedules" WHERE status='published')`, f.examID).Scan(&f.slotID); err != nil {
 		t.Fatal(err)
 	}
 	f.setSlot(t, "- interval '10 minutes'", "+ interval '110 minutes'")
-	if _, err := e.Owner.Pool.Exec(ctx, `UPDATE invigilator_assignments SET user_id = (SELECT id FROM users WHERE email = $3)
-		WHERE slot_id = $1 AND room_id = $2 AND id = (SELECT min(id) FROM invigilator_assignments WHERE slot_id = $1 AND room_id = $2)`, f.slotID, f.roomID, simdata.EmailInvigilator); err != nil {
+	if _, err := e.Owner.Pool.Exec(ctx, `UPDATE "wm-invigilator_assignments" SET user_id = (SELECT id FROM "wm-uo-users" WHERE email = $3)
+		WHERE slot_id = $1 AND room_id = $2 AND id = (SELECT min(id) FROM "wm-invigilator_assignments" WHERE slot_id = $1 AND room_id = $2)`, f.slotID, f.roomID, simdata.EmailInvigilator); err != nil {
 		t.Fatal(err)
 	}
 	f.stu, _ = login(t, srv, simdata.EmailStudent)
@@ -52,7 +52,7 @@ func checkinFixture(t *testing.T) checkinFx {
 
 func (f checkinFx) setSlot(t *testing.T, start, end string) {
 	t.Helper()
-	if _, err := f.env.Owner.Pool.Exec(context.Background(), `UPDATE slots SET starts_at = now() `+start+`, ends_at = now() `+end+` WHERE id = $1`, f.slotID); err != nil {
+	if _, err := f.env.Owner.Pool.Exec(context.Background(), `UPDATE "wm-slots" SET starts_at = now() `+start+`, ends_at = now() `+end+` WHERE id = $1`, f.slotID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -174,7 +174,7 @@ func TestCheckinSessionOnlyOpensAroundTheExam(t *testing.T) {
 func TestCheckinRejectsStudentSeatedInAnotherRoom(t *testing.T) {
 	f := checkinFixture(t)
 	_, sess := post(t, f.s, "/checkin-sessions", f.inv, "", map[string]int64{"slot_id": f.slotID, "room_id": f.roomID})
-	if _, err := f.env.Owner.Pool.Exec(context.Background(), `UPDATE checkin_sessions SET room_id = (SELECT id FROM rooms WHERE id <> $1 ORDER BY id LIMIT 1) WHERE id = $2`,
+	if _, err := f.env.Owner.Pool.Exec(context.Background(), `UPDATE "wm-checkin_sessions" SET room_id = (SELECT id FROM "wm-rooms" WHERE id <> $1 ORDER BY id LIMIT 1) WHERE id = $2`,
 		f.roomID, int64(sess["id"].(float64))); err != nil {
 		t.Fatal(err)
 	}
@@ -205,14 +205,14 @@ func TestCheckinRateLimitIsSharedAcrossInstances(t *testing.T) {
 
 	// Denemeler pencerenin dışına kayınca engel kalkar; bir sonraki hata eski satırları temizler.
 	ctx := context.Background()
-	if _, err := f.env.Owner.Pool.Exec(ctx, `UPDATE checkin_failures SET failed_at = failed_at - interval '6 minutes'`); err != nil {
+	if _, err := f.env.Owner.Pool.Exec(ctx, `UPDATE "wm-checkin_failures" SET failed_at = failed_at - interval '6 minutes'`); err != nil {
 		t.Fatal(err)
 	}
 	if code, _ := post(t, other, "/me/checkin", f.stu, "", map[string]string{"code": bad}); code != http.StatusUnprocessableEntity {
 		t.Fatalf("pencere geçince yeniden 422 (hatalı kod) beklenir: %d", code)
 	}
 	var rows int
-	if err := f.env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM checkin_failures`).Scan(&rows); err != nil {
+	if err := f.env.Owner.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-checkin_failures"`).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
 	if rows != 1 {

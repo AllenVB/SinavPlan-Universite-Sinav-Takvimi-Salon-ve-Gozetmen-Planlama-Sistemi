@@ -135,7 +135,7 @@ type RoomDetail struct {
 }
 
 const roomCols = `r.id, r.code, r.building, r.floor, r.type, r.seat_rows, r.seat_cols, r.capacity, r.door_side, r.door_pos,
-	(SELECT count(*) FROM room_seats s WHERE s.room_id = r.id AND s.is_accessible AND s.is_active)::int`
+	(SELECT count(*) FROM "wm-room_seats" s WHERE s.room_id = r.id AND s.is_accessible AND s.is_active)::int`
 
 func scanRoom(row pgx.Row) (Room, error) {
 	var r Room
@@ -145,7 +145,7 @@ func scanRoom(row pgx.Row) (Room, error) {
 
 // ListRooms, salonları keyset sayfalı döner; typ boş değilse tipe göre süzer.
 func ListRooms(ctx context.Context, pool *pgxpool.Pool, typ string, after int64, limit int) ([]Room, error) {
-	rows, err := pool.Query(ctx, `SELECT `+roomCols+` FROM rooms r WHERE r.id > $1 AND ($2 = '' OR r.type = $2) ORDER BY r.id LIMIT $3`, after, typ, limit)
+	rows, err := pool.Query(ctx, `SELECT `+roomCols+` FROM "wm-rooms" r WHERE r.id > $1 AND ($2 = '' OR r.type = $2) ORDER BY r.id LIMIT $3`, after, typ, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -154,14 +154,14 @@ func ListRooms(ctx context.Context, pool *pgxpool.Pool, typ string, after int64,
 
 // GetRoom, koltuk düzeniyle salonu döner.
 func GetRoom(ctx context.Context, pool *pgxpool.Pool, id int64) (RoomDetail, error) {
-	r, err := scanRoom(pool.QueryRow(ctx, `SELECT `+roomCols+` FROM rooms r WHERE r.id = $1`, id))
+	r, err := scanRoom(pool.QueryRow(ctx, `SELECT `+roomCols+` FROM "wm-rooms" r WHERE r.id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RoomDetail{}, ErrNotFound
 	}
 	if err != nil {
 		return RoomDetail{}, err
 	}
-	rows, err := pool.Query(ctx, `SELECT id, row_no, col_no, is_active, is_accessible FROM room_seats WHERE room_id = $1 ORDER BY row_no, col_no`, id)
+	rows, err := pool.Query(ctx, `SELECT id, row_no, col_no, is_active, is_accessible FROM "wm-room_seats" WHERE room_id = $1 ORDER BY row_no, col_no`, id)
 	if err != nil {
 		return RoomDetail{}, err
 	}
@@ -203,7 +203,7 @@ func writeSeats(ctx context.Context, tx pgx.Tx, roomID int64, in RoomInput) (int
 			rows = append(rows, []any{roomID, int16(r), int16(c), !inactive[k], acc[k]})
 		}
 	}
-	_, err := tx.CopyFrom(ctx, pgx.Identifier{"room_seats"}, []string{"room_id", "row_no", "col_no", "is_active", "is_accessible"}, pgx.CopyFromRows(rows))
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{TableName("room_seats")}, []string{"room_id", "row_no", "col_no", "is_active", "is_accessible"}, pgx.CopyFromRows(rows))
 	return active, err
 }
 
@@ -218,7 +218,7 @@ func CreateRoom(ctx context.Context, pool *pgxpool.Pool, in RoomInput, actor int
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var id int64
-	err = tx.QueryRow(ctx, `INSERT INTO rooms (code, building, floor, type, seat_rows, seat_cols, capacity, door_side, door_pos) VALUES ($1,$2,$3,$4,$5,$6,1,$7,$8) RETURNING id`,
+	err = tx.QueryRow(ctx, `INSERT INTO "wm-rooms" (code, building, floor, type, seat_rows, seat_cols, capacity, door_side, door_pos) VALUES ($1,$2,$3,$4,$5,$6,1,$7,$8) RETURNING id`,
 		in.Code, in.Building, in.Floor, in.Type, in.Rows, in.Cols, in.doorSide(), in.DoorPos).Scan(&id)
 	if isUniqueViolation(err) {
 		return RoomDetail{}, ErrConflict
@@ -230,7 +230,7 @@ func CreateRoom(ctx context.Context, pool *pgxpool.Pool, in RoomInput, actor int
 	if err != nil {
 		return RoomDetail{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE rooms SET capacity = $2 WHERE id = $1`, id, active); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE "wm-rooms" SET capacity = $2 WHERE id = $1`, id, active); err != nil {
 		return RoomDetail{}, err
 	}
 	if err := audit.Write(ctx, tx, audit.Entry{ActorID: actor, Action: "room.create", Entity: "room", EntityID: fmt.Sprint(id), New: in}); err != nil {
@@ -244,9 +244,9 @@ func CreateRoom(ctx context.Context, pool *pgxpool.Pool, in RoomInput, actor int
 
 func roomReferenced(ctx context.Context, tx pgx.Tx, id int64) (bool, error) {
 	var n int
-	err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM room_assignments WHERE room_id = $1) +
-		(SELECT count(*) FROM seat_assignments WHERE room_id = $1) + (SELECT count(*) FROM invigilator_assignments WHERE room_id = $1) +
-		(SELECT count(*) FROM room_change_events WHERE from_room_id = $1 OR to_room_id = $1)`, id).Scan(&n)
+	err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM "wm-room_assignments" WHERE room_id = $1) +
+		(SELECT count(*) FROM "wm-seat_assignments" WHERE room_id = $1) + (SELECT count(*) FROM "wm-invigilator_assignments" WHERE room_id = $1) +
+		(SELECT count(*) FROM "wm-room_change_events" WHERE from_room_id = $1 OR to_room_id = $1)`, id).Scan(&n)
 	return n > 0, err
 }
 
@@ -263,14 +263,14 @@ func UpdateRoom(ctx context.Context, pool *pgxpool.Pool, id int64, in RoomInput,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var oldRows, oldCols int
-	if err := tx.QueryRow(ctx, `SELECT seat_rows, seat_cols FROM rooms WHERE id = $1 FOR UPDATE`, id).Scan(&oldRows, &oldCols); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT seat_rows, seat_cols FROM "wm-rooms" WHERE id = $1 FOR UPDATE`, id).Scan(&oldRows, &oldCols); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RoomDetail{}, ErrNotFound
 		}
 		return RoomDetail{}, err
 	}
 	// Düzen değişti mi? Mevcut pasif/erişilebilir kümelerle karşılaştır.
-	cur, err := tx.Query(ctx, `SELECT row_no, col_no, is_active, is_accessible FROM room_seats WHERE room_id = $1`, id)
+	cur, err := tx.Query(ctx, `SELECT row_no, col_no, is_active, is_accessible FROM "wm-room_seats" WHERE room_id = $1`, id)
 	if err != nil {
 		return RoomDetail{}, err
 	}
@@ -314,18 +314,18 @@ func UpdateRoom(ctx context.Context, pool *pgxpool.Pool, id int64, in RoomInput,
 		if ref {
 			return RoomDetail{}, ErrConflict
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM room_seats WHERE room_id = $1`, id); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM "wm-room_seats" WHERE room_id = $1`, id); err != nil {
 			return RoomDetail{}, err
 		}
 		active, err := writeSeats(ctx, tx, id, in)
 		if err != nil {
 			return RoomDetail{}, err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE rooms SET capacity = $2, seat_rows = $3, seat_cols = $4 WHERE id = $1`, id, active, in.Rows, in.Cols); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE "wm-rooms" SET capacity = $2, seat_rows = $3, seat_cols = $4 WHERE id = $1`, id, active, in.Rows, in.Cols); err != nil {
 			return RoomDetail{}, err
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE rooms SET code=$2, building=$3, floor=$4, type=$5, door_side=$6, door_pos=$7 WHERE id=$1`, id, in.Code, in.Building, in.Floor, in.Type, in.doorSide(), in.DoorPos); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE "wm-rooms" SET code=$2, building=$3, floor=$4, type=$5, door_side=$6, door_pos=$7 WHERE id=$1`, id, in.Code, in.Building, in.Floor, in.Type, in.doorSide(), in.DoorPos); err != nil {
 		if isUniqueViolation(err) {
 			return RoomDetail{}, ErrConflict
 		}
@@ -349,7 +349,7 @@ func DeleteRoom(ctx context.Context, pool *pgxpool.Pool, id, actor int64) error 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var code string
-	if err := tx.QueryRow(ctx, `SELECT code FROM rooms WHERE id = $1 FOR UPDATE`, id).Scan(&code); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT code FROM "wm-rooms" WHERE id = $1 FOR UPDATE`, id).Scan(&code); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -362,7 +362,7 @@ func DeleteRoom(ctx context.Context, pool *pgxpool.Pool, id, actor int64) error 
 	if ref {
 		return ErrConflict
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM rooms WHERE id = $1`, id); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM "wm-rooms" WHERE id = $1`, id); err != nil {
 		if isFKViolation(err) {
 			return ErrConflict
 		}

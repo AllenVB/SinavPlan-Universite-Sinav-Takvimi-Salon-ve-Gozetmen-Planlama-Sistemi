@@ -17,7 +17,7 @@ started_before=$($DC ps -q api | xargs docker inspect -f '{{.State.StartedAt}}')
 echo "[1] başlangıç"
 [ "$(code "$API/health")" = 200 ] && ok "/health 200 (bağımlılıklar sağlıklı)" || bad "/health başlangıçta 200 değil"
 TOKEN=$(curl -s -m 10 -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d '{"email":"sekreter@sinavplan.test","password":"Demo!1234"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  -d '{"email":"seed.mercan@ddo-case.invalid","password":"Demo!1234"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 [ -n "$TOKEN" ] && ok "giriş yapıldı" || bad "giriş yapılamadı"
 
 echo "[2] postgres durduruluyor"

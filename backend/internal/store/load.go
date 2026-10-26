@@ -27,11 +27,11 @@ type LoadDay struct {
 func ScheduleLoad(ctx context.Context, pool *pgxpool.Pool, sid int64) ([]LoadCell, []LoadDay, error) {
 	cells := []LoadCell{}
 	rows, err := pool.Query(ctx, `
-		WITH es AS (SELECT DISTINCT e.id AS exam_id, en.student_id FROM exams e JOIN sections s ON s.course_id = e.course_id
-		            JOIN enrollments en ON en.section_id = s.id)
+		WITH es AS (SELECT DISTINCT e.id AS exam_id, en.student_id FROM "wm-exams" e JOIN "wm-sections" s ON s.course_id = e.course_id
+		            JOIN "wm-enrollments" en ON en.section_id = s.id)
 		SELECT sl.id, sl.day_index, sl.session_index, count(DISTINCT se.exam_id), count(es.student_id)
-		FROM slots sl JOIN schedules sc ON sc.period_id = sl.period_id AND sc.id = $1
-		LEFT JOIN schedule_exams se ON se.schedule_id = $1 AND se.slot_id = sl.id
+		FROM "wm-slots" sl JOIN "wm-schedules" sc ON sc.period_id = sl.period_id AND sc.id = $1
+		LEFT JOIN "wm-schedule_exams" se ON se.schedule_id = $1 AND se.slot_id = sl.id
 		LEFT JOIN es ON es.exam_id = se.exam_id
 		GROUP BY sl.id, sl.day_index, sl.session_index ORDER BY sl.day_index, sl.session_index`, sid)
 	if err != nil {
@@ -51,11 +51,11 @@ func ScheduleLoad(ctx context.Context, pool *pgxpool.Pool, sid int64) ([]LoadCel
 	}
 	days := []LoadDay{}
 	rows, err = pool.Query(ctx, `
-		WITH es AS (SELECT DISTINCT e.id AS exam_id, en.student_id FROM exams e JOIN sections s ON s.course_id = e.course_id
-		            JOIN enrollments en ON en.section_id = s.id),
-		     sd AS (SELECT es.student_id, sl.day_index AS d, count(*) AS n FROM es JOIN schedule_exams se ON se.schedule_id = $1 AND se.exam_id = es.exam_id
-		            JOIN slots sl ON sl.id = se.slot_id GROUP BY 1, 2),
-		     dd AS (SELECT DISTINCT day_index AS d FROM slots WHERE period_id = (SELECT period_id FROM schedules WHERE id = $1))
+		WITH es AS (SELECT DISTINCT e.id AS exam_id, en.student_id FROM "wm-exams" e JOIN "wm-sections" s ON s.course_id = e.course_id
+		            JOIN "wm-enrollments" en ON en.section_id = s.id),
+		     sd AS (SELECT es.student_id, sl.day_index AS d, count(*) AS n FROM es JOIN "wm-schedule_exams" se ON se.schedule_id = $1 AND se.exam_id = es.exam_id
+		            JOIN "wm-slots" sl ON sl.id = se.slot_id GROUP BY 1, 2),
+		     dd AS (SELECT DISTINCT day_index AS d FROM "wm-slots" WHERE period_id = (SELECT period_id FROM "wm-schedules" WHERE id = $1))
 		SELECT dd.d, (SELECT count(*) FROM sd WHERE sd.d = dd.d AND sd.n >= 2),
 		       (SELECT count(*) FROM sd a JOIN sd b ON b.student_id = a.student_id AND b.d = a.d + 1 WHERE a.d = dd.d)
 		FROM dd ORDER BY dd.d`, sid)

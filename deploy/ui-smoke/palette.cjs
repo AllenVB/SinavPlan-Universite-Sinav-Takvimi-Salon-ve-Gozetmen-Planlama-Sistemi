@@ -15,7 +15,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     ok(v.length === 0, `${name}: a11y ciddi bulgu yok (${v.join(',') || '0'})`);
   };
 
-  const p = await login('sekreter@sinavplan.test');
+  const p = await login('seed.mercan@ddo-case.invalid');
   await p.goto(BASE + '/#/panel'); await p.waitForTimeout(500);
   await p.keyboard.press('Control+k'); await p.waitForSelector('[data-testid=palette]');
   ok(await p.evaluate(() => document.activeElement?.getAttribute('role') === 'combobox'), 'Ctrl+K paleti açar, odak arama kutusunda');
@@ -47,7 +47,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   await s.keyboard.press('Control+k'); await s.waitForTimeout(400);
   ok(!(await s.$('[data-testid=palette]')) && !(await s.$('header button:has-text("Ara")')), 'öğrencide palet ve Ara düğmesi yok');
   const m = await (await b.newContext({ viewport: { width: 390, height: 800 } })).newPage();
-  await m.goto(BASE); await m.fill('#email', 'sekreter@sinavplan.test'); await m.fill('#pw', 'Demo!1234'); await m.click('button.primary'); await m.waitForSelector('.shell');
+  await m.goto(BASE); await m.fill('#email', 'seed.mercan@ddo-case.invalid'); await m.fill('#pw', 'Demo!1234'); await m.click('button.primary'); await m.waitForSelector('.shell');
   await m.click('header button:has-text("Ara")'); await m.waitForSelector('[data-testid=palette]');
   ok(!(await m.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), 'mobil 390px: palet taşmıyor');
   await b.close(); process.exit(fail ? 1 : 0);

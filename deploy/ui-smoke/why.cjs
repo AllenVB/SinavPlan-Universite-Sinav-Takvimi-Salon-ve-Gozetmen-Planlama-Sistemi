@@ -8,7 +8,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   const b = await chromium.launch();
   let fail = 0; const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) fail++; };
   const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
-  await p.goto(BASE); await p.fill('#email', 'sekreter@sinavplan.test'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
+  await p.goto(BASE); await p.fill('#email', 'seed.mercan@ddo-case.invalid'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
   await p.goto(BASE + '/#/takvim'); await p.waitForSelector('[data-testid=heatmap]', { timeout: 20000 });
   ok((await p.textContent('main')).includes('SQL toplamı = çözücü metriği'), 'ısı haritası: SQL toplamı çözücü metriğiyle aynı');
   const cells = await p.$$eval('[data-testid=heatmap] tbody tr', (r) => r.length);

@@ -23,9 +23,11 @@ func TestDifferentSeedProducesDifferentData(t *testing.T) {
 
 // Altın özet: üretici davranışının istemeden değişmesini yakalar. Üretici bilerek
 // değiştirildiğinde bu sabit güncellenir; commit mesajında belirtilmelidir.
+// 26 Ekim: ilk kullanıcının e-postası seed.mercan@ddo-case.invalid oldu (ADR-020); özet YALNIZ bu yüzden değişti
+// (eski e-postayla yeniden hesaplanınca eski özet birebir çıkıyor: de91b19e…).
 func TestGoldenHashForSeed42(t *testing.T) {
 	d, _ := Generate(DefaultConfig(42))
-	const golden = "de91b19eb05147b47dc5d1743cccafe5471108aa8eb9e4b8011f75e2f123ebb6"
+	const golden = "7d9f898d3552686c53149f8aa1b9f637210a8b66554df1732ac9fb2ffd26c556"
 	if d.Hash() != golden {
 		t.Fatalf("seed=42 özeti değişti: %s", d.Hash())
 	}

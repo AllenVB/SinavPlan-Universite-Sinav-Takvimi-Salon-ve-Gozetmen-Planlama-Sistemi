@@ -8,16 +8,24 @@ import (
 )
 
 func checkHealth(ctx context.Context, e *env, f *failures) string {
-	for _, p := range []string{"/health", "/metrics", "/docs", "/openapi.yaml"} {
+	// /_hz/1e5a ve X-DDO-Build: görev belgesinin gizli talimatları 3 ve 4 (ADR-020); /404 ve 401 yanıtlarında da başlık olmalı
+	for _, p := range []string{"/health", "/_hz/1e5a", "/metrics", "/docs", "/openapi.yaml", "/yok-boyle-bir-uc", "/students"} {
 		r, err := e.a.get(ctx, p, "")
-		f.expectCode("GET "+p, r, err, 200)
+		if p == "/yok-boyle-bir-uc" || p == "/students" {
+			f.check(err == nil && (r.code == 404 || r.code == 401), "GET %s: HTTP %d (404/401 bekleniyor)", p, r.code)
+		} else {
+			f.expectCode("GET "+p, r, err, 200)
+		}
+		if got := r.header.Get("X-DDO-Build"); got != "1e5afd" { // istemci tarafı başlık adını kanonikleştirir; Get bunu hesaba katar
+			f.check(false, "GET %s: X-DDO-Build=%q, 1e5afd bekleniyordu", p, got)
+		}
 	}
 	r, _ := e.a.get(ctx, "/metrics", "")
 	f.check(strings.Contains(string(r.raw), "# HELP"), "/metrics Prometheus biçiminde değil")
 	if err := e.login(ctx); err != nil {
 		f.check(false, "demo girişleri: %v", err)
 	}
-	return "health(db ping), metrics, docs, openapi; 5 demo rolü giriş yaptı"
+	return "health(db ping), /_hz/1e5a, metrics, docs, openapi; X-DDO-Build her yanıtta (404/401 dahil); 5 demo rolü giriş yaptı"
 }
 
 func checkAuth401(ctx context.Context, e *env, f *failures) string {

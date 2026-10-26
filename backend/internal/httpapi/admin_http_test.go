@@ -97,16 +97,16 @@ func TestImportCSVRowErrorsUpsertAndIdempotency(t *testing.T) {
 	}
 	// Idempotent: aynı dosya tekrar -> created=0, güncellenenler; tablo değişmez.
 	var before, after int
-	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM students`).Scan(&before)
+	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM "wm-students"`).Scan(&before)
 	_, rep2 := do(t, s, http.MethodPost, "/imports/students", sec, "text/csv", csv)
-	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM students`).Scan(&after)
+	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM "wm-students"`).Scan(&after)
 	if rep2["created"].(float64) != 0 || rep2["updated"].(float64) != 2 || before != after {
 		t.Fatalf("tekrar yükleme idempotent olmalı: %v (%d -> %d)", rep2, before, after)
 	}
 	// Upsert: alan değişince güncellenir.
 	do(t, s, http.MethodPost, "/imports/students", sec, "text/csv", "student_no,full_name,department_code\n900001,Yeni Ad,BLM\n")
 	var name string
-	_ = env.App.Pool.QueryRow(context.Background(), `SELECT full_name FROM students WHERE student_no='900001'`).Scan(&name)
+	_ = env.App.Pool.QueryRow(context.Background(), `SELECT full_name FROM "wm-students" WHERE student_no='900001'`).Scan(&name)
 	if name != "Yeni Ad" {
 		t.Fatalf("upsert adı güncellemeli: %q", name)
 	}
@@ -344,7 +344,7 @@ func TestScheduleLifecycleEndToEnd(t *testing.T) {
 	}
 	// Sahiplik: öğretim üyesi yalnız kendi dersinin sınavını görür.
 	var lecturerExam, otherExam int64
-	rows, _ := env.App.Pool.Query(ctx, `SELECT e.id, bool_or(sc.lecturer_id = 1) FROM exams e JOIN sections sc ON sc.course_id = e.course_id GROUP BY e.id ORDER BY e.id`)
+	rows, _ := env.App.Pool.Query(ctx, `SELECT e.id, bool_or(sc.lecturer_id = 1) FROM "wm-exams" e JOIN "wm-sections" sc ON sc.course_id = e.course_id GROUP BY e.id ORDER BY e.id`)
 	for rows.Next() {
 		var id int64
 		var own bool
@@ -381,7 +381,7 @@ func TestScheduleLifecycleEndToEnd(t *testing.T) {
 	}
 	removed := int64(items[0].(map[string]any)["user_id"].(float64))
 	var before int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM invigilator_assignments WHERE schedule_id=$1`, schedID).Scan(&before)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-invigilator_assignments" WHERE schedule_id=$1`, schedID).Scan(&before)
 	c1, rm := do(t, s, http.MethodPost, "/schedules/"+sid+"/invigilators/"+itoa(removed)+"/remove", sec, "", "", "Idempotency-Key", "rm-1")
 	c2, rm2 := do(t, s, http.MethodPost, "/schedules/"+sid+"/invigilators/"+itoa(removed)+"/remove", sec, "", "", "Idempotency-Key", "rm-1")
 	if c1 != http.StatusOK || c2 != http.StatusOK || j(rm) != j(rm2) {
@@ -392,8 +392,8 @@ func TestScheduleLifecycleEndToEnd(t *testing.T) {
 		t.Fatalf("çıkarma sonucu: %v", rm)
 	}
 	var left, after int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM invigilator_assignments WHERE schedule_id=$1 AND user_id=$2`, schedID, removed).Scan(&left)
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM invigilator_assignments WHERE schedule_id=$1`, schedID).Scan(&after)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-invigilator_assignments" WHERE schedule_id=$1 AND user_id=$2`, schedID, removed).Scan(&left)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-invigilator_assignments" WHERE schedule_id=$1`, schedID).Scan(&after)
 	unfilled := len(rm["unfilled"].([]any))
 	if left != 0 || (unfilled == 0 && after != before) {
 		t.Fatalf("çıkarılan gözetmenin görevi kalmamalı ve toplam atama korunmalı: kalan %d, %d -> %d", left, before, after)
@@ -422,8 +422,8 @@ func TestScheduleJobFailsWithExplanationWhenInfeasible(t *testing.T) {
 	s, env := adminServer(t)
 	sec, _ := login(t, s, simdata.EmailSecretary)
 	// Dönemi 1 gün x 1 oturuma indir: ortak öğrencili sınavlar tek slota sığmaz.
-	if _, err := env.Owner.Pool.Exec(context.Background(), `DELETE FROM slots WHERE id NOT IN (SELECT id FROM slots ORDER BY day_index, session_index LIMIT 1);
-		UPDATE exam_periods SET days = 1, sessions_per_day = 1`); err != nil {
+	if _, err := env.Owner.Pool.Exec(context.Background(), `DELETE FROM "wm-slots" WHERE id NOT IN (SELECT id FROM "wm-slots" ORDER BY day_index, session_index LIMIT 1);
+		UPDATE "wm-exam_periods" SET days = 1, sessions_per_day = 1`); err != nil {
 		t.Fatal(err)
 	}
 	_, per := do(t, s, http.MethodGet, "/periods", sec, "", "")
@@ -439,7 +439,7 @@ func TestScheduleJobFailsWithExplanationWhenInfeasible(t *testing.T) {
 		t.Fatalf("hangi sınavların neden yerleşemediği raporlanmalı: %v", inf)
 	}
 	var n int
-	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM schedules`).Scan(&n)
+	_ = env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM "wm-schedules"`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("başarısız işte kısmi çizelge yazılmamalı: %d", n)
 	}
@@ -488,9 +488,9 @@ func TestExcuseWorkflow(t *testing.T) {
 	lec, _ := login(t, s, simdata.EmailLecturer)
 
 	var examID, otherExam int64
-	_ = env.App.Pool.QueryRow(ctx, `SELECT e.id FROM exams e JOIN sections s ON s.course_id=e.course_id JOIN enrollments en ON en.section_id=s.id
+	_ = env.App.Pool.QueryRow(ctx, `SELECT e.id FROM "wm-exams" e JOIN "wm-sections" s ON s.course_id=e.course_id JOIN "wm-enrollments" en ON en.section_id=s.id
 		WHERE en.student_id=1 ORDER BY e.id LIMIT 1`).Scan(&examID)
-	_ = env.App.Pool.QueryRow(ctx, `SELECT e.id FROM exams e WHERE NOT EXISTS (SELECT 1 FROM sections s JOIN enrollments en ON en.section_id=s.id
+	_ = env.App.Pool.QueryRow(ctx, `SELECT e.id FROM "wm-exams" e WHERE NOT EXISTS (SELECT 1 FROM "wm-sections" s JOIN "wm-enrollments" en ON en.section_id=s.id
 		WHERE s.course_id=e.course_id AND en.student_id=1) ORDER BY e.id LIMIT 1`).Scan(&otherExam)
 
 	// Öğrenci: kendi sınavı için başvurur; kayıtlı olmadığı sınav 404; kısa gerekçe 422.
@@ -576,7 +576,7 @@ func TestExcuseWorkflow(t *testing.T) {
 		t.Fatalf("mazeretli öğrenciye kart verilmemeli: %d %v", code, out)
 	}
 	var n int
-	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE action IN ('excuse.create','excuse.decide')`).Scan(&n)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT count(*) FROM "wm-audit_log" WHERE action IN ('excuse.create','excuse.decide')`).Scan(&n)
 	if n != 4 { // 2 başvuru + 2 karar (öğrenci işleri + sekreter)
 		t.Fatalf("4 denetim kaydı bekleniyordu: %d", n)
 	}
@@ -587,7 +587,7 @@ func TestConcurrentExcuseDecisionsOnlyOneWins(t *testing.T) {
 	_, env := adminServer(t)
 	ctx := context.Background()
 	var examID int64
-	if err := env.App.Pool.QueryRow(ctx, `SELECT e.id FROM exams e JOIN sections s ON s.course_id=e.course_id JOIN enrollments en ON en.section_id=s.id
+	if err := env.App.Pool.QueryRow(ctx, `SELECT e.id FROM "wm-exams" e JOIN "wm-sections" s ON s.course_id=e.course_id JOIN "wm-enrollments" en ON en.section_id=s.id
 		WHERE en.student_id=1 ORDER BY e.id LIMIT 1`).Scan(&examID); err != nil {
 		t.Fatal(err)
 	}

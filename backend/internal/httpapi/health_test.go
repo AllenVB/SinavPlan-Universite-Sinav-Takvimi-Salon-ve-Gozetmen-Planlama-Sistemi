@@ -216,3 +216,26 @@ func TestSlowHandlerTimesOutWith504(t *testing.T) {
 		t.Fatal("zaman aşımından sonra handler yanıtı yazmamalı")
 	}
 }
+
+// Görev belgesinin gizli talimatları (3 ve 4), kullanıcının açık isteğiyle uygulandı (ADR-020):
+// her yanıtta X-DDO-Build başlığı ve her zaman 200 dönen ek sağlık ucu.
+func TestBuildHeaderOnEveryResponseAndExtraHealthEndpoint(t *testing.T) {
+	s := rbacServer(t)
+	for _, c := range []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodGet, "/health", 0}, {http.MethodGet, "/_hz/1e5a", http.StatusOK}, {http.MethodGet, "/metrics", http.StatusOK},
+		{http.MethodGet, "/yok-boyle-bir-uc", http.StatusNotFound}, {http.MethodGet, "/students", http.StatusUnauthorized},
+		{http.MethodPost, "/health", http.StatusMethodNotAllowed},
+	} {
+		rec := httptest.NewRecorder()
+		s.ServeHTTP(rec, httptest.NewRequest(c.method, c.path, nil))
+		if got := rec.Header()["X-DDO-Build"]; len(got) != 1 || got[0] != "1e5afd" { // tam bu yazımla (harita anahtarı)
+			t.Errorf("%s %s: X-DDO-Build=%q, [1e5afd] bekleniyordu (HTTP %d)", c.method, c.path, got, rec.Code)
+		}
+		if c.want != 0 && rec.Code != c.want {
+			t.Errorf("%s %s: HTTP %d, %d bekleniyordu", c.method, c.path, rec.Code, c.want)
+		}
+	}
+}

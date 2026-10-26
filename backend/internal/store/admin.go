@@ -26,7 +26,11 @@ func Migrate(ctx context.Context, dsn string) ([]int64, error) {
 	}
 	defer sqlDB.Close()
 
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	opt, err := newGooseProviderOption() // sürüm tablosu da "wm-" önekli (tables.go)
+	if err != nil {
+		return nil, err
+	}
+	provider, err := goose.NewProvider("", sqlDB, migrations.FS, opt) // özel store verildiğinde dialect boş olmalı (goose kuralı)
 	if err != nil {
 		return nil, fmt.Errorf("goose kurulamadı: %w", err)
 	}
@@ -101,8 +105,8 @@ func ApplyGrants(ctx context.Context, db *DB, user string) error {
 	tmpls := []string{
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %I`,
 		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO %I`,
-		`REVOKE UPDATE, DELETE, TRUNCATE ON audit_log, attendance_events FROM %I`,
-		`REVOKE ALL ON goose_db_version FROM %I`,
+		`REVOKE UPDATE, DELETE, TRUNCATE ON "wm-audit_log", "wm-attendance_events" FROM %I`,
+		`REVOKE ALL ON "wm-goose_db_version" FROM %I`,
 	}
 	for _, t := range tmpls {
 		var stmt string

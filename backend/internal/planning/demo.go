@@ -35,11 +35,11 @@ const (
 // İdempotenttir (dönemde zaten çizelge varsa dokunmaz).
 func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *slog.Logger) error {
 	var period int64
-	if err := pool.QueryRow(ctx, `SELECT id FROM exam_periods ORDER BY id LIMIT 1`).Scan(&period); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT id FROM "wm-exam_periods" ORDER BY id LIMIT 1`).Scan(&period); err != nil {
 		return fmt.Errorf("dönem: %w", err)
 	}
 	var exists bool
-	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schedules WHERE period_id = $1) OR EXISTS (SELECT 1 FROM courses WHERE code = $2)`,
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-schedules" WHERE period_id = $1) OR EXISTS (SELECT 1 FROM "wm-courses" WHERE code = $2)`,
 		period, DemoCourseCode).Scan(&exists); err != nil {
 		return err
 	}
@@ -52,24 +52,24 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 		err := pool.QueryRow(ctx, q, args...).Scan(&id)
 		return id, err
 	}
-	yzm, err := one(`SELECT id FROM departments WHERE code = 'YZM'`)
+	yzm, err := one(`SELECT id FROM "wm-departments" WHERE code = 'YZM'`)
 	if err != nil {
 		return fmt.Errorf("YZM bölümü: %w", err)
 	}
-	lecturer, err := one(`SELECT l.id FROM lecturers l JOIN users u ON u.id = l.user_id WHERE u.email = $1`, simdata.EmailLecturer)
+	lecturer, err := one(`SELECT l.id FROM "wm-lecturers" l JOIN "wm-uo-users" u ON u.id = l.user_id WHERE u.email = $1`, simdata.EmailLecturer)
 	if err != nil {
 		return fmt.Errorf("demo öğretim üyesi: %w", err)
 	}
-	omer, err := one(`SELECT id FROM users WHERE email = $1`, simdata.EmailInvigilator)
+	omer, err := one(`SELECT id FROM "wm-uo-users" WHERE email = $1`, simdata.EmailInvigilator)
 	if err != nil {
 		return fmt.Errorf("gözetmen: %w", err)
 	}
-	secretary, err := one(`SELECT id FROM users WHERE email = $1`, simdata.EmailSecretary)
+	secretary, err := one(`SELECT id FROM "wm-uo-users" WHERE email = $1`, simdata.EmailSecretary)
 	if err != nil {
 		return fmt.Errorf("sekreter: %w", err)
 	}
-	rows, err := pool.Query(ctx, `SELECT DISTINCT st.id FROM students st
-		JOIN enrollments en ON en.student_id = st.id JOIN sections s ON s.id = en.section_id JOIN courses c ON c.id = s.course_id
+	rows, err := pool.Query(ctx, `SELECT DISTINCT st.id FROM "wm-students" st
+		JOIN "wm-enrollments" en ON en.student_id = st.id JOIN "wm-sections" s ON s.id = en.section_id JOIN "wm-courses" c ON c.id = s.course_id
 		WHERE st.department_id = $1 AND c.department_id = $1 AND c.year = 4 ORDER BY st.id LIMIT $2`, yzm, demoStudents)
 	if err != nil {
 		return err
@@ -94,19 +94,19 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := tx.QueryRow(ctx, `INSERT INTO courses (department_id, code, name, year, requires_lab) VALUES ($1,$2,$3,4,false) RETURNING id`,
+	if err := tx.QueryRow(ctx, `INSERT INTO "wm-courses" (department_id, code, name, year, requires_lab) VALUES ($1,$2,$3,4,false) RETURNING id`,
 		yzm, DemoCourseCode, DemoCourseName).Scan(&course); err != nil {
 		return fmt.Errorf("demo dersi: %w", err)
 	}
-	if err := tx.QueryRow(ctx, `INSERT INTO sections (course_id, code, lecturer_id) VALUES ($1,'A',$2) RETURNING id`, course, lecturer).Scan(&section); err != nil {
+	if err := tx.QueryRow(ctx, `INSERT INTO "wm-sections" (course_id, code, lecturer_id) VALUES ($1,'A',$2) RETURNING id`, course, lecturer).Scan(&section); err != nil {
 		return err
 	}
 	for _, st := range students {
-		if _, err := tx.Exec(ctx, `INSERT INTO enrollments (student_id, section_id) VALUES ($1,$2)`, st, section); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO "wm-enrollments" (student_id, section_id) VALUES ($1,$2)`, st, section); err != nil {
 			return err
 		}
 	}
-	if err := tx.QueryRow(ctx, `INSERT INTO exams (period_id, course_id, duration_minutes, requires_lab) VALUES ($1,$2,90,false) RETURNING id`, period, course).Scan(&exam); err != nil {
+	if err := tx.QueryRow(ctx, `INSERT INTO "wm-exams" (period_id, course_id, duration_minutes, requires_lab) VALUES ($1,$2,90,false) RETURNING id`, period, course).Scan(&exam); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -185,11 +185,11 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 
 	// 4) dönemi kaydır: Prompt Mühendisliği oturumu şimdi başlamış olsun
 	var startsAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT starts_at FROM slots WHERE id = $1`, demoSlotID).Scan(&startsAt); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT starts_at FROM "wm-slots" WHERE id = $1`, demoSlotID).Scan(&startsAt); err != nil {
 		return err
 	}
 	delta := now.Add(-20 * time.Minute).Truncate(time.Minute).Sub(startsAt)
-	if _, err := pool.Exec(ctx, `UPDATE slots SET starts_at = starts_at + $2::interval, ends_at = ends_at + $2::interval WHERE period_id = $1`,
+	if _, err := pool.Exec(ctx, `UPDATE "wm-slots" SET starts_at = starts_at + $2::interval, ends_at = ends_at + $2::interval WHERE period_id = $1`,
 		period, fmt.Sprintf("%d seconds", int64(delta.Seconds()))); err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 	if lerr != nil {
 		istanbul = time.FixedZone("UTC+3", 3*3600)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE exam_periods SET start_date = (SELECT min(starts_at) FROM slots WHERE period_id = $1) AT TIME ZONE $2 WHERE id = $1`,
+	if _, err := pool.Exec(ctx, `UPDATE "wm-exam_periods" SET start_date = (SELECT min(starts_at) FROM "wm-slots" WHERE period_id = $1) AT TIME ZONE $2 WHERE id = $1`,
 		period, istanbul.String()); err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 	// 5) yoklama bir kısmı girilmiş: 36 öğrencide 24 geldi, 3 gelmedi, kalanı işaretsiz (orantılı)
 	// Demo öğrenci hesabı (ogrenci@) işaretsiz bırakılır: QR/kod ile kendini yoklamaya yazmayı deneyebilsin.
 	var demoStudent int64
-	_ = pool.QueryRow(ctx, `SELECT st.id FROM students st JOIN users u ON u.id = st.user_id WHERE u.email = $1`, simdata.EmailStudent).Scan(&demoStudent)
+	_ = pool.QueryRow(ctx, `SELECT st.id FROM "wm-students" st JOIN "wm-uo-users" u ON u.id = st.user_id WHERE u.email = $1`, simdata.EmailStudent).Scan(&demoStudent)
 	others := make([]int64, 0, len(students))
 	for _, st := range students {
 		if st != demoStudent {
@@ -236,8 +236,8 @@ func SeedDemoExam(ctx context.Context, pool *pgxpool.Pool, now time.Time, log *s
 	// Sıkı eşit starts_at kullanılır: demo oturumunun kendisi (yukarıda orantılı girildi) dışarıda kalır.
 	prows, qerr := pool.Query(ctx, `
 		SELECT sa.exam_id, sa.student_id
-		FROM seat_assignments sa
-		JOIN slots sl ON sl.id = sa.slot_id
+		FROM "wm-seat_assignments" sa
+		JOIN "wm-slots" sl ON sl.id = sa.slot_id
 		WHERE sa.schedule_id = $1 AND sa.exam_id <> $2 AND sl.starts_at < $3
 		ORDER BY sa.exam_id, sa.student_id`, sid, exam, startsAt.Add(delta))
 	if qerr != nil {

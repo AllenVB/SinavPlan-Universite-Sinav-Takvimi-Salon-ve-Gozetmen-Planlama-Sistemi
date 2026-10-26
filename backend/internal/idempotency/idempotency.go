@@ -72,7 +72,7 @@ func RequestHash(methodPath string, body []byte) []byte {
 // Begin, anahtarı almaya çalışır.
 func (s *Store) Begin(ctx context.Context, key string, userID int64, methodPath string, reqHash []byte) (Outcome, Stored, error) {
 	tag, err := s.pool.Exec(ctx,
-		`INSERT INTO idempotency_keys (key, user_id, method_path, request_hash)
+		`INSERT INTO "wm-idempotency_keys" (key, user_id, method_path, request_hash)
 		 VALUES ($1, $2, $3, $4) ON CONFLICT (key, user_id) DO NOTHING`,
 		key, userID, methodPath, reqHash)
 	if err != nil {
@@ -90,7 +90,7 @@ func (s *Store) Begin(ctx context.Context, key string, userID int64, methodPath 
 	)
 	err = s.pool.QueryRow(ctx,
 		`SELECT method_path, request_hash, state, status, body
-		 FROM idempotency_keys WHERE key = $1 AND user_id = $2`, key, userID,
+		 FROM "wm-idempotency_keys" WHERE key = $1 AND user_id = $2`, key, userID,
 	).Scan(&storedPath, &storedHash, &state, &status, &body)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Arada ilk istek 5xx alıp anahtarı bıraktı; bir kez daha dene.
@@ -111,14 +111,14 @@ func (s *Store) Begin(ctx context.Context, key string, userID int64, methodPath 
 // Complete, yanıtı saklar.
 func (s *Store) Complete(ctx context.Context, key string, userID int64, status int, body []byte) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE idempotency_keys SET state = 'done', status = $3, body = $4
+		`UPDATE "wm-idempotency_keys" SET state = 'done', status = $3, body = $4
 		 WHERE key = $1 AND user_id = $2`, key, userID, status, body)
 	return err
 }
 
 // Release, anahtarı siler (5xx sonrası yeniden denemeye izin vermek için).
 func (s *Store) Release(ctx context.Context, key string, userID int64) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM idempotency_keys WHERE key = $1 AND user_id = $2`, key, userID)
+	_, err := s.pool.Exec(ctx, `DELETE FROM "wm-idempotency_keys" WHERE key = $1 AND user_id = $2`, key, userID)
 	return err
 }
 

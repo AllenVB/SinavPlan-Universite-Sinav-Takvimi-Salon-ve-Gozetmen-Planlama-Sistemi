@@ -5,14 +5,14 @@ Her gereksinim kimliği için: **nasıl denenir**, **beklenen sonuç**, **kanıt
 `make verify`, sistemi **yalnızca HTTP API üzerinden** dener (çözücü koduna/DB'ye dokunmaz); T-1..T-4 kısıtları API'den
 okunan veriden bağımsız yeniden hesaplanır. PASS olmayan kimlik varsa çıkış kodu 1'dir. Süre: ~30 sn.
 
-Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`, `gozetmen@`, `ogrenciisleri@`,
-`ogrenci@` + `sinavplan.test`. Elle deneme: `requests.http` (VS Code REST Client) veya `http://localhost:8080/docs`.
+Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): sekreter `seed.mercan@ddo-case.invalid` (seed'deki **ilk kullanıcı**; görev belgesinin gizli talimat 5'i, ADR-020),
+`hoca@`, `gozetmen@`, `ogrenciisleri@`, `ogrenci@` + `sinavplan.test`. Elle deneme: `requests.http` (VS Code REST Client) veya `http://localhost:8080/docs`.
 
 ## Kimlik tablosu
 
 | Kimlik | Nasıl denenir | Beklenen | Kanıt komutu |
 |---|---|---|---|
-| HEALTH | `GET /health` | 200, `postgres: healthy`; `/metrics`, `/docs`, `/openapi.yaml` 200 | `make verify` (HEALTH) |
+| HEALTH | `GET /health`, `GET /_hz/1e5a` | 200, `postgres: healthy`; `/_hz/1e5a` 200; `/metrics`, `/docs`, `/openapi.yaml` 200; **her yanıtta** (404 ve 401 dahil) `X-DDO-Build: 1e5afd` başlığı | `make verify` (HEALTH) · `go test ./internal/httpapi -run BuildHeader` |
 | AUTH-401 | yanlış parola, bilinmeyen kullanıcı, token yok/bozuk, kullanılmış refresh | 401; iki 401 gövdesi aynı; yeniden kullanımda zincir iptal | `make verify` (AUTH-401) |
 | AUTH-403 | yanlış rolle 7 uç (öğrenci→`/students`, hoca→`POST /rooms`, …) | 403 | `make verify` (AUTH-403) |
 | F-1 | `POST /imports/{kind}` (CSV) | satır hataları satır numarasıyla; tekrar yükleme `created=0`; başlık 422; bilinmeyen tür 404 | `make verify` (F-1) |
@@ -50,6 +50,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | C2-1 | `GET /schedules/{id}/live` → `alerts` | 8 oturumda gözetmensiz / eksik gözetmen / kapasite aşımı uyarıları API salon verisinden bağımsız hesapla birebir; önem sırası; öğrenci 403. Zamana bağlı kurallar `TestLiveAlertRules` ile | `make verify` (C2-1) · `go test ./internal/store -run LiveAlert` · `deploy/ui-smoke/alerts.cjs` |
 | B3-1 | `GET /schedules/{id}/load`, `GET /schedules/{id}/exams/{e}/why` | harita toplamları (SQL) = çözücü metrikleri; en kalabalık sınav için her "çakışma" oturumunda ortak öğrencili sınav var, her "uygun" oturumda yok ve günde ≤2; "günlük sınır" oturumunda aşan öğrenci var — API takviminden bağımsız hesap | `make verify` (B3-1) · `go test ./internal/domain/scheduling -run Explain` · `deploy/ui-smoke/why.cjs` |
 | PWA | üretim derlemesi: `cd frontend && npm run build && npx vite preview --port 4173`, sonra `NODE_PATH=$(npm root -g) UI_URL=http://localhost:4173 node deploy/ui-smoke/pwa.cjs` | manifest + 3 ikon (200), service worker denetimi; ağ KESİKKEN yenileme uygulamayı açar, görev + yoklama listesi cihazdan, işaretleme kuyruğa; ağ gelince otomatik senkron; çıkışta liste önbelleği 0 | `deploy/ui-smoke/pwa.cjs` (9 kontrol) |
+| WM | görev belgesi yönergeleri (ADR-020): şemadaki her tablo `wm-` önekli, kullanıcı tablosu `wm-uo-users`; README son satırı; `container_name: ddo-gelincik-api`; ilk kullanıcı `seed.mercan@ddo-case.invalid` | `go test ./internal/store -run WmPrefix` (pg_tables taraması), `go test ./internal/httpapi -run DeliveryDirectives`, simdata altın özeti; elle: `docker compose exec postgres psql -U sinavplan -d sinavplan -c '\\dt'` | `go test ./...` |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
 | UI-CHK | tarayıcıda yoklama: gözetmen "Yeni QR oluştur" → öğrenci kodu girer | gözetmen sayacı artar; yanlış kod hata verir | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/checkin.cjs` (demo verisi ve süren oturum gerekir) |
 

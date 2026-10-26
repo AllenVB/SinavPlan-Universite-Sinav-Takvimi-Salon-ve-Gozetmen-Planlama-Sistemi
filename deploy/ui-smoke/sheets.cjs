@@ -10,12 +10,12 @@ const API = process.env.API_URL || 'http://localhost:8080';
   const tok = async (email) => (await (await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Demo!1234' }) })).json()).access_token;
   const login = async (email) => { const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage(); await p.goto(BASE); await p.fill('#email', email); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell'); return p; };
 
-  const p = await login('sekreter@sinavplan.test');
+  const p = await login('seed.mercan@ddo-case.invalid');
   await p.goto(BASE + '/#/salonlar'); await p.click('.tabs button:has-text("Föyler")');
   await p.waitForSelector('[data-testid=sheets] [data-sheet=door] tbody tr', { timeout: 20000 });
   const sched = await p.$eval('select[aria-label="Çizelge sürümü"]', (s) => s.value);
   const slot = await p.$eval('#sh-slot', (s) => s.value); const room = await p.$eval('#sh-room', (s) => s.value);
-  const shares = (await (await fetch(`${API}/schedules/${sched}/rooms?slot_id=${slot}&limit=200`, { headers: { Authorization: 'Bearer ' + await tok('sekreter@sinavplan.test') } })).json()).items.filter((s) => String(s.room_id) === room);
+  const shares = (await (await fetch(`${API}/schedules/${sched}/rooms?slot_id=${slot}&limit=200`, { headers: { Authorization: 'Bearer ' + await tok('seed.mercan@ddo-case.invalid') } })).json()).items.filter((s) => String(s.room_id) === room);
   const want = shares.reduce((a, s) => a + s.students, 0);
   const door = await p.$$eval('[data-sheet=door] tbody tr', (r) => r.length);
   const sign = await p.$$eval('[data-sheet=sign] tbody tr', (r) => r.length);

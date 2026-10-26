@@ -33,7 +33,7 @@ function login(email) {
 }
 
 export function setup() {
-  const sec = login('sekreter@sinavplan.test');
+  const sec = login('seed.mercan@ddo-case.invalid');
   const h = (t) => ({ headers: { Authorization: `Bearer ${t}` } });
   const list = http.get(`${BASE}/schedules?limit=100`, h(sec)).json('items') || [];
   const pub = list.filter((s) => s.status === 'published').sort((a, b) => b.id - a.id)[0];

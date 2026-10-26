@@ -18,7 +18,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     await p.screenshot({ path: './shots/qr-mobile.png', fullPage: true });
   }
   { // X-2/X-4/X-5: takvim ekranı
-    const p = await login('sekreter@sinavplan.test'); await p.goto(BASE + '/#/takvim'); await p.waitForSelector('text=Sınav oturumları');
+    const p = await login('seed.mercan@ddo-case.invalid'); await p.goto(BASE + '/#/takvim'); await p.waitForSelector('text=Sınav oturumları');
     // Faz 16: ders listesi süzgeçleri (fakülte → bölüm → sınıf) tabloyu daraltır
     await p.waitForSelector('[data-testid=exam-table] tbody tr'); const total = await p.$$eval('[data-testid=exam-table] > tbody > tr', (e) => e.length);
     await p.selectOption('select[aria-label=Fakülte]', { label: 'Sağlık Bilimleri Fakültesi' }); await p.selectOption('select[aria-label=Bölüm]', { label: 'Hemşirelik' }); await p.selectOption('select[aria-label=Sınıf]', { label: '4. sınıf' });
@@ -37,11 +37,11 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     await p.screenshot({ path: './shots/takvim-tools.png', fullPage: true });
   }
   { // X-6: panelde etkinlik akışı
-    const p = await login('sekreter@sinavplan.test'); await p.waitForSelector('text=Son olaylar'); await p.waitForTimeout(1500);
+    const p = await login('seed.mercan@ddo-case.invalid'); await p.waitForSelector('text=Son olaylar'); await p.waitForTimeout(1500);
     ok((await p.$$('li:has-text("Takvim")')).length > 0, 'X-6: etkinlik akışında olaylar listelendi');
   }
   { // X-7: editör — denetle (klavye alternatifi) ve ızgara
-    const p = await login('sekreter@sinavplan.test'); await p.goto(BASE + '/#/duzenle'); await p.waitForSelector('[draggable=true]', { timeout: 15000 });
+    const p = await login('seed.mercan@ddo-case.invalid'); await p.goto(BASE + '/#/duzenle'); await p.waitForSelector('[draggable=true]', { timeout: 15000 });
     ok((await p.$$('[draggable=true]')).length > 10, 'X-7: sınav çipleri sürüklenebilir');
     await p.selectOption('#pe', { index: 1 });
     // sınavın zaten bulunduğu oturum seçilirse düğme işlem yapmaz; denetim paneli açılana dek sıradaki oturumu dene

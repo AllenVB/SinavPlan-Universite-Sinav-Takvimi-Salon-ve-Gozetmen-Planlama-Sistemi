@@ -15,7 +15,7 @@ import (
 // (planning) hem seed verisinde hem gerçek veritabanında aynı kodla çalışır.
 func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) (*simdata.Dataset, error) {
 	ds := &simdata.Dataset{}
-	err := pool.QueryRow(ctx, `SELECT id, name, kind, start_date, days, sessions_per_day FROM exam_periods WHERE id = $1`, periodID).
+	err := pool.QueryRow(ctx, `SELECT id, name, kind, start_date, days, sessions_per_day FROM "wm-exam_periods" WHERE id = $1`, periodID).
 		Scan(&ds.Period.ID, &ds.Period.Name, &ds.Period.Kind, &ds.Period.StartDate, &ds.Period.Days, &ds.Period.SessionsPerDay)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -39,7 +39,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 		return rows.Err()
 	}
 
-	if err := each(`SELECT id, code, name FROM faculties ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, code, name FROM "wm-faculties" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var f simdata.Faculty
 		err := r.Scan(&f.ID, &f.Code, &f.Name)
 		ds.Faculties = append(ds.Faculties, f)
@@ -47,7 +47,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, coalesce(faculty_id, 0), code, name FROM departments ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, coalesce(faculty_id, 0), code, name FROM "wm-departments" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var d simdata.Department
 		err := r.Scan(&d.ID, &d.FacultyID, &d.Code, &d.Name)
 		ds.Departments = append(ds.Departments, d)
@@ -56,7 +56,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 		return nil, err
 	}
 	if err := each(`SELECT u.id, u.email, u.full_name, coalesce(array_agg(r.role ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}')
-		FROM users u LEFT JOIN user_roles r ON r.user_id = u.id GROUP BY u.id ORDER BY u.id`, nil, func(r pgx.Rows) error {
+		FROM "wm-uo-users" u LEFT JOIN "wm-user_roles" r ON r.user_id = u.id GROUP BY u.id ORDER BY u.id`, nil, func(r pgx.Rows) error {
 		var u simdata.User
 		err := r.Scan(&u.ID, &u.Email, &u.FullName, &u.Roles)
 		ds.Users = append(ds.Users, u)
@@ -64,7 +64,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, user_id, department_id FROM lecturers ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, user_id, department_id FROM "wm-lecturers" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var l simdata.Lecturer
 		err := r.Scan(&l.ID, &l.UserID, &l.DepartmentID)
 		ds.Lecturers = append(ds.Lecturers, l)
@@ -73,8 +73,8 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 		return nil, err
 	}
 	// Yalnızca bu dönemin sınavlarının dersleri.
-	if err := each(`SELECT c.id, c.department_id, c.code, c.name, c.year, c.requires_lab FROM courses c
-		WHERE c.id IN (SELECT course_id FROM exams WHERE period_id = $1) ORDER BY c.id`, []any{periodID}, func(r pgx.Rows) error {
+	if err := each(`SELECT c.id, c.department_id, c.code, c.name, c.year, c.requires_lab FROM "wm-courses" c
+		WHERE c.id IN (SELECT course_id FROM "wm-exams" WHERE period_id = $1) ORDER BY c.id`, []any{periodID}, func(r pgx.Rows) error {
 		var c simdata.Course
 		var y int16
 		err := r.Scan(&c.ID, &c.DepartmentID, &c.Code, &c.Name, &y, &c.RequiresLab)
@@ -84,8 +84,8 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT s.id, s.course_id, s.code, s.lecturer_id FROM sections s
-		WHERE s.course_id IN (SELECT course_id FROM exams WHERE period_id = $1) ORDER BY s.id`, []any{periodID}, func(r pgx.Rows) error {
+	if err := each(`SELECT s.id, s.course_id, s.code, s.lecturer_id FROM "wm-sections" s
+		WHERE s.course_id IN (SELECT course_id FROM "wm-exams" WHERE period_id = $1) ORDER BY s.id`, []any{periodID}, func(r pgx.Rows) error {
 		var s simdata.Section
 		err := r.Scan(&s.ID, &s.CourseID, &s.Code, &s.LecturerID)
 		ds.Sections = append(ds.Sections, s)
@@ -93,7 +93,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, coalesce(user_id, 0), student_no, full_name, department_id, disability_flag FROM students ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, coalesce(user_id, 0), student_no, full_name, department_id, disability_flag FROM "wm-students" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var s simdata.Student
 		err := r.Scan(&s.ID, &s.UserID, &s.No, &s.FullName, &s.DepartmentID, &s.Disabled)
 		ds.Students = append(ds.Students, s)
@@ -101,8 +101,8 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT en.student_id, en.section_id FROM enrollments en JOIN sections s ON s.id = en.section_id
-		WHERE s.course_id IN (SELECT course_id FROM exams WHERE period_id = $1) ORDER BY 1, 2`, []any{periodID}, func(r pgx.Rows) error {
+	if err := each(`SELECT en.student_id, en.section_id FROM "wm-enrollments" en JOIN "wm-sections" s ON s.id = en.section_id
+		WHERE s.course_id IN (SELECT course_id FROM "wm-exams" WHERE period_id = $1) ORDER BY 1, 2`, []any{periodID}, func(r pgx.Rows) error {
 		var e simdata.Enrollment
 		err := r.Scan(&e.StudentID, &e.SectionID)
 		ds.Enrollments = append(ds.Enrollments, e)
@@ -110,7 +110,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, code, building, floor, type, seat_rows, seat_cols, capacity FROM rooms ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, code, building, floor, type, seat_rows, seat_cols, capacity FROM "wm-rooms" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var x simdata.Room
 		var f, rr, cc int16
 		err := r.Scan(&x.ID, &x.Code, &x.Building, &f, &x.Type, &rr, &cc, &x.Capacity)
@@ -120,7 +120,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, room_id, row_no, col_no, is_active, is_accessible FROM room_seats ORDER BY id`, nil, func(r pgx.Rows) error {
+	if err := each(`SELECT id, room_id, row_no, col_no, is_active, is_accessible FROM "wm-room_seats" ORDER BY id`, nil, func(r pgx.Rows) error {
 		var s simdata.Seat
 		var rr, cc int16
 		err := r.Scan(&s.ID, &s.RoomID, &rr, &cc, &s.Active, &s.Accessible)
@@ -131,7 +131,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 		return nil, err
 	}
 	// Slot sırası: gün, oturum -> indeks = gün*oturum + oturum (planning bu sıraya güvenir).
-	if err := each(`SELECT id, period_id, day_index, session_index, starts_at, ends_at FROM slots WHERE period_id = $1
+	if err := each(`SELECT id, period_id, day_index, session_index, starts_at, ends_at FROM "wm-slots" WHERE period_id = $1
 		ORDER BY day_index, session_index`, []any{periodID}, func(r pgx.Rows) error {
 		var s simdata.Slot
 		var d, se int16
@@ -142,7 +142,7 @@ func LoadDataset(ctx context.Context, pool *pgxpool.Pool, periodID, seed int64) 
 	}); err != nil {
 		return nil, err
 	}
-	if err := each(`SELECT id, period_id, course_id, duration_minutes, requires_lab FROM exams WHERE period_id = $1 ORDER BY id`,
+	if err := each(`SELECT id, period_id, course_id, duration_minutes, requires_lab FROM "wm-exams" WHERE period_id = $1 ORDER BY id`,
 		[]any{periodID}, func(r pgx.Rows) error {
 			var e simdata.Exam
 			var d int16
@@ -168,7 +168,7 @@ func ExcusedSlots(ctx context.Context, pool *pgxpool.Pool, ds *simdata.Dataset) 
 	for i, s := range ds.Slots {
 		idx[s.ID] = i
 	}
-	rows, err := pool.Query(ctx, `SELECT user_id, slot_id FROM excuses WHERE kind = 'invigilator' AND status = 'approved' ORDER BY id`)
+	rows, err := pool.Query(ctx, `SELECT user_id, slot_id FROM "wm-excuses" WHERE kind = 'invigilator' AND status = 'approved' ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}

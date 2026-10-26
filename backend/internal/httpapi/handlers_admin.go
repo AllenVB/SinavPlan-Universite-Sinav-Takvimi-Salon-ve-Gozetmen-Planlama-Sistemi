@@ -349,7 +349,7 @@ func (s *Server) seating(w http.ResponseWriter, r *http.Request) error {
 		allowed := false
 		if p.HasAnyRole(auth.RoleLecturer) && p.LecturerID != 0 {
 			var ok bool
-			if err := s.pool.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM exams e JOIN sections sc ON sc.course_id = e.course_id
+			if err := s.pool.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM "wm-exams" e JOIN "wm-sections" sc ON sc.course_id = e.course_id
 				WHERE e.id = $1 AND sc.lecturer_id = $2)`, exam, p.LecturerID).Scan(&ok); err != nil {
 				return err
 			}
@@ -357,8 +357,8 @@ func (s *Server) seating(w http.ResponseWriter, r *http.Request) error {
 		}
 		if !allowed && p.HasAnyRole(auth.RoleInvigilator) {
 			var ok bool
-			if err := s.pool.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM invigilator_assignments ia
-				JOIN room_assignments ra ON ra.schedule_id = ia.schedule_id AND ra.slot_id = ia.slot_id AND ra.room_id = ia.room_id
+			if err := s.pool.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM "wm-invigilator_assignments" ia
+				JOIN "wm-room_assignments" ra ON ra.schedule_id = ia.schedule_id AND ra.slot_id = ia.slot_id AND ra.room_id = ia.room_id
 				WHERE ia.schedule_id = $1 AND ia.user_id = $2 AND ra.exam_id = $3 AND ($4 = 0 OR ra.room_id = $4))`,
 				id, p.UserID, exam, room).Scan(&ok); err != nil {
 				return err

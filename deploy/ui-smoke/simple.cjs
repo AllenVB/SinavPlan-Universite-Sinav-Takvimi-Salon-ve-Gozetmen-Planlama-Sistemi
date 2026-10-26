@@ -8,8 +8,9 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   let fail = 0; const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) fail++; };
   const login = async (email, vp = { width: 1280, height: 1000 }) => { const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage(); await p.goto(BASE); await p.fill('#email', email); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell'); return p; };
 
+  const mail = (e) => (e === 'sekreter' ? 'seed.mercan@ddo-case.invalid' : `${e}@sinavplan.test`); // sekreter: seed'in ilk kullanıcısı (ADR-020)
   for (const e of ['sekreter', 'hoca', 'gozetmen', 'ogrenciisleri', 'ogrenci']) {
-    const p = await login(`${e}@sinavplan.test`);
+    const p = await login(mail(e));
     const n = await p.$$eval('aside.side nav a', (a) => a.length);
     ok(n <= 7, `20.1: ${e} menüsünde ${n} öğe (≤7)`);
     if (e === 'sekreter') {
@@ -18,7 +19,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
     }
   }
 
-  const s = await login('sekreter@sinavplan.test');
+  const s = await login('seed.mercan@ddo-case.invalid');
   await s.waitForSelector('text=Başlangıç rehberi');
   const steps = await s.$$eval('.guide li', (l) => l.map((x) => x.classList.contains('done')));
   ok(steps.length === 4, `20.2: rehberde 4 adım (✓ durumları: ${steps.map((d) => (d ? '✓' : '○')).join(' ')})`);
@@ -42,7 +43,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   ok(rows > 0 && rows < 301, `20.5: hoca adıyla arama çalışıyor (${rows} satır)`);
   await s.goto(BASE + '/#/duzenle'); await s.waitForSelector('[draggable=true]', { timeout: 15000 }); ok(true, '20.3: eski #/duzenle bağlantısı editörü açıyor');
   await s.goto(BASE + '/#/cakisma'); await s.waitForSelector('text=Çakışmalar'); ok(true, '20.1: eski #/cakisma bağlantısı çakışma sekmesini açıyor');
-  const m = await login('sekreter@sinavplan.test', { width: 390, height: 800 });
+  const m = await login('seed.mercan@ddo-case.invalid', { width: 390, height: 800 });
   ok(!(await m.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), 'mobil 390px: yatay taşma yok (ana panel)');
   await m.goto(BASE + '/#/takvim'); await m.waitForSelector('.tabs'); await m.waitForTimeout(500);
   ok(!(await m.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), 'mobil 390px: takvim sekmeleri taşmıyor');

@@ -11,7 +11,7 @@ import (
 
 func count(t *testing.T, env *testdb.Env) int {
 	var n int
-	if err := env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM audit_log`).Scan(&n); err != nil {
+	if err := env.App.Pool.QueryRow(context.Background(), `SELECT count(*) FROM "wm-audit_log"`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -42,7 +42,7 @@ func TestAuditEntryFollowsTransactionOutcome(t *testing.T) {
 	}
 	var oldV, newV []byte
 	var actor int64
-	_ = env.App.Pool.QueryRow(ctx, `SELECT actor_id, old_value, new_value FROM audit_log`).Scan(&actor, &oldV, &newV)
+	_ = env.App.Pool.QueryRow(ctx, `SELECT actor_id, old_value, new_value FROM "wm-audit_log"`).Scan(&actor, &oldV, &newV)
 	var o, n map[string]string
 	_ = json.Unmarshal(oldV, &o)
 	_ = json.Unmarshal(newV, &n)

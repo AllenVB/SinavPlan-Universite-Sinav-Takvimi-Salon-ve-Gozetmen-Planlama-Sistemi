@@ -46,7 +46,7 @@ func Write(ctx context.Context, tx Execer, e Entry) error {
 		actor = e.ActorID
 	}
 	_, err = tx.Exec(ctx,
-		`INSERT INTO audit_log (actor_id, action, entity, entity_id, old_value, new_value)
+		`INSERT INTO "wm-audit_log" (actor_id, action, entity, entity_id, old_value, new_value)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		actor, e.Action, e.Entity, e.EntityID, oldJSON, newJSON)
 	if err != nil {

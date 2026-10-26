@@ -87,9 +87,9 @@ func SyncAttendance(ctx context.Context, pool *pgxpool.Pool, events []attendance
 	rows, err := pool.Query(ctx, `
 		SELECT DISTINCT e.id, en.student_id
 		FROM unnest($1::bigint[], $2::bigint[]) AS q(exam_id, student_id)
-		JOIN exams e        ON e.id = q.exam_id
-		JOIN sections s     ON s.course_id = e.course_id
-		JOIN enrollments en ON en.section_id = s.id AND en.student_id = q.student_id`, exams, studs)
+		JOIN "wm-exams" e        ON e.id = q.exam_id
+		JOIN "wm-sections" s     ON s.course_id = e.course_id
+		JOIN "wm-enrollments" en ON en.section_id = s.id AND en.student_id = q.student_id`, exams, studs)
 	if err != nil {
 		return res, err
 	}
@@ -131,7 +131,7 @@ func SyncAttendance(ctx context.Context, pool *pgxpool.Pool, events []attendance
 			rec = recordedBy
 		}
 		tag, err := tx.Exec(ctx, `
-			INSERT INTO attendance_events (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
+			INSERT INTO "wm-attendance_events" (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (event_id) DO NOTHING`,
 			e.ID, e.DeviceID, e.ExamID, e.StudentID, e.Status, e.Source, e.HLC.Wall, e.HLC.Counter, rec)
 		if err != nil {
@@ -170,7 +170,7 @@ func resolvePairs(ctx context.Context, tx pgx.Tx, affected map[pair]bool) (int, 
 			return 0, err
 		}
 		rows, err := tx.Query(ctx, `SELECT event_id::text, device_id, status, source, hlc_wall, hlc_counter
-			FROM attendance_events WHERE exam_id = $1 AND student_id = $2`, p.exam, p.student)
+			FROM "wm-attendance_events" WHERE exam_id = $1 AND student_id = $2`, p.exam, p.student)
 		if err != nil {
 			return 0, err
 		}
@@ -193,7 +193,7 @@ func resolvePairs(ctx context.Context, tx pgx.Tx, affected map[pair]bool) (int, 
 		}
 		w := r[0].Winner
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO attendance_state (exam_id, student_id, status, source, device_id, hlc_wall, hlc_counter, event_id, updated_at)
+			INSERT INTO "wm-attendance_state" (exam_id, student_id, status, source, device_id, hlc_wall, hlc_counter, event_id, updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
 			ON CONFLICT (exam_id, student_id) DO UPDATE SET status = EXCLUDED.status, source = EXCLUDED.source,
 				device_id = EXCLUDED.device_id, hlc_wall = EXCLUDED.hlc_wall, hlc_counter = EXCLUDED.hlc_counter,
@@ -202,7 +202,7 @@ func resolvePairs(ctx context.Context, tx pgx.Tx, affected map[pair]bool) (int, 
 			return 0, err
 		}
 		for _, c := range r[0].Conflicts {
-			tag, err := tx.Exec(ctx, `INSERT INTO attendance_conflicts (exam_id, student_id, winner_event_id, loser_event_id, rule)
+			tag, err := tx.Exec(ctx, `INSERT INTO "wm-attendance_conflicts" (exam_id, student_id, winner_event_id, loser_event_id, rule)
 				VALUES ($1,$2,$3,$4,$5) ON CONFLICT (winner_event_id, loser_event_id) DO NOTHING`,
 				p.exam, p.student, c.Winner.ID, c.Loser.ID, c.Rule)
 			if err != nil {
@@ -279,11 +279,11 @@ func (q *QR) Issue(ctx context.Context, pool *pgxpool.Pool, examID, studentID in
 		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `UPDATE qr_tokens SET revoked_at = now()
+	if _, err := tx.Exec(ctx, `UPDATE "wm-qr_tokens" SET revoked_at = now()
 		WHERE exam_id = $1 AND student_id = $2 AND used_at IS NULL AND revoked_at IS NULL`, examID, studentID); err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO qr_tokens (exam_id, student_id, token_hash, expires_at) VALUES ($1,$2,$3,$4)`,
+	if _, err := tx.Exec(ctx, `INSERT INTO "wm-qr_tokens" (exam_id, student_id, token_hash, expires_at) VALUES ($1,$2,$3,$4)`,
 		examID, studentID, tokenHash(token), expires); err != nil {
 		return "", err
 	}
@@ -317,14 +317,14 @@ func (q *QR) Use(ctx context.Context, pool *pgxpool.Pool, token, deviceID string
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var u QRUse
-	err = tx.QueryRow(ctx, `UPDATE qr_tokens SET used_at = now(), used_by_device = $2
+	err = tx.QueryRow(ctx, `UPDATE "wm-qr_tokens" SET used_at = now(), used_by_device = $2
 		WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
 		RETURNING exam_id, student_id`, tokenHash(token), deviceID).Scan(&u.ExamID, &u.StudentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var used, revoked bool
 		var expired bool
 		err2 := tx.QueryRow(ctx, `SELECT used_at IS NOT NULL, revoked_at IS NOT NULL, expires_at <= now()
-			FROM qr_tokens WHERE token_hash = $1`, tokenHash(token)).Scan(&used, &revoked, &expired)
+			FROM "wm-qr_tokens" WHERE token_hash = $1`, tokenHash(token)).Scan(&used, &revoked, &expired)
 		switch {
 		case errors.Is(err2, pgx.ErrNoRows):
 			return QRUse{}, ErrNotFound
@@ -352,7 +352,7 @@ func (q *QR) Use(ctx context.Context, pool *pgxpool.Pool, token, deviceID string
 	if actor != 0 {
 		rec = actor
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO attendance_events (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
+	if _, err := tx.Exec(ctx, `INSERT INTO "wm-attendance_events" (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
 		VALUES ($1,$2,$3,$4,'present','qr',$5,$6,$7)`, u.EventID, deviceID, u.ExamID, u.StudentID, ts.Wall, ts.Counter, rec); err != nil {
 		return QRUse{}, err
 	}

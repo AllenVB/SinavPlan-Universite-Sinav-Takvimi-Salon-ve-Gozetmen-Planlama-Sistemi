@@ -6,9 +6,9 @@ const API = process.env.API_URL || 'http://localhost:8080';
 (async () => {
   const b = await chromium.launch();
   let fail = 0; const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) fail++; };
-  const tok = (await (await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'sekreter@sinavplan.test', password: 'Demo!1234' }) })).json()).access_token;
+  const tok = (await (await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'seed.mercan@ddo-case.invalid', password: 'Demo!1234' }) })).json()).access_token;
   const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
-  await p.goto(BASE); await p.fill('#email', 'sekreter@sinavplan.test'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
+  await p.goto(BASE); await p.fill('#email', 'seed.mercan@ddo-case.invalid'); await p.fill('#pw', 'Demo!1234'); await p.click('button.primary'); await p.waitForSelector('.shell');
   await p.goto(BASE + '/#/canli'); await p.waitForSelector('[data-testid=live-alerts]', { timeout: 20000 });
   const sched = await p.$eval('select[aria-label="Çizelge sürümü"]', (s) => s.value);
   const api = await (await fetch(`${API}/schedules/${sched}/live`, { headers: { Authorization: 'Bearer ' + tok } })).json();

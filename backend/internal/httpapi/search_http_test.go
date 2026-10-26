@@ -20,10 +20,10 @@ func TestSearchAndStudentOverview(t *testing.T) {
 
 	var me, other int64
 	var meNo, meName string
-	if err := env.Owner.Pool.QueryRow(ctx, `SELECT st.id, st.student_no, st.full_name FROM students st JOIN users u ON u.id = st.user_id WHERE u.email = $1`, simdata.EmailStudent).Scan(&me, &meNo, &meName); err != nil {
+	if err := env.Owner.Pool.QueryRow(ctx, `SELECT st.id, st.student_no, st.full_name FROM "wm-students" st JOIN "wm-uo-users" u ON u.id = st.user_id WHERE u.email = $1`, simdata.EmailStudent).Scan(&me, &meNo, &meName); err != nil {
 		t.Fatal(err)
 	}
-	_ = env.Owner.Pool.QueryRow(ctx, `SELECT min(id) FROM students WHERE id <> $1`, me).Scan(&other)
+	_ = env.Owner.Pool.QueryRow(ctx, `SELECT min(id) FROM "wm-students" WHERE id <> $1`, me).Scan(&other)
 
 	find := func(q string) []any {
 		t.Helper()

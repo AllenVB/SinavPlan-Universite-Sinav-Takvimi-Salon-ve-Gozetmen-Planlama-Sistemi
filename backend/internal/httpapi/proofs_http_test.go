@@ -18,7 +18,7 @@ func TestProofsAreIndependentAndCatchRealCorruption(t *testing.T) {
 	stu, _ := login(t, s, simdata.EmailStudent)
 	path := fmt.Sprintf("/schedules/%d/proofs", schedID)
 	counts := func() (n [3]int64) {
-		_ = env.Owner.Pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM schedules), (SELECT count(*) FROM seat_assignments), (SELECT count(*) FROM audit_log)`).Scan(&n[0], &n[1], &n[2])
+		_ = env.Owner.Pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM "wm-schedules"), (SELECT count(*) FROM "wm-seat_assignments"), (SELECT count(*) FROM "wm-audit_log")`).Scan(&n[0], &n[1], &n[2])
 		return
 	}
 	before := counts()
@@ -46,8 +46,8 @@ func TestProofsAreIndependentAndCatchRealCorruption(t *testing.T) {
 	}
 
 	// Gerçek bozulma: erişilebilir OLMAYAN koltuktaki bir öğrenciyi engelli işaretle → T-3c bulmalı.
-	tag, err := env.Owner.Pool.Exec(ctx, `UPDATE students SET disability_flag = true WHERE id = (
-		SELECT a.student_id FROM seat_assignments a JOIN room_seats rs ON rs.id = a.seat_id WHERE a.schedule_id = $1 AND NOT rs.is_accessible ORDER BY a.id LIMIT 1)`, schedID)
+	tag, err := env.Owner.Pool.Exec(ctx, `UPDATE "wm-students" SET disability_flag = true WHERE id = (
+		SELECT a.student_id FROM "wm-seat_assignments" a JOIN "wm-room_seats" rs ON rs.id = a.seat_id WHERE a.schedule_id = $1 AND NOT rs.is_accessible ORDER BY a.id LIMIT 1)`, schedID)
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("bozma: %v %d", err, tag.RowsAffected())
 	}

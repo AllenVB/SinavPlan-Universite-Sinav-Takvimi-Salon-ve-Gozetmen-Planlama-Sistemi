@@ -71,6 +71,9 @@ services:
     restart: "no"
 
   api:
+    # Görev belgesinin 6. gizli talimatı (kullanıcının açık isteğiyle, ADR-020): backend servisinin konteyner adı sabit.
+    # Servis adı `api` kalır (compose içi DNS, `docker compose exec api` değişmez); yalnız konteyner adı sabittir.
+    container_name: ddo-gelincik-api
     build:
       context: ./backend
       args:

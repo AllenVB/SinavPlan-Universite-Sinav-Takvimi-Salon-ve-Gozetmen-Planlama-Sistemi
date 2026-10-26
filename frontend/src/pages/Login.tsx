@@ -4,7 +4,7 @@ import { useAuth } from '../auth'
 import { ErrorBox, Field, Pill, useAction, useAsync } from '../ui'
 
 const DEMO = [
-  ['Bölüm sekreteri', 'sekreter@sinavplan.test'],
+  ['Bölüm sekreteri', 'seed.mercan@ddo-case.invalid'],
   ['Öğretim üyesi', 'hoca@sinavplan.test'],
   ['Gözetmen', 'gozetmen@sinavplan.test'],
   ['Öğrenci işleri', 'ogrenciisleri@sinavplan.test'],

@@ -50,7 +50,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var period int64
-	if err := tx.QueryRow(ctx, `SELECT period_id FROM schedules WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT period_id FROM "wm-schedules" WHERE id = $1 FOR UPDATE`, scheduleID).Scan(&period); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RemoveInvigilatorResult{}, ErrNotFound
 		}
@@ -72,7 +72,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	// Görevler: (slot, salon) -> öğrenci sayısı ve sınavlar.
 	in := invigilation.Input{SessionsPerDay: ds.Period.SessionsPerDay}
 	rows, err := tx.Query(ctx, `SELECT slot_id, room_id, sum(seat_count)::int, array_agg(exam_id ORDER BY exam_id)
-		FROM room_assignments WHERE schedule_id = $1 GROUP BY slot_id, room_id ORDER BY slot_id, room_id`, scheduleID)
+		FROM "wm-room_assignments" WHERE schedule_id = $1 GROUP BY slot_id, room_id ORDER BY slot_id, room_id`, scheduleID)
 	if err != nil {
 		return RemoveInvigilatorResult{}, err
 	}
@@ -126,7 +126,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	}
 
 	var plan invigilation.Plan
-	rows, err = tx.Query(ctx, `SELECT slot_id, room_id, user_id FROM invigilator_assignments WHERE schedule_id = $1`, scheduleID)
+	rows, err = tx.Query(ctx, `SELECT slot_id, room_id, user_id FROM "wm-invigilator_assignments" WHERE schedule_id = $1`, scheduleID)
 	if err != nil {
 		return RemoveInvigilatorResult{}, err
 	}
@@ -158,7 +158,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	}
 	for d := range affected {
 		r := refs[d]
-		if _, err := tx.Exec(ctx, `DELETE FROM invigilator_assignments WHERE schedule_id=$1 AND slot_id=$2 AND room_id=$3`,
+		if _, err := tx.Exec(ctx, `DELETE FROM "wm-invigilator_assignments" WHERE schedule_id=$1 AND slot_id=$2 AND room_id=$3`,
 			scheduleID, r.slotID, r.roomID); err != nil {
 			return RemoveInvigilatorResult{}, err
 		}
@@ -168,7 +168,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 			continue
 		}
 		r := refs[a.DutyID]
-		if _, err := tx.Exec(ctx, `INSERT INTO invigilator_assignments (schedule_id, exam_id, slot_id, room_id, user_id) VALUES ($1,$2,$3,$4,$5)`,
+		if _, err := tx.Exec(ctx, `INSERT INTO "wm-invigilator_assignments" (schedule_id, exam_id, slot_id, room_id, user_id) VALUES ($1,$2,$3,$4,$5)`,
 			scheduleID, r.anchor, r.slotID, r.roomID, a.InvigilatorID); err != nil {
 			return RemoveInvigilatorResult{}, fmt.Errorf("atama yazılamadı: %w", err)
 		}
@@ -196,7 +196,7 @@ func RemoveInvigilator(ctx context.Context, pool *pgxpool.Pool, scheduleID, user
 	for d := range affected {
 		r := refs[d]
 		var di DutyInfo
-		if err := tx.QueryRow(ctx, `SELECT sl.starts_at, ro.code FROM slots sl, rooms ro WHERE sl.id = $1 AND ro.id = $2`, r.slotID, r.roomID).Scan(&di.StartsAt, &di.RoomCode); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT sl.starts_at, ro.code FROM "wm-slots" sl, "wm-rooms" ro WHERE sl.id = $1 AND ro.id = $2`, r.slotID, r.roomID).Scan(&di.StartsAt, &di.RoomCode); err != nil {
 			return RemoveInvigilatorResult{}, err
 		}
 		out.Duties[d] = di
