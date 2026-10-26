@@ -16,7 +16,7 @@ const API = process.env.API_URL || 'http://localhost:8080';
   ok(shown === Math.min(api.alerts.length, 12) + (api.alerts.length > 12 ? 1 : 0), `ekrandaki uyarı ${shown} = API ${api.alerts.length}`);
   const withRoom = api.alerts.find((a) => a.room_code);
   if (withRoom) {
-    await p.click(`[data-testid=live-alerts] button.linkbtn:has-text("${withRoom.room_code}")`); await p.waitForTimeout(400);
+    await p.click(`[data-testid=live-alerts] .alertrow:has-text("${withRoom.room_code}")`); await p.waitForTimeout(400);
     const cards = await p.$$eval('.roomcard h2, .roomcard h3', (h) => h.map((x) => x.textContent));
     ok(cards.length >= 1 && cards.every((c) => c.includes(withRoom.room_code)), `salon koduna tıklama listeyi süzdü (${withRoom.room_code}: ${withRoom.message})`);
   } else ok(true, 'salona bağlı uyarı yok (her şey yolunda)');

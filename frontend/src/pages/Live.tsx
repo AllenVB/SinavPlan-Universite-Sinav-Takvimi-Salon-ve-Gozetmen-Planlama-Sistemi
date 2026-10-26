@@ -56,6 +56,19 @@ export function Live() {
   const buildings = [...new Set(rooms.map((r) => r.building))].sort()
   const shown = useMemo(() => rooms.filter((r) => (!q || `${r.room_code} ${r.building} ${r.exams.map((e) => e.course_code + e.course_name).join(' ')}`.toLowerCase().includes(q.toLowerCase())) && (!building || r.building === building) && (!state || roomState(r)[2] === state)), [rooms, q, building, state])
 
+  // Uyarı/olay satırı → listeyi o salona süz, kartı öne getir ve kısa süre vurgula
+  const focusRoom = (code: string) => {
+    setQ(code); setBuilding(''); setState('')
+    setTimeout(() => {
+      const el = document.getElementById(`room-${code}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.focus({ preventScroll: true })
+      el.classList.add('flashcard')
+      setTimeout(() => el.classList.remove('flashcard'), 2500)
+    }, 60)
+  }
+
   const t = ov.data?.totals
   const pct = t && t.seated ? (t.present / t.seated) * 100 : 0
   const devices = rooms.reduce((a, r) => a + r.devices, 0)
@@ -92,7 +105,7 @@ export function Live() {
             ) : (
               <ul className="alertlist">
                 {ov.data.alerts!.slice(0, 12).map((a, i) => (
-                  <li key={i}><Pill kind={LEVEL[a.level][1]}>{LEVEL[a.level][0]}</Pill> {a.room_code && <button className="linkbtn" onClick={() => setQ(a.room_code)} title="Bu salonu listede göster">{a.room_code}</button>} <span className="small">{a.message}</span></li>
+                  <li key={i}><button className="alertrow" disabled={!a.room_code} onClick={() => focusRoom(a.room_code)} title={a.room_code ? 'Salon kartını göster' : undefined}><Pill kind={LEVEL[a.level][1]}>{LEVEL[a.level][0]}</Pill> {a.room_code && <b className="linkbtn">{a.room_code}</b>} <span className="small">{a.message}</span></button></li>
                 ))}
                 {ov.data.alerts!.length > 12 && <li className="small muted">… {ov.data.alerts!.length - 12} madde daha</li>}
               </ul>
@@ -123,7 +136,7 @@ export function Live() {
                   const [label, tone] = roomState(r)
                   const ago = r.last_event_at ? Math.max(0, Math.round((now - new Date(r.last_event_at).getTime()) / 1000)) : null
                   return (
-                    <section className="card roomcard" key={r.room_id}>
+                    <section className="card roomcard" key={r.room_id} id={`room-${r.room_code}`} tabIndex={-1}>
                       <div className="row between">
                         <div><h2>{r.room_code}</h2><div className="small muted">{r.building} · {r.room_type === 'lab' ? 'Laboratuvar' : 'Derslik'} · kapasite {r.capacity}</div></div>
                         <Status tone={tone}>{label}</Status>
@@ -152,10 +165,12 @@ export function Live() {
                 const tone: Tone = e.status === 'present' ? 'ok' : 'err'
                 const title = e.status === 'present' ? (e.source === 'qr' ? 'QR okutuldu' : 'Elle: geldi') : 'Gelmedi işaretlendi'
                 return (
-                  <li key={e.event_id} className={fresh.has(e.event_id) ? 'new' : ''}>
-                    <Dot tone={tone} />
-                    <span><b>{title}</b><div className="small">{e.full_name} <span className="muted">({e.student_no})</span></div><div className="small muted">{e.course_code}{e.room_code ? ` · ${e.room_code}` : ''} · {e.device_id}</div></span>
-                    <span className="small muted mono">{new Date(e.received_at).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul' })}</span>
+                  <li key={e.event_id} className={`${fresh.has(e.event_id) ? 'new' : ''} feedrow`}>
+                    <button className="feedlink" disabled={!e.room_code} onClick={() => e.room_code && focusRoom(e.room_code)} title={e.room_code ? 'Salon kartını göster' : undefined}>
+                      <Dot tone={tone} />
+                      <span><b>{title}</b><div className="small">{e.full_name} <span className="muted">({e.student_no})</span></div><div className="small muted">{e.course_code}{e.room_code ? ` · ${e.room_code}` : ''} · {e.device_id}</div></span>
+                      <span className="small muted mono">{new Date(e.received_at).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul' })}</span>
+                    </button>
                   </li>
                 )
               })}

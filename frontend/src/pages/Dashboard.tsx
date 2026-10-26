@@ -14,6 +14,11 @@ const LABEL: Record<string, [string, Tone]> = {
   'room.create': ['Salon eklendi', 'info'], 'room.update': ['Salon güncellendi', 'info'], 'room.delete': ['Salon silindi', 'err'],
   'room.change': ['Toplu salon değişikliği (tahliye)', 'err'], 'invigilator.remove': ['Gözetmen çizelgeden çıkarıldı', 'warn'],
 }
+/** Olayın ilgili ekranı: satıra tıklayınca açılır. */
+const actHref = (a: Act) => {
+  const k = a.action.split('.')[0]
+  return `#/${({ schedule: 'takvim', excuse: 'mazeret', room: 'salonlar', invigilator: 'gozetmenler', import: 'ice-aktar' } as Record<string, string>)[k] ?? 'canli'}`
+}
 const actInfo = (a: Act): [string, Tone] => (a.action.startsWith('import.') ? [`Veri içe aktarıldı: ${a.entity_id}`, 'info'] : LABEL[a.action] ?? [a.action, 'info'])
 
 export function Dashboard() {
@@ -152,10 +157,12 @@ export function Dashboard() {
               {feed.data.map((a) => {
                 const [label, tone] = actInfo(a)
                 return (
-                  <li key={a.id} className={fresh.has(a.id) ? 'new' : ''}>
-                    <Dot tone={tone} />
-                    <span><b>{label}</b> <span className="muted small">#{a.entity_id}</span>{a.actor && <div className="small muted">{a.actor}</div>}</span>
-                    <span className="small muted">{fmtDateTime(a.created_at)}</span>
+                  <li key={a.id} className={`${fresh.has(a.id) ? 'new' : ''} feedrow`}>
+                    <a className="feedlink" href={actHref(a)} title="İlgili ekranı aç">
+                      <Dot tone={tone} />
+                      <span><b>{label}</b> <span className="muted small">#{a.entity_id}</span>{a.actor && <div className="small muted">{a.actor}</div>}</span>
+                      <span className="small muted">{fmtDateTime(a.created_at)}</span>
+                    </a>
                   </li>
                 )
               })}

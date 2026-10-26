@@ -183,6 +183,11 @@ tr.tone-err:hover td { background: #ffecea; }
 .feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
 .feed li { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--container); }
 .feed li:last-child { border-bottom: 0; }
+.feed li.feedrow { display: block; padding: 0; }
+.feedlink { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: start; width: 100%; padding: 10px 6px; text-align: left; background: none; border: 0; color: inherit; font: inherit; text-decoration: none; cursor: pointer; border-radius: 8px; }
+.feedlink:hover:not(:disabled) { background: var(--low); }
+.feedlink:disabled { cursor: default; }
+.feedlink .dot { margin-top: 6px; }
 .feed li .dot { margin-top: 6px; }
 .feed li.new { animation: flash 2.5s ease-out; }
 @keyframes flash { from { background: #eef0ff; } to { background: transparent; } }
@@ -300,6 +305,10 @@ tr.tone-info td { background: #f2f5ff; }
 /* Dikkat gerektirenler (Faz 22 C2) */
 .alertlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .alertlist li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.alertrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; text-align: left; background: none; border: 0; padding: 6px; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; }
+.alertrow:hover:not(:disabled) { background: var(--low); }
+.alertrow:disabled { cursor: default; }
+.roomcard.flashcard { outline: 3px solid var(--primary); outline-offset: 2px; transition: outline-color .3s; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
 
 /* Yoğunluk haritası ve "neden burada?" (Faz 22 B3) */
