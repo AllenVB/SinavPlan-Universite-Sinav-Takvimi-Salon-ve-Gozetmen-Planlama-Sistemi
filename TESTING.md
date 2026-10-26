@@ -89,7 +89,7 @@ gösterdi: keyset imleci yalnız `student_id` olduğu için aynı öğrencinin s
 Canlılık ve dinamik QR duman testi (`deploy/ui-smoke/live.cjs`; API'de `QR_TTL=20s` gerekir): salon kartları çizilir, canlı veri 11 sn'de ≥3 kez yenilenir, "Son güncelleme" göstergesi var, QR jetonu kendiliğinden yenilenir ve eskisi 409 olur, tablet kamera akışı (sahte aygıt) açılır. `qr-roundtrip.cjs`: arayüzün ürettiği QR, tabletin kullandığı çözücüyle (jsQR) aynen çözülür (40–260 karakterlik jetonlar). `screens.cjs` README ekran görüntülerini üretir.
 
 Otomatik duman testi (Playwright gerekir): `NODE_PATH=$(npm root -g) UI_URL=http://localhost:3000 node deploy/ui-smoke/pages.cjs` ve `flows.cjs`
-(5 rolün tüm ekranları hatasız açılır; giriş hatası, kart, koltuk haritası, içe aktarma, tablet senkronu). Son koşu (25 Ekim 2026, Vite geliştirme sunucusu + `docker compose` API): `pages` 17/17 ekran, `flows` 8/8, `features` 15/15, `checkin` 6/6, `live` 9/9 (`QR_TTL=20s` ile), `qr-roundtrip` 5/5, `simple` 18/18 (Faz 20). `checkin`/`live` taze seed ister (`make verify` yayındaki çizelgeyi değiştirir → önce `make reset-demo`).
+(5 rolün tüm ekranları hatasız açılır; giriş hatası, kart, koltuk haritası, içe aktarma, tablet senkronu). Son koşu (26 Ekim 2026, temiz kurulum, Vite geliştirme sunucusu + `docker compose` API; `pwa` üretim derlemesinde): checkin 6, tour 10, simple 18, pages 17, flows 8, features 15, fix 4, sheets 9, palette 12, proofs 7, why 6, alerts 2, qr-roundtrip 5, preview 8, live 9 (`QR_TTL=20s`), pwa 9, a11y 23 — **17 betikte 168 kontrol, hepsi PASS**. `checkin`/`live`/`tour` taze seed ister (`make verify` yayındaki çizelgeyi değiştirir → önce `make reset-demo`).
 
 ## Tekrarlanabilirlik ve sınırlar
 

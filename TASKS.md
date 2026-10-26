@@ -277,3 +277,18 @@ A1 → B1 → C1 → A3 → A2 → B2 → C2 → B3 → C3 (zaman kalırsa D). H
 
 **Yarın buradan devam:** C1 (yazdırılabilir föyler) → A3 (Ctrl+K + Öğrenci 360) → A2 (Kanıtlar sayfası) → B2 (ya olursa? önizleme) → C2 (dikkat gerektirenler) → B3 (ısı haritası) → C3 (PWA). Kesme noktası 26 Ekim 15:00; ardından README son kontrol, soğuk kurulum, Doğrulama Soruları.
 Ortamı kaldırma: dockerd + `docker compose up -d --build postgres migrate seed api` + `cd frontend && npx vite --port 3000`; `checkin`/`live`/`tour` için taze seed (`make reset-demo` ya da `down -v`).
+
+
+### Faz 22 tamamlandı — son tam test turu (26 Ekim 2026, ~11:05 TR, temiz kurulumdan)
+| Doğrulama | Sonuç |
+|---|---|
+| `go test -race ./...` | **197 PASS**, 0 FAIL, 1 SKIP (`TestFullScale`, `-race` altında bilinçli) · gofmt/vet temiz |
+| Domain kapsamı | scheduling %94,9 · rooms %99,3 · seating %100 · invigilation %97 · attendance %100 |
+| `make prove-all` | T-1..T-4 SONUÇ: BAŞARILI |
+| `make verify` | **31 satır (32 kimlik)** hepsi PASS, 35 sn — yeni: B1-1, A3-1, A2-1, B2-1, C2-1, B3-1 |
+| UI duman | 17 betik / 168 kontrol PASS (pwa üretim derlemesinde ağ kesilerek, live `QR_TTL=20s`) |
+| Erişilebilirlik | 20 ekran + tur/palet/föy/kanıt/harita açıkken axe ciddi bulgu 0 |
+| docs/screens | 01–17 taze seed ile yenilendi |
+
+Faz 22 sırasında bulunup düzeltilen hatalar: kanıtlar F-3 sonrası eski istatistikle >60 sn (enable_nestloop=off + seed ANALYZE); PWA çıkışta önbellek anahtarı atlanıyordu; "%95+ dolu" uyarısı gürültüydü (kapasite aşımı alarmıyla değiştirildi); öneri motoru "toplam cezayı düşür" modunda çözücü çıktısında hep boştu (öğrenci odaklı moda çevrildi).
+**Kalan (kullanıcı):** Doğrulama Soruları son metni, depoyu public yapıp ankete yükleme (26 Ekim 23:59), Windows soğuk kurulum denemesi.

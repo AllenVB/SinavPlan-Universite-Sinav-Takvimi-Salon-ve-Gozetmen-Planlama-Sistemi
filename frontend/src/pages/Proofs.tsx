@@ -79,7 +79,7 @@ export function Proofs() {
                 <ul className="small" style={{ margin: 0 }}>
                   <li><span className="mono">make verify</span> — 28 kimlik, API üzerinden uçtan uca (PASS/FAIL tablosu)</li>
                   <li><span className="mono">make prove-all</span> — T-1..T-4 tam ölçek kanıtları (300 sınav / 8.000 öğrenci), bozuk plan sayaç sınaması</li>
-                  <li><span className="mono">make test</span> — 190+ otomatik test, yarış dedektörüyle; domain kapsamı ≥ %95</li>
+                  <li><span className="mono">make test</span> — 197 otomatik test, yarış dedektörüyle; domain kapsamı ≥ %94</li>
                 </ul>
               </Card>
             </>
