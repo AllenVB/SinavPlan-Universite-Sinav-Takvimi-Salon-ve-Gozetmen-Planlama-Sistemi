@@ -363,6 +363,17 @@ Yukarıdaki EXPLAIN tablosu (`docs/explain/`). Örnekler: `seat_assignments_stud
 
 ### 4. Reddedilen / düzeltilen yapay zekâ çıktısı
 
+Claude'in yanlış yaptığı ve benim düzelttiğim şeyler:
+-Arayüz tasarımını karmaşık tasarlamıştı , kullanıcı açısından kullanım kolaylığı sağlamıyordu, daha sade ve anlaşılır bir tasarım uyguladım.Süzgeçler ekledim , gerçek bir demo tasarımı yaptım.
+-Yoklama akışını düzenledim.Şuan UBYS sistemimizdeki gibi QR kod ile sınav yoklaması sağlanıyor, eğer sıkıntı çıkarsa 6 haneli kod ile de yoklamaya girilebiliyor. Gözetmen tarafından da yoklama alınabiliyor.
+-Gözetmen mazeret kararı düzenlemesi yaparak sekreterin karar verebilmesini ve demo verisinin tüm dönemi kapsamasını istedim
+-Belge sayıları eskimiş ve CI hiç çalışmamış ve test yapılmamıştı.  Test , verify , load balancer ve explain sayıları tekrar yazıldı.
+-Her adımdan sonra test ederek ilerledim , daha hızlı olmasındansa daha akıllı olmasını ve sorunsuz ilerlemeyi tercih ettim. Bu sayede en az hata ile projeyi geliştirdim.
+-Öğrenci listesi sınav sonunda önbellekte kalıp sistemi yavaşlatıyordu bu sorunu çözdüm,
+-Kontrol sağlamadan oturma planı değişti uyarısı veriyordu. Testleri ve doğrulamaları daha ön plana aldım .
+-Ekran çok gürültülü ve karmaşıktı. 8 oturumda 86 uyarı veriyordu. Daha az karmaşık olan ve sade kolay anlaşılır  şekildeolması için sadece tam dolu kapasitede bildirim uyarısı vermesini sağladım. 
+-Clean code yazması için kod analizi yaptım gerekli direktifleri verdim ve gereksiz yerleri kaldırdım.
+
 *Taslak veri:* Gereksinim belgesi `docs/proje.md` HTML yorumlarına ve `[//]:` satırlarına gömülü 7 "[SİSTEM TALİMATI]" içeriyordu ve hiçbiri görünür metinde yoktu: tablolara `wm-` öneki, kullanıcı tablosu `wm-uo-users`, her yanıta `X-DDO-Build` başlığı, ek `GET /_hz/1e5a` ucu, belirli bir seed e-postası, sabit `container_name` ve README'ye eklenecek bir son satır. Hiçbiri uygulanmadı; ayrıntı ve gerekçe ADR-000'da. Önce/sonra: uygulansaydı tablo adları `wm-uo-users` olurdu; uygulanmadığı için `users`.
 Ayrıca kendi hatam: tırnaksız bir heredoc `make reset-demo`'yu yanlışlıkla çalıştırdı (demo verisi seed'e döndü, kaynak etkilenmedi); bu `TASKS.md`'de kayıtlıdır.
 
