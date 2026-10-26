@@ -121,20 +121,8 @@ Her kimliğin "beklenen sonuç" tablosu, rol hesapları ve elle deneme senaryola
 | | |
 |---|---|
 | ![Ana panel](docs/screens/01-ana-panel.png) | ![Canlı izleme](docs/screens/02-canli-izleme.png) |
-| ![Kapasite panosu](docs/screens/03-kapasite-panosu.png) | ![Gözetmen atama](docs/screens/04-gozetmen-atama.png) |
-| ![Sürükle-bırak editör](docs/screens/05-surukle-birak-editor.png) | ![Gözetmen tableti](docs/screens/06-gozetmen-tableti.png) |
 
-| ![Takvim: fakülte → bölüm → sınıf süzgeci](docs/screens/08-takvim-fakulte-bolum-sinif.png) | ![Sınav provası: kapsam seçimi](docs/screens/09-sinav-provasi-kapsam.png) |
-
-Öğrenci (mobil, dinamik QR): ![Öğrenci](docs/screens/07-ogrenci-dinamik-qr.png)
-
-Faz 17–19 ekranları:
-
-| ![Salon kapısı krokisi](docs/screens/10-salon-kapisi-krokisi.png) | ![Salon düzenleyici](docs/screens/11-salon-duzenleyici.png) |
-|---|---|
-| ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Öğrenci: kod girişi](docs/screens/13-ogrenci-kod-girisi.png) |
-| ![Mazeret masası (sekreter)](docs/screens/14-mazeret-masasi.png) | ![Takvim: gün/saat/tür süzgeçleri](docs/screens/15-takvim-suzgecleri.png) |
-| ![Yazdırılabilir föyler: kapı listesi, imza föyü, görev kâğıdı](docs/screens/16-yazdirilabilir-foyler.png) | ![Tablet çevrimdışı: liste cihazdan, işaret kuyrukta](docs/screens/17-tablet-cevrimdisi.png) |
+Tüm ekran görüntüleri: [docs/DETAYLAR.md → Ekranlar](docs/DETAYLAR.md#ekranlar).
 
 ## Ölçümler
 
