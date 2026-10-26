@@ -43,6 +43,7 @@ Demo hesapları (parola `Demo!1234`, yalnızca yerel demo): `sekreter@`, `hoca@`
 | CHK-RL | 8 hatalı koddan sonra 429; ikinci API örneği de engelli; 5 dk sonra engel kalkar | `TestCheckinCodeGuessingIsRateLimited`, `TestCheckinRateLimitIsSharedAcrossInstances` | `go test ./internal/httpapi -run Checkin` |
 | TUR | üst çubuk → "Tur": 8 adım gerçek ekranları açar; başka rolün adımında "Bu hesapla devam et" | adım 2 `#/takvim?tab=uret`, adım 6'da gözetmene geçip 6/8'den sürer, Esc kapatır, mobilde taşmaz, açıkken a11y 0 | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/tour.cjs` |
 | B1-1 | `GET /schedules/{id}/fix-suggestions?student_id=` (salt-okur) | her öneri API takviminden bağımsız yeniden denetlenir: slot çakışması 0, günde ≤2 sınav, sorunlu öğrencinin hedef günü boş, başlamış oturuma dokunmaz; sürüm sayısı değişmez; öğrenci 403 | `make verify` (B1-1) · `go test ./internal/domain/scheduling -run Suggest` · `deploy/ui-smoke/fix.cjs` |
+| FÖY | Salon ve oturma planı → Föyler → oturum + salon → Yazdır | kapı listesi ve imza föyü satırı = salonda oturan; numaraya göre sıralı; kapılı kroki; baskıda menü/denetimler gizli; PDF ≥3 sayfa; gözetmen yalnız kendi görevleri; a11y 0 | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/sheets.cjs` |
 | X-1 | öğrenci kartı | tarayıcıda gerçek QR (SVG) | `deploy/ui-smoke/features.cjs` |
 | UI-CHK | tarayıcıda yoklama: gözetmen "Yeni QR oluştur" → öğrenci kodu girer | gözetmen sayacı artar; yanlış kod hata verir | `NODE_PATH=$(npm root -g) node deploy/ui-smoke/checkin.cjs` (demo verisi ve süren oturum gerekir) |
 

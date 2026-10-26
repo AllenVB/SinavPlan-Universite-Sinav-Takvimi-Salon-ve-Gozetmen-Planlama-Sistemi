@@ -48,5 +48,7 @@ const BASE = process.env.UI_URL || 'http://localhost:3000';
   await p.goto(BASE + '/#/takvim'); await p.waitForSelector('tbody tr');
   await p.selectOption('select[aria-label="Sınav türü"]', { index: 1 }).catch(() => {}); await p.selectOption('select[aria-label="Saat dilimi"]', { index: 1 }).catch(() => {}); await p.waitForTimeout(500);
   await p.locator('text=Sınav oturumları').first().scrollIntoViewIfNeeded(); await p.screenshot({ path: `${out}/15-takvim-suzgecleri.png` });
+  await p.goto(BASE + '/#/salonlar'); await p.click('.tabs button:has-text("Föyler")'); await p.waitForSelector('[data-sheet=door] tbody tr', { timeout: 20000 });
+  await p.locator('[data-sheet=door]').scrollIntoViewIfNeeded(); await p.waitForTimeout(400); await p.screenshot({ path: `${out}/16-yazdirilabilir-foyler.png` });
   await b.close();
 })();

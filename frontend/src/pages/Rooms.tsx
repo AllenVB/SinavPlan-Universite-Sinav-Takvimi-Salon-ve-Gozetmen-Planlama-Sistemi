@@ -3,15 +3,16 @@ import { all, get, idemKey, post } from '../api'
 import { useAuth } from '../auth'
 import { doorLabel, doorShort, RoomGrid } from '../roomgrid'
 import { RoomEditor } from './RoomEditor'
+import { Sheets } from './Sheets'
 import { Async, Bar, Card, Empty, ErrorBox, Field, Pill, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
 import { examLabel, hasRole, ScheduleSelect, useExamFilter, useExams, useRooms, useSchedules, type Room } from './common'
 
-type Seat = { row: number; col: number; active: boolean; accessible: boolean }
+export type Seat = { row: number; col: number; active: boolean; accessible: boolean }
 type SeatRow = { student_id: number; student_no: string; full_name: string; exam_id: number; room_id: number; seat_row: number; seat_col: number; accessible: boolean; disabled_student: boolean }
 
 const rowLetter = (r: number) => String.fromCharCode(65 + (r % 26))
 
-function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string; doorSide?: string; doorPos?: number }) {
+export function SeatMap({ rows, cols, seats, taken, mine, doorSide, doorPos }: { rows: number; cols: number; seats?: Seat[]; taken?: Map<string, SeatRow>; mine?: string; doorSide?: string; doorPos?: number }) {
   const at = new Map(seats?.map((s) => [`${s.row}:${s.col}`, s]))
   return (
     <RoomGrid rows={rows} cols={cols} doorSide={doorSide} doorPos={doorPos} label={`${rows} sıra, ${cols} sütunlu oturma düzeni`}>
@@ -42,7 +43,7 @@ const Legend = ({ withStudents }: { withStudents?: boolean }) => (
 )
 
 export function Rooms() {
-  const [tab, setTab] = useState<'cap' | 'inv' | 'plan'>('cap')
+  const [tab, setTab] = useState<'cap' | 'inv' | 'plan' | 'sheets'>('cap')
   return (
     <>
       <div className="head">
@@ -50,9 +51,9 @@ export function Rooms() {
           <div className="caps">Derslik ve salon</div>
           <h1>Salon ve oturma planı</h1>
         </div>
-        <Tabs value={tab} onChange={setTab} items={[['cap', 'Kapasite panosu'], ['plan', 'Sınav oturma planı'], ['inv', 'Salon envanteri']]} />
+        <Tabs value={tab} onChange={setTab} items={[['cap', 'Kapasite panosu'], ['plan', 'Sınav oturma planı'], ['sheets', 'Föyler'], ['inv', 'Salon envanteri']]} />
       </div>
-      {tab === 'inv' ? <Inventory /> : tab === 'cap' ? <Capacity /> : <Plan />}
+      {tab === 'inv' ? <Inventory /> : tab === 'cap' ? <Capacity /> : tab === 'sheets' ? <Sheets /> : <Plan />}
     </>
   )
 }

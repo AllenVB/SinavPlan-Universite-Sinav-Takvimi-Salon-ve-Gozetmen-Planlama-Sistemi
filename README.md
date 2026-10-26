@@ -135,6 +135,15 @@ Veri kümesi gerçekçi ve kolay anlaşılır tutuldu: **4 fakülte, 15 bölüm,
 
 Herhangi bir hesapla girip üst çubuktaki **Tur** düğmesine basın. 8 adımlık tur sırasıyla ana paneli, takvim üretimini, oturma planı ve kapı krokisini, adil gözetmen atamasını, canlı sınav izlemeyi, gözetmenin QR/kod ile yoklama açmasını, öğrencinin kodla yoklamaya katılmasını ve mazeret masasını gösterir. Adım başka bir rolün işiyse **"Bu hesapla devam et"** tek tıkla o demo hesabına geçer ve tur kaldığı yerden sürer.
 
+## Sınav günü föyleri (Faz 22 C1)
+
+**Salon ve oturma planı → Föyler** sekmesinde oturum ve salon seçilip **Yazdır / PDF** denir. Her föy ayrı bir A4 sayfasına basılır; sunucuda PDF üretilmez, tarayıcının "PDF olarak kaydet"i kullanılır.
+1. **Salon kapısı listesi:** öğrenci numarasına göre sıralıdır, koltuk ve kapılı salon krokisini içerir. Kapıya asılır, öğrenci yerini bulur.
+2. **Yoklama ve imza föyü:** koltuk sırasına göre dizilir; imza ve geldi/gelmedi kutuları vardır. Ağ yokken de kâğıt yedek olur.
+3. **Gözetmen görev kâğıdı:** sınavlar, öğretim üyesi, süre, gözetmenler, erişilebilir koltuktaki öğrenciler, QR/kod ve tahliye talimatları ve olay tutanağı.
+
+Gözetmen yalnız kendi görevlerinin föylerini alabilir; sunucu da başka salonun oturma listesini vermez. Doğrulama: satır sayısı salonda oturan sayısına eşit, baskıda yalnız föyler kalıyor, PDF her föy için ayrı sayfa (`deploy/ui-smoke/sheets.cjs`).
+
 ## Çakışma çözüm önerisi (Faz 22 B1)
 
 **Mazeret ve çakışma → Çakışmalar** sekmesinde aynı gün iki sınavı olan her öğrencinin yanında **Çöz** düğmesi var. Sistem o öğrencinin sınavlarından birini, öğrencinin başka sınavı olmayan bir güne taşıyan en iyi 3 seçeneği listeler. Seçenekler çakışma, günde en çok 2 sınav ve slot kapasitesi kurallarını bozmaz; başlamış oturumlara dokunmaz. Her seçenek bağımsız doğrulayıcıdan geçer (**İhlal 0**). Tüm öğrencilerin toplam rahatsızlığına etkisi de dürüstçe yazılır; örneğin `+16`, ama aynı gün iki sınavlı öğrenci-gün 1.289 → 1.281. Sekreter **Uygula** deyince yeni bir taslak sürüm oluşur; yayındaki sürüm değişmez.
@@ -169,6 +178,7 @@ Faz 17–19 ekranları:
 |---|---|
 | ![Gözetmen: QR + 6 haneli kod](docs/screens/12-gozetmen-qr-kod.png) | ![Öğrenci: kod girişi](docs/screens/13-ogrenci-kod-girisi.png) |
 | ![Mazeret masası (sekreter)](docs/screens/14-mazeret-masasi.png) | ![Takvim: gün/saat/tür süzgeçleri](docs/screens/15-takvim-suzgecleri.png) |
+| ![Yazdırılabilir föyler: kapı listesi, imza föyü, görev kâğıdı](docs/screens/16-yazdirilabilir-foyler.png) | |
 
 ## Canlı arayüz (Faz 12–15)
 
