@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -217,5 +218,42 @@ func TestCheckinRateLimitIsSharedAcrossInstances(t *testing.T) {
 	}
 	if rows != 1 {
 		t.Fatalf("eski denemeler temizlenmeli, kalan %d (1 beklenir)", rows)
+	}
+}
+
+// Demo yoklama kodu (DEMO_CHECKIN_CODE): açıkken 111111 gözetmen oturumu olmadan öğrenciyi 'geldi' yazar; kapalıyken reddedilir.
+func TestDemoCheckinCode(t *testing.T) {
+	f := checkinFixture(t)
+	rec := httptest.NewRecorder()
+	f.s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/demo/checkin-code", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"code":""`) {
+		t.Fatalf("kapalıyken ipucu boş olmalı: %d %s", rec.Code, rec.Body.String())
+	}
+	if code, _ := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"}); code == http.StatusOK {
+		t.Fatal("demo kodu kapalıyken 111111 kabul edilmemeli")
+	}
+
+	f.s.qr.WithDemoCode("111111")
+	rec = httptest.NewRecorder()
+	f.s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/demo/checkin-code", nil))
+	if !strings.Contains(rec.Body.String(), `"code":"111111"`) {
+		t.Fatalf("açıkken ipucu kodu göstermeli: %s", rec.Body.String())
+	}
+	if code, _ := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "222222"}); code == http.StatusOK {
+		t.Fatal("yanlış kod kabul edildi")
+	}
+	code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"})
+	if code != http.StatusOK || out["method"] != "demo" || out["already_present"] == true {
+		t.Fatalf("demo kodu yoklamaya yazmalı: %d %v", code, out)
+	}
+	var status string
+	if err := f.env.Owner.Pool.QueryRow(context.Background(), `SELECT status FROM "wm-attendance_state" WHERE exam_id = $1 AND student_id = 1`, f.examID).Scan(&status); err != nil || status != "present" {
+		t.Fatalf("durum present olmalı: %q %v", status, err)
+	}
+	if code, out := post(t, f.s, "/me/checkin", f.stu, "", map[string]string{"code": "111111"}); code != http.StatusOK || out["already_present"] != true {
+		t.Fatalf("ikinci giriş idempotent olmalı: %d %v", code, out)
+	}
+	if code, _ := post(t, f.s, "/me/checkin", f.inv, "", map[string]string{"code": "111111"}); code != http.StatusForbidden {
+		t.Fatalf("gözetmen /me/checkin kullanamaz: %d", code)
 	}
 }

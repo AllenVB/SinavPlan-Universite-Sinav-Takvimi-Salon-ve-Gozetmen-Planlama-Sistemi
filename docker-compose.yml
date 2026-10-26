@@ -90,6 +90,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       QR_HMAC_SECRET: ${QR_HMAC_SECRET}
       QR_TTL: ${QR_TTL:-2m}
+      DEMO_CHECKIN_CODE: ${DEMO_CHECKIN_CODE-111111} # demo: öğrenci bu kodu girince 'geldi' yazılır; boş bırakırsanız kapanır
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
       REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL}
       SCHEDULING_DAYS: ${SCHEDULING_DAYS}

@@ -3,6 +3,7 @@ import { all, fmtDateTime, idemKey, post } from '../api'
 import { useAuth } from '../auth'
 import { Icon } from '../icons'
 import { Async, Bar, Card, ErrorBox, Pill, StatCard, Status, useAction, useAsync } from '../ui'
+import { DutyRoster } from './DutyRoster'
 import { hasRole, ScheduleSelect, useSchedules } from './common'
 
 type Duty = { id: number; user_id: number; full_name: string; slot_id: number; day: number; session: number; starts_at: string; room_code: string; building: string; exam_id: number; course_code: string }
@@ -112,6 +113,7 @@ export function Invigilators() {
         </div>
       )}
       {(remove.error || preview.error) && <ErrorBox error={(remove.error ?? preview.error)!} />}
+      <DutyRoster schedule={sch.sel} />
       <Card title="Görev listesi" aside={<input className="input" style={{ width: 260 }} placeholder="Gözetmen, salon veya ders ara…" aria-label="Ara" value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} />}>
         <Async s={duties} empty={(d) => d.length === 0}>
           {() => (

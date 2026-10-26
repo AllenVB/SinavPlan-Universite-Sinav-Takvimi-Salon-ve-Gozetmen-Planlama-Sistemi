@@ -232,12 +232,23 @@ type QR struct {
 	secret []byte
 	mu     sync.Mutex
 	clock  attendance.Clock
+	// demoCode: doluysa bu 6 haneli kod, gözetmen oturumu olmadan öğrenciyi yoklamaya yazar (yalnız demo).
+	demoCode string
 }
 
 // NewQR, verilen HMAC sırrıyla QR yöneticisi kurar.
 func NewQR(secret string) *QR {
 	return &QR{secret: []byte(secret), clock: attendance.Clock{Physical: func() int64 { return time.Now().UnixMilli() }}}
 }
+
+// WithDemoCode demo yoklama kodunu açar (boş = kapalı) ve QR yöneticisini döndürür.
+func (q *QR) WithDemoCode(code string) *QR {
+	q.demoCode = code
+	return q
+}
+
+// DemoCode açık demo kodunu döndürür (kapalıysa boş).
+func (q *QR) DemoCode() string { return q.demoCode }
 
 func (q *QR) sign(body []byte) []byte {
 	m := hmac.New(sha256.New, q.secret)

@@ -4,6 +4,7 @@ import { LiveBadge, useLive } from '../live'
 import { Async, Banner, Card, Dot, Empty, Pill, StackedBars, StatCard, type Tone } from '../ui'
 import { useAsync } from '../ui'
 import { openTour } from '../tour'
+import { DutyRoster } from './DutyRoster'
 import { ScheduleSelect, useExams, useFaculties, useRooms, useSchedules } from './common'
 
 type Act = { id: number; action: string; entity: string; entity_id: string; actor?: string; created_at: string }
@@ -119,6 +120,8 @@ export function Dashboard() {
           )}
         </Async>
       </Card>
+
+      <DutyRoster schedule={sch.sel} compact />
 
       <Card title="Takvim durumu" aside={sch.current && <Pill kind={sch.current.status === 'published' ? 'ok' : 'warn'}><Dot tone={sch.current.status === 'published' ? 'ok' : 'warn'} />{sch.current.status === 'published' ? 'Yayında' : 'Taslak'}</Pill>}>
         <Async s={sch.list} empty={(d) => d.length === 0}>

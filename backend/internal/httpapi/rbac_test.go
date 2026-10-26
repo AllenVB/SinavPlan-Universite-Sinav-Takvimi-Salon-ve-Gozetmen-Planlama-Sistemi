@@ -62,7 +62,7 @@ func TestEveryRouteDeclaresAccess(t *testing.T) {
 // Kamuya açık uçlar bilinçli ve sınırlı bir liste olmalı; yeni bir uç yanlışlıkla
 // Public() ile eklenirse bu test uyarır.
 func TestPublicRoutesAreAnExplicitAllowList(t *testing.T) {
-	allowed := map[string]bool{"GET /health": true, "GET /_hz/1e5a": true, "GET /metrics": true,
+	allowed := map[string]bool{"GET /health": true, "GET /_hz/1e5a": true, "GET /demo/checkin-code": true, "GET /metrics": true,
 		"POST /auth/login": true, "POST /auth/refresh": true, "POST /auth/logout": true,
 		"GET /docs": true, "GET /docs/assets/{file}": true, "GET /openapi.yaml": true}
 	for _, ri := range rbacServer(t).Routes() {

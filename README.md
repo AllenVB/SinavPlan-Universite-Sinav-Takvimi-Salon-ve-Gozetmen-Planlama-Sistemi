@@ -36,6 +36,8 @@ Tablo adları `wm-` önekli, kullanıcı tablosu `wm-uo-users`'tır (görev belg
 | Öğrenci işleri | `ogrenciisleri@sinavplan.test` |
 | Öğrenci | `ogrenci@sinavplan.test` |
 
+**Demo yoklama kodu: `111111`** — öğrenci hesabıyla "Sınava giriş" ekranında bu kodu girince, gözetmen olmadan, yayındaki çizelgede o an en yakın sınavı için yoklamada *geldi* yazılır (ekranda da yayınlanır). `DEMO_CHECKIN_CODE` ile değişir; boş bırakılırsa kapanır (bkz. ADR-021). Gözetmen ekranında "Kod üret" yalnız 6 haneli kod üretir; sekreterin ana panelinde ve Gözetmen atama ekranında "Gözetmen programı" (kim, hangi salon, ne zaman) listelenir.
+
 ### Komutlar
 
 | Komut | Ne yapar |

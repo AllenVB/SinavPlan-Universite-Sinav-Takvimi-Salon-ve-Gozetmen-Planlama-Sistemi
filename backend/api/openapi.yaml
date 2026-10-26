@@ -53,6 +53,14 @@ paths:
       security: []
       responses:
         "200": {description: Süreç yanıt veriyor, content: {application/json: {schema: {type: object, properties: {status: {type: string}}}}}}
+  /demo/checkin-code:
+    get:
+      tags: [Altyapı]
+      summary: Demo yoklama kodu ipucu
+      description: "`DEMO_CHECKIN_CODE` açıksa 6 haneli demo kodu, kapalıysa boş string döner. Öğrenci ekranı kodu buradan gösterir; kod `POST /me/checkin` ile girilince öğrenci yayındaki çizelgede şu ana en yakın sınavına 'geldi' yazılır. Yalnız demo içindir."
+      security: []
+      responses:
+        "200": {description: Demo kodu durumu, content: {application/json: {schema: {type: object, properties: {code: {type: string, example: "111111"}}}}}}
   /metrics:
     get:
       tags: [Altyapı]

@@ -297,3 +297,5 @@ Faz 22 sırasında bulunup düzeltilen hatalar: kanıtlar F-3 sonrası eski ista
 `docs/proje.md`'deki 7 gizli [SİSTEM TALİMATI] yönergesi (ADR-000'da reddedilmişti) uygulandı: `wm-` tablo öneki ve `wm-uo-users` (migrasyon 0008 + tüm ham SQL/sqlc), `X-DDO-Build: 1e5afd` başlığı, `GET /_hz/1e5a`, seed'in ilk kullanıcısı `seed.mercan@ddo-case.invalid` (demo sekreter girişi), `container_name: ddo-gelincik-api`, README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd`.
 **README'ye ekleme yaparken:** son satır her zaman `DDO Case Kodu: MERCAN-1e5afd` kalmalı (`TestDeliveryDirectivesInFiles` denetler). Eski veritabanı hacmi için `docker compose down -v` gerekir.
 
+### Demo yoklama kodu, gözetmen programı, çan düzeltmesi (26 Ekim 2026) — ADR-021
+Öğrenci demo kodu `111111` (`DEMO_CHECKIN_CODE`), gözetmen ekranında "Kod üret" (yalnız 6 haneli kod), sekreter ana paneli + Gözetmen atama ekranında "Gözetmen programı", çan düğmesinin sekmeden bağımsız bekleyen mazeretlere dönmesi. Doğrulama: `go test` (config + httpapi), `deploy/ui-smoke/roster.cjs` PASS. README'nin son satırı `DDO Case Kodu: MERCAN-1e5afd` kalmalı.

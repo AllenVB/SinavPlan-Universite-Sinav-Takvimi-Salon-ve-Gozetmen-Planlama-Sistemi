@@ -134,3 +134,18 @@ func TestLoadHonoursOverrides(t *testing.T) {
 		t.Errorf("SeedValue = %d", cfg.SeedValue)
 	}
 }
+
+func TestLoadValidatesDemoCheckinCode(t *testing.T) {
+	validEnv(t)
+	t.Setenv("DEMO_CHECKIN_CODE", "111111")
+	cfg, err := Load()
+	if err != nil || cfg.DemoCheckinCode != "111111" {
+		t.Fatalf("geçerli demo kodu: %q %v", cfg.DemoCheckinCode, err)
+	}
+	for _, bad := range []string{"12345", "1234567", "abcdef"} {
+		t.Setenv("DEMO_CHECKIN_CODE", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("%q reddedilmeliydi", bad)
+		}
+	}
+}

@@ -88,7 +88,7 @@ func run() error {
 			Registry:       prometheus.NewRegistry(),
 			Pool:           db.Pool,
 			Auth:           authSvc,
-			QR:             store.NewQR(cfg.QRHMACSecret),
+			QR:             store.NewQR(cfg.QRHMACSecret).WithDemoCode(cfg.DemoCheckinCode),
 			QRTTL:          cfg.QRTTL,
 			Runner:         jobs.NewRunner(db.Pool, log),
 			SeatingStrict:  cfg.SeatingStrict,

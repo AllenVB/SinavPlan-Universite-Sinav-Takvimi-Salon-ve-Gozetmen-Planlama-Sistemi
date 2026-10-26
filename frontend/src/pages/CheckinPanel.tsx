@@ -10,10 +10,12 @@ type Duty = { slot_id: number; room_id: number; room_code: string }
 
 const grouped = (c: string) => `${c.slice(0, 3)} ${c.slice(3)}`
 
-/** Gözetmen: "Yeni QR oluştur" → dönen QR + yedek 6 haneli kod. Öğrenci kendi hesabıyla okutur. */
+/** Gözetmen: "Yeni QR oluştur" → dönen QR + yedek 6 haneli kod; "Kod üret" → yalnız 6 haneli kod (QR'sız). Öğrenci kendi hesabıyla okutur/girer. */
 export function CheckinPanel({ duty, onAttendance }: { duty: Duty; onAttendance: () => void }) {
   const [id, setId] = useState<number | null>(null)
-  const start = useAction(async () => {
+  const [codeOnly, setCodeOnly] = useState(false)
+  const start = useAction(async (onlyCode: boolean) => {
+    setCodeOnly(onlyCode)
     const s = await post<Session>('/checkin-sessions', { slot_id: duty.slot_id, room_id: duty.room_id })
     setId(s.id)
     return s
@@ -31,21 +33,24 @@ export function CheckinPanel({ duty, onAttendance }: { duty: Duty; onAttendance:
 
   return (
     <Card title="Yoklama QR'ı (öğrenciler kendi hesabıyla okutur)" aside={id === null || ended ? (
-      <button className="btn primary" disabled={start.busy} onClick={() => void start.run()}><Icon name="qr" size={16} /> {start.busy ? 'Oluşturuluyor…' : 'Yeni QR oluştur'}</button>
+      <div className="row">
+        <button className="btn primary" disabled={start.busy} onClick={() => void start.run(false)}><Icon name="qr" size={16} /> {start.busy ? 'Oluşturuluyor…' : 'Yeni QR oluştur'}</button>
+        <button className="btn" disabled={start.busy} onClick={() => void start.run(true)} data-testid="gen-code">Kod üret (6 haneli)</button>
+      </div>
     ) : (
-      <div className="row"><button className="btn" disabled={start.busy} onClick={() => void start.run()}>QR'ı baştan oluştur</button><button className="btn danger" disabled={close.busy} onClick={() => void close.run()}>Oturumu kapat</button></div>
+      <div className="row"><button className="btn" disabled={start.busy} onClick={() => setCodeOnly(!codeOnly)}>{codeOnly ? 'QR göster' : 'Yalnız kod göster'}</button><button className="btn" disabled={start.busy} onClick={() => void start.run(codeOnly)}>{codeOnly ? 'Kodu baştan oluştur' : 'QR\'ı baştan oluştur'}</button><button className="btn danger" disabled={close.busy} onClick={() => void close.run()}>Oturumu kapat</button></div>
     )}>
-      {id === null && !start.error && <p className="small muted">Sınav başlamadan 30 dk öncesinden bitişinden 15 dk sonrasına kadar açılabilir. "Yeni QR oluştur" der demez salon ekranında QR ve yedek kod görünür; öğrenciler giriş yapıp kendi telefonlarıyla QR'ı okutunca otomatik <b>geldi</b> yazılır.</p>}
-      {start.error && <ErrorBox error={start.error} retry={() => void start.run()} />}
+      {id === null && !start.error && <p className="small muted">Sınav başlamadan 30 dk öncesinden bitişinden 15 dk sonrasına kadar açılabilir. "Yeni QR oluştur" der demez salon ekranında QR ve yedek kod görünür; "Kod üret" yalnız 6 haneli kodu verir (tahtaya yazın, öğrenciler kodu girer); öğrenciler giriş yapıp kendi telefonlarıyla QR'ı okutunca otomatik <b>geldi</b> yazılır.</p>}
+      {start.error && <ErrorBox error={start.error} retry={() => void start.run(codeOnly)} />}
       {ended && <Banner tone="warn" icon="clock" title="Yoklama oturumu sona erdi">Gerekirse "Yeni QR oluştur" ile yenisini açın.</Banner>}
       {id !== null && !ended && s && (
-        <div className="grid g2" style={{ alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }} data-testid="checkin-qr">
+        <div className={codeOnly ? 'grid' : 'grid g2'} style={{ alignItems: 'center' }}>
+          {!codeOnly && <div style={{ textAlign: 'center' }} data-testid="checkin-qr">
             <QR value={s.token} size={260} />
             <p className="small muted" style={{ marginTop: 8 }}>QR her 30 saniyede kendini yeniler; ekran görüntüsü işe yaramaz. <LiveBadge updatedAt={live.updatedAt} error={live.error} /></p>
-          </div>
+          </div>}
           <div>
-            <div className="caps">QR okunamazsa — yedek kod</div>
+            <div className="caps">{codeOnly ? 'Yoklama kodu' : 'QR okunamazsa — yedek kod'}</div>
             <div className="mono" data-testid="checkin-code" style={{ fontSize: '3rem', fontWeight: 700, letterSpacing: '.15em', margin: '6px 0' }}>{grouped(s.code)}</div>
             <p className="small muted">Kodu salona söyleyin veya tahtaya yazın. {new Date(s.code_expires_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })}'e kadar geçerli; yeni kod üretince eskisi geçersiz olur.</p>
             <button className="btn" disabled={rotate.busy} onClick={() => void rotate.run()}><Icon name="refresh" size={16} /> Yeni kod üret</button>

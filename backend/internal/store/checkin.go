@@ -212,6 +212,9 @@ type CheckinResult struct {
 // Kural: oturumun (slot, salon) kapsamında o öğrenciye atanmış bir koltuk olmalı; böylece başka salondaki
 // biri kodu öğrenip yoklamaya yazılamaz. Kod yoluyla `manual`, QR yoluyla `qr` kaynağı yazılır.
 func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID int64, token, code string, now time.Time) (CheckinResult, error) {
+	if code != "" && q.demoCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(q.demoCode)) == 1 {
+		return q.demoCheckIn(ctx, pool, userID, studentID, now)
+	}
 	var sessionID int64
 	method := "qr"
 	if token != "" {
@@ -279,6 +282,15 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 	if err != nil {
 		return CheckinResult{}, err
 	}
+	source := "qr"
+	if method == "code" {
+		source = "manual"
+	}
+	return q.recordPresent(ctx, tx, res, userID, studentID, source, fmt.Sprintf("self-checkin-%d", sessionID))
+}
+
+// recordPresent: mazeret denetimi, zaten-geldi denetimi ve 'present' olayı (+ çakışma çözümü); işlemi kapatır.
+func (q *QR) recordPresent(ctx context.Context, tx pgx.Tx, res CheckinResult, userID, studentID int64, source, device string) (CheckinResult, error) {
 	var excused bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM "wm-excuses" WHERE kind='student' AND student_id=$1 AND exam_id=$2 AND status='approved')`,
 		studentID, res.ExamID).Scan(&excused); err != nil {
@@ -288,7 +300,7 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 		return CheckinResult{}, ErrCheckinExcused
 	}
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status FROM "wm-attendance_state" WHERE exam_id = $1 AND student_id = $2`, res.ExamID, studentID).Scan(&status)
+	err := tx.QueryRow(ctx, `SELECT status FROM "wm-attendance_state" WHERE exam_id = $1 AND student_id = $2`, res.ExamID, studentID).Scan(&status)
 	if err == nil && status == "present" {
 		res.AlreadyMarked = true
 		return res, nil
@@ -304,16 +316,40 @@ func (q *QR) CheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID 
 	if err != nil {
 		return CheckinResult{}, err
 	}
-	source := "qr"
-	if method == "code" {
-		source = "manual"
-	}
 	if _, err := tx.Exec(ctx, `INSERT INTO "wm-attendance_events" (event_id, device_id, exam_id, student_id, status, source, hlc_wall, hlc_counter, recorded_by)
-		VALUES ($1,$2,$3,$4,'present',$5,$6,$7,$8)`, id.String(), fmt.Sprintf("self-checkin-%d", sessionID), res.ExamID, studentID, source, ts.Wall, ts.Counter, userID); err != nil {
+		VALUES ($1,$2,$3,$4,'present',$5,$6,$7,$8)`, id.String(), device, res.ExamID, studentID, source, ts.Wall, ts.Counter, userID); err != nil {
 		return CheckinResult{}, err
 	}
 	if _, err := resolvePairs(ctx, tx, map[pair]bool{{res.ExamID, studentID}: true}); err != nil {
 		return CheckinResult{}, err
 	}
 	return res, tx.Commit(ctx)
+}
+
+// demoCheckIn: DEMO_CHECKIN_CODE (ör. 111111) girilince öğrenci, yayındaki çizelgede şu ana en yakın (mazeretsiz) sınavına
+// 'geldi' yazılır. Yalnızca demo içindir (değişken boşsa kapalı); gözetmen oturumu gerekmez, salon/koltuk denetimi
+// yoktur — bu yüzden gerçek dağıtımlarda ayarlanmamalıdır. Kaynak `manual`, cihaz `demo-code` olarak izlenir.
+func (q *QR) demoCheckIn(ctx context.Context, pool *pgxpool.Pool, userID, studentID int64, now time.Time) (CheckinResult, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return CheckinResult{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	res := CheckinResult{Method: "demo"}
+	err = tx.QueryRow(ctx, `SELECT sa.exam_id, co.code, co.name, r.code
+		FROM "wm-seat_assignments" sa
+		JOIN "wm-schedules" sc ON sc.id = sa.schedule_id AND sc.status = 'published'
+		JOIN "wm-slots" sl ON sl.id = sa.slot_id
+		JOIN "wm-exams" e ON e.id = sa.exam_id JOIN "wm-courses" co ON co.id = e.course_id JOIN "wm-rooms" r ON r.id = sa.room_id
+		WHERE sa.student_id = $1
+		  AND NOT EXISTS (SELECT 1 FROM "wm-excuses" x WHERE x.kind = 'student' AND x.student_id = sa.student_id AND x.exam_id = sa.exam_id AND x.status = 'approved')
+		ORDER BY abs(extract(epoch FROM (sl.starts_at - $2::timestamptz))), sa.exam_id LIMIT 1`, studentID, now).
+		Scan(&res.ExamID, &res.CourseCode, &res.CourseName, &res.RoomCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CheckinResult{}, ErrCheckinNotHere
+	}
+	if err != nil {
+		return CheckinResult{}, err
+	}
+	return q.recordPresent(ctx, tx, res, userID, studentID, "manual", "demo-code")
 }

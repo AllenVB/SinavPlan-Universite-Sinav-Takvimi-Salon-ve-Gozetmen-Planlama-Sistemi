@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { all, get, idemKey, post, fmtDateTime } from '../api'
 import { useAuth } from '../auth'
 import { Async, Card, Empty, ErrorBox, Field, StatCard, Status, Tabs, useAction, useAsync } from '../ui'
@@ -14,15 +14,26 @@ export function Excuses() {
   return hasRole(user!.roles, 'student_affairs') || hasRole(user!.roles, 'secretary') ? <Desk /> : <Mine student={hasRole(user!.roles, 'student')} />
 }
 
+/** Çan düğmesi bu olayı yollar; ExcuseDesk bekleyen mazeretlere döner. */
+export const SHOW_PENDING = 'sinavplan-excuse-pending'
+export const showPendingExcuses = () => dispatchEvent(new Event(SHOW_PENDING))
+
 /** Menü tek öğedir: karar yetkilisi için Mazeretler + Çakışmalar sekmeleri; diğer roller yalnız mazeret ekranını görür. */
 export function ExcuseDesk({ initialTab = 'mazeret' }: { initialTab?: 'mazeret' | 'cakisma' }) {
   const { user } = useAuth()
   const [tab, setTab] = useState(initialTab)
+  const [fresh, setFresh] = useState(0)
+  // Üst çubuktaki çan: hangi sekmede/filtrede olursak olalım "Bekleyen" mazeretlere döner
+  useEffect(() => {
+    const f = () => { setTab('mazeret'); setFresh((x) => x + 1) }
+    addEventListener(SHOW_PENDING, f)
+    return () => removeEventListener(SHOW_PENDING, f)
+  }, [])
   if (!(hasRole(user!.roles, 'student_affairs') || hasRole(user!.roles, 'secretary'))) return <Excuses />
   return (
     <>
       <div className="noprint" style={{ marginBottom: 12 }}><Tabs value={tab} onChange={setTab} items={[['mazeret', 'Mazeretler'], ['cakisma', 'Çakışmalar']]} /></div>
-      {tab === 'mazeret' ? <Excuses /> : <Conflicts />}
+      {tab === 'mazeret' ? <Excuses key={fresh} /> : <Conflicts />}
     </>
   )
 }

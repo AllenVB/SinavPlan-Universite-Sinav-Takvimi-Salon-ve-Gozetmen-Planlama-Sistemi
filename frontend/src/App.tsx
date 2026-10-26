@@ -11,7 +11,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Calendar } from './pages/Calendar'
 import { Rooms } from './pages/Rooms'
 import { Invigilators } from './pages/Invigilators'
-import { ExcuseDesk } from './pages/Excuses'
+import { ExcuseDesk, showPendingExcuses } from './pages/Excuses'
 import { AdminDesk } from './pages/Proofs'
 import { Live } from './pages/Live'
 import { Tablet } from './pages/Tablet'
@@ -109,7 +109,7 @@ function Shell() {
           <div className="topbar-right">
             <LiveBadge updatedAt={health.updatedAt} error={health.error ?? (health.data && health.data.status !== 'healthy' ? ({ status: 503 } as never) : null)} />
             {canPending && (
-              <a className="bellbtn" href="#/mazeret" aria-label={`Bekleyen mazeret: ${pending.data ?? 0}`} title="Bekleyen mazeretler">
+              <a className="bellbtn" href="#/mazeret" onClick={showPendingExcuses} aria-label={`Bekleyen mazeret: ${pending.data ?? 0}`} title="Bekleyen mazeretler">
                 <Icon name="bell" size={18} />
                 {!!pending.data && <span className="count">{pending.data > 99 ? '99+' : pending.data}</span>}
               </a>

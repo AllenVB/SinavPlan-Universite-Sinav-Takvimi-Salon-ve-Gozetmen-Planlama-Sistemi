@@ -125,6 +125,15 @@ func (s *Server) routes(reg *prometheus.Registry) {
 		return nil
 	})
 	// Görev belgesinin 4. gizli talimatı: standart sağlık ucuna ek, her zaman 200 dönen ikinci uç (ADR-020).
+	// Demo ipucu: arayüz, açıksa demo yoklama kodunu öğrenciye gösterir (kapalıysa code boş).
+	s.handle(r, http.MethodGet, "/demo/checkin-code", Public(), func(w http.ResponseWriter, _ *http.Request) error {
+		code := ""
+		if s.qr != nil {
+			code = s.qr.DemoCode()
+		}
+		WriteJSON(w, http.StatusOK, map[string]string{"code": code})
+		return nil
+	})
 	s.handle(r, http.MethodGet, "/_hz/1e5a", Public(), func(w http.ResponseWriter, _ *http.Request) error {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return nil

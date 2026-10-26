@@ -30,6 +30,10 @@ type Config struct {
 
 	SeedValue int64
 
+	// DemoCheckinCode: doluysa (6 haneli) öğrenci bu kodu girince gözetmen oturumu olmadan 'geldi' yazılır.
+	// Yalnız demo içindir; boş = kapalı.
+	DemoCheckinCode string
+
 	// SeatingStrict: T-3'te ön/arka koltuklar da komşu sayılır (varsayılan kapalı).
 	SeatingStrict bool
 }
@@ -84,6 +88,12 @@ func Load() (Config, error) {
 		cfg.SeedValue, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil {
 			problems = append(problems, "SEED tam sayı olmalı")
+		}
+	}
+
+	if cfg.DemoCheckinCode = os.Getenv("DEMO_CHECKIN_CODE"); cfg.DemoCheckinCode != "" {
+		if len(cfg.DemoCheckinCode) != 6 || strings.Trim(cfg.DemoCheckinCode, "0123456789") != "" {
+			problems = append(problems, "DEMO_CHECKIN_CODE boş ya da 6 haneli sayı olmalı")
 		}
 	}
 

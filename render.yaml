@@ -27,6 +27,8 @@ services:
         generateValue: true
       - key: QR_TTL
         value: 2m
+      - key: DEMO_CHECKIN_CODE   # yalnız demo: öğrenci 111111 girince 'geldi' yazılır
+        value: "111111"
       - key: ACCESS_TOKEN_TTL
         value: 15m
       - key: REFRESH_TOKEN_TTL
