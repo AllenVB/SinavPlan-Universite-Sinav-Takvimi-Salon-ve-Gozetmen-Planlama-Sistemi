@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLive } from '../live'
 import { all, get, idemKey, post } from '../api'
 import { useAuth } from '../auth'
 import { doorLabel, doorShort, RoomGrid } from '../roomgrid'
@@ -9,6 +10,8 @@ import { examLabel, hasRole, ScheduleSelect, useExamFilter, useExams, useRooms, 
 
 export type Seat = { row: number; col: number; active: boolean; accessible: boolean }
 type SeatRow = { student_id: number; student_no: string; full_name: string; exam_id: number; room_id: number; seat_row: number; seat_col: number; accessible: boolean; disabled_student: boolean }
+
+type Att = { student_id: number; status: 'present' | 'absent'; source: string; updated_at: string }
 
 const rowLetter = (r: number) => String.fromCharCode(65 + (r % 26))
 
@@ -109,6 +112,8 @@ function Plan() {
   const [exam, setExam] = useState<number | null>(null)
   const ex = exams.data?.find((e) => e.exam_id === exam)
   const seating = useAsync(async () => (sch.sel && exam ? all<SeatRow>(`/schedules/${sch.sel}/seating?exam_id=${exam}`) : null), [sch.sel, exam])
+  // Yoklama durumu (var/yok) 5 sn'de bir tazelenir; kaydı olmayan öğrenci "işaretsiz"dir
+  const att = useLive(async () => new Map((await all<Att>(`/exams/${exam}/attendance`)).map((a) => [a.student_id, a])), [exam], 5000, !!exam)
   const byRoom = useMemo(() => {
     const m = new Map<number, SeatRow[]>()
     seating.data?.forEach((r) => m.set(r.room_id, [...(m.get(r.room_id) ?? []), r]))
@@ -135,8 +140,8 @@ function Plan() {
         <Async s={seating} empty={(d) => d.length === 0}>
           {(rows) => (
             <>
-              <p className="small muted">{rows.length} öğrenci, {byRoom.length} salonda. Aynı sınavın öğrencileri yan yana oturmaz; engelli öğrenciler erişilebilir koltuktadır.</p>
-              {byRoom.map(([rid, list]) => <RoomPlan key={rid} room={rooms.data?.find((r) => r.id === rid)} rows={list} />)}
+              <p className="small muted">{rows.length} öğrenci, {byRoom.length} salonda. Aynı sınavın öğrencileri yan yana oturmaz; engelli öğrenciler erişilebilir koltuktadır. Aşağıda her salonun krokisi ve öğrenci listesi, yoklamadaki durumlarıyla birlikte (geldi / gelmedi / işaretsiz) görünür.</p>
+              {byRoom.map(([rid, list]) => <RoomPlan key={rid} room={rooms.data?.find((r) => r.id === rid)} rows={list} att={att.data} />)}
               {secretary && ex && <Evacuate scheduleId={sch.sel!} slotId={ex.slot_id} from={byRoom.map(([r]) => r)} rooms={rooms.data ?? []} onDone={seating.reload} />}
             </>
           )}
@@ -146,12 +151,33 @@ function Plan() {
   )
 }
 
-function RoomPlan({ room, rows }: { room?: Room; rows: SeatRow[] }) {
+function RoomPlan({ room, rows, att }: { room?: Room; rows: SeatRow[]; att: Map<number, Att> | null }) {
   const seats = useAsync(async () => (room ? ((await get(`/rooms/${room.id}`)).seats as Seat[]) : []), [room?.id])
   const taken = new Map(rows.map((r) => [`${r.seat_row}:${r.seat_col}`, r]))
+  const roster = useMemo(() => [...rows].sort((a, b) => a.seat_row - b.seat_row || a.seat_col - b.seat_col), [rows])
+  const state = (r: SeatRow) => att?.get(r.student_id)?.status ?? 'none'
+  const here = roster.filter((r) => state(r) === 'present').length, gone = roster.filter((r) => state(r) === 'absent').length
   return (
-    <Card title={`${room?.code ?? 'Salon'} · ${room?.building ?? ''}`} aside={<Pill>{rows.length} öğrenci</Pill>}>
+    <Card title={`${room?.code ?? 'Salon'} · ${room?.building ?? ''}`} aside={<div className="row"><Pill kind="ok">{here} geldi</Pill><Pill kind={gone ? 'err' : ''}>{gone} gelmedi</Pill><Pill>{roster.length - here - gone} işaretsiz</Pill></div>}>
       {!room ? <Empty title="Salon bilgisi yok" /> : <Async s={seats}>{(s) => (<><SeatMap rows={room.rows} cols={room.cols} seats={s} taken={taken} doorSide={room.door_side} doorPos={room.door_pos} /><div style={{ marginTop: 10 }}><Legend withStudents /></div></>)}</Async>}
+      <div className="tablewrap" style={{ marginTop: 12, maxHeight: 360, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={`${room?.code ?? 'Salon'} öğrenci listesi`} data-testid="student-roster">
+        <table>
+          <thead><tr><th>Koltuk</th><th>Öğrenci</th><th>No</th><th>Yoklama</th></tr></thead>
+          <tbody>
+            {roster.map((r) => {
+              const a = att?.get(r.student_id)
+              return (
+                <tr key={r.student_id}>
+                  <td><b>{rowLetter(r.seat_row)}{r.seat_col + 1}</b>{r.accessible && <> <Pill kind="info">erişilebilir</Pill></>}</td>
+                  <td>{r.full_name}</td>
+                  <td className="mono small">{r.student_no}</td>
+                  <td>{a ? <Pill kind={a.status === 'present' ? 'ok' : 'err'}>{a.status === 'present' ? `Geldi${a.source === 'qr' ? ' (QR)' : ''}` : 'Gelmedi'}</Pill> : <span className="small muted">İşaretsiz</span>}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </Card>
   )
 }
@@ -199,6 +225,21 @@ function Evacuate({ scheduleId, slotId, from, rooms, onDone }: { scheduleId: num
 type SlotRoom = { room_id: number; room_code: string; room_type: string; building: string; exam_id: number; course_code: string; students: number }
 
 /** Bir oturumdaki salon doluluğu: renkli çubuk (yeşil/sarı/kırmızı) ve atanan sınavlar. */
+/** Kapasite panosunda bir sınava tıklanınca: o salonun krokisi + öğrenci listesi (koltuk, yoklamada geldi/gelmedi/işaretsiz). */
+function ExamRoomDetail({ scheduleId, examId, roomId, title, onClose }: { scheduleId: number; examId: number; roomId: number; title: string; onClose: () => void }) {
+  const rooms = useRooms()
+  const seating = useAsync(async () => (await all<SeatRow>(`/schedules/${scheduleId}/seating?exam_id=${examId}`)).filter((r) => r.room_id === roomId), [scheduleId, examId, roomId])
+  const att = useLive(async () => new Map((await all<Att>(`/exams/${examId}/attendance`)).map((a) => [a.student_id, a])), [examId], 5000)
+  return (
+    <div data-testid="exam-room-detail" id="exam-room-detail" tabIndex={-1}>
+      <div className="row between" style={{ marginBottom: 8 }}><h2 style={{ margin: 0 }}>{title}</h2><button className="btn sm" onClick={onClose} aria-label="Detayı kapat">✕ Kapat</button></div>
+      {seating.error?.status === 403
+        ? <Card><Empty title="Bu sınav sizin göreviniz değil" hint="Gözetmenler yalnızca görevli oldukları salonların öğrenci listesini görebilir. Görevlerinizi Yoklama ekranında bulabilirsiniz." /></Card>
+        : <Async s={seating} empty={(d) => d.length === 0}>{(rows) => <RoomPlan room={rooms.data?.find((r) => r.id === roomId)} rows={rows} att={att.data} />}</Async>}
+    </div>
+  )
+}
+
 function Capacity() {
   const sch = useSchedules()
   const rooms = useRooms()
@@ -207,6 +248,7 @@ function Capacity() {
   const cur = slot || slots.data?.[0]?.id || 0
   const items = useAsync(async () => (sch.sel && cur ? (await get<{ items: SlotRoom[] }>(`/schedules/${sch.sel}/rooms?slot_id=${cur}`)).items : []), [sch.sel, cur])
   const [type, setType] = useState('')
+  const [pick, setPick] = useState<{ exam: number; room: number; title: string } | null>(null)
   const cards = useMemo(() => {
     const m = new Map<number, { room: Room | undefined; list: SlotRoom[]; total: number }>()
     items.data?.forEach((x) => {
@@ -234,13 +276,15 @@ function Capacity() {
         <StatCard icon="seat" tone={tone(capUsed ? (assigned / capUsed) * 100 : 0)} label="Genel doluluk" value={`%${capUsed ? Math.round((assigned / capUsed) * 100) : 0}`} progress={capUsed ? (assigned / capUsed) * 100 : 0} />
         <StatCard icon="alert" tone={critical ? 'err' : 'ok'} label="Kritik doluluk (>%90)" value={critical} note={critical ? 'yoğun salonlar kırmızı' : 'tüm salonlar güvenli'} />
       </div>
+      {pick && sch.sel && <ExamRoomDetail scheduleId={sch.sel} examId={pick.exam} roomId={pick.room} title={pick.title} onClose={() => setPick(null)} />}
+      <p className="small muted noprint">Bir dersin koduna tıklayın: o sınavın salon krokisi ve öğrenci listesi (yoklamada geldi / gelmedi) açılır.</p>
       <Async s={items} empty={() => cards.length === 0}>
         {() => (
           <div className="grid g3">
             {cards.map((c) => (
               <section className="card roomcard" key={c.id}>
                 <div className="row between"><div><h2>{c.room?.code ?? `#${c.id}`}</h2><div className="small muted">{c.room?.building} · {c.room?.type === 'lab' ? 'Laboratuvar' : 'Derslik'}</div></div><Status tone={tone(c.pct)}>%{Math.round(c.pct)} dolu</Status></div>
-                <div className="small">{c.list.map((x) => <div key={x.exam_id}><b>{x.course_code}</b> <span className="muted">({x.students} öğrenci)</span></div>)}</div>
+                <div className="small">{c.list.map((x) => <div key={x.exam_id}><button className="linkbtn" aria-pressed={pick?.exam === x.exam_id && pick.room === c.id} onClick={() => { setPick({ exam: x.exam_id, room: c.id, title: `${x.course_code} · ${c.room?.code ?? c.id}` }); setTimeout(() => document.getElementById('exam-room-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80) }} title="Salon krokisi ve öğrenci listesini aç">{x.course_code}</button> <span className="muted">({x.students} öğrenci)</span></div>)}</div>
                 <Bar pct={c.pct} label={`${c.room?.code ?? c.id} doluluk`} />
                 <div className="meta"><div><b>{c.room?.capacity ?? '—'}</b><span className="small muted">Kapasite</span></div><div><b>{c.total}</b><span className="small muted">Atanan</span></div><div><b>{(c.room?.capacity ?? 0) - c.total}</b><span className="small muted">Boş</span></div></div>
               </section>
