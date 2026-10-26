@@ -278,10 +278,12 @@ Login ekranında giriş yapmak istediğiniz kullanıcıya tıklayınca otomatik 
 
 ## Bilinen sınırlar ve yapılmayanlar
 
-- **ÖBS entegrasyonu yapılmadı:** üniversitenin ÖBS'si harici bir sistem; erişimi/protokolü yok ve sahte bir "canlı bağlantı" göstermek yanıltıcı olurdu. ÖBS'den alınan dışa aktarım CSV ile F-1 içe aktarma uçlarından (öğrenci/ders/şube/kayıt) sisteme girer.
-- **Arayüz** birim testsiz; Playwright duman testleri var (`deploy/ui-smoke/`). Tasarımlardaki yazdırma, PDF için tarayıcının "PDF olarak kaydet"i kullanılır (sunucuda PDF üretilmez). Sürükle-bırak editör bir sınavı taşır ve **yeni taslak sürüm** üretir; tam yeniden kurulum tam ölçekte ~birkaç sn sürer.
-- Bu ortamda `docker compose build frontend` ilk denemede ağ yüzünden çalışmamıştı; kullanıcı makinesinde derleme başarıyla tamamlandı (kullanıcı çıktısı).
-- **Doğrulanmadı:** Windows'ta çalıştırma (CI Linux'ta yeşil: test, lint, frontend, docker).
-- **testcontainers-go** yerine `TEST_DATABASE_URL` + test başına geçici veritabanı kullanıldı (ADR-010).
+UBYS entegrasyonu yapılmadı, bunun nedeni kısıtlı zaman olması.Bu yüzden sahte canlı bağlantı olmasın diye öğrenci yoklamalarındaki qr ve kod sistemi düzgün çalışmıyor.
+
+Tasarımlardaki yazdırma, PDF için tarayıcının "PDF olarak kaydet"i kullanıldı (sunucuda PDF üretilmez). Sürükle-bırak editör bir sınavı taşır ve yeni taslak sürüm üretir; tam yeniden kurulum tam ölçekte birkaç sn sürer.
+
+* Doğrulanmadı: Windows'ta çalıştırma (CI Linux'ta yeşil: test, lint, frontend, docker).
+* testcontainers-go yerine `TEST_DATABASE_URL` + test başına geçici veritabanı kullanıldı (ADR-010).
+
 
 DDO Case Kodu: MERCAN-1e5afd
